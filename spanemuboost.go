@@ -299,7 +299,9 @@ func bootstrap(ctx context.Context, opts *emulatorOptions, clientOpts ...option.
 	return nil
 }
 
-func NewClients(ctx context.Context, options ...Option) (emulator *gcloud.GCloudContainer, clients *Clients, teardown func(), err error) {
+// NewEmulatorWithClients initializes Cloud Spanner Emulator with Spanner clients.
+// The emulator and clients are closed when teardown is called. You should call it.
+func NewEmulatorWithClients(ctx context.Context, options ...Option) (emulator *gcloud.GCloudContainer, clients *Clients, teardown func(), err error) {
 	opts, err := applyOptions(options...)
 	if err != nil {
 		return nil, nil, nil, err
@@ -309,26 +311,27 @@ func NewClients(ctx context.Context, options ...Option) (emulator *gcloud.GCloud
 }
 
 func newClients(ctx context.Context, opts *emulatorOptions) (emulator *gcloud.GCloudContainer, clients *Clients, teardown func(), err error) {
-	emulator, teardown, err = newEmulator(ctx, opts)
+	emulator, emulatorTeardown, err := newEmulator(ctx, opts)
 	if err != nil {
 		return nil, nil, nil, err
 	}
 
-	clientOpts := defaultClientOpts(emulator)
+	teardown = emulatorTeardown
 
+	clientOpts := defaultClientOpts(emulator)
 	instanceCli, err := instance.NewInstanceAdminClient(ctx, clientOpts...)
 	if err != nil {
 		teardown()
 		return nil, nil, nil, err
 	}
 
-	teardown = func() {
-		teardown := teardown
+	instanceCliTeardown := func() {
 		if err := instanceCli.Close(); err != nil {
 			log.Printf("failed to instanceAdminClient.Close(): %v", err)
 		}
-		teardown()
+		emulatorTeardown()
 	}
+	teardown = instanceCliTeardown
 
 	dbCli, err := database.NewDatabaseAdminClient(ctx, clientOpts...)
 	if err != nil {
@@ -336,13 +339,13 @@ func newClients(ctx context.Context, opts *emulatorOptions) (emulator *gcloud.GC
 		return nil, nil, nil, err
 	}
 
-	teardown = func() {
-		teardown := teardown
+	dbCliTeardown := func() {
 		if err := dbCli.Close(); err != nil {
 			log.Printf("failed to databaseAdminClient.Close(): %v", err)
 		}
-		teardown()
+		instanceCliTeardown()
 	}
+	teardown = dbCliTeardown
 
 	client, err := spanner.NewClient(ctx, opts.DatabasePath(), clientOpts...)
 	if err != nil {
@@ -350,11 +353,11 @@ func newClients(ctx context.Context, opts *emulatorOptions) (emulator *gcloud.GC
 		return nil, nil, nil, err
 	}
 
-	teardown = func() {
-		teardown := teardown
+	clientTeardown := func() {
 		client.Close()
-		teardown()
+		dbCliTeardown()
 	}
+	teardown = clientTeardown
 
 	return emulator, &Clients{
 		InstanceClient: instanceCli,
