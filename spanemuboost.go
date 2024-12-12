@@ -243,9 +243,7 @@ func executeDMLs(ctx context.Context, opts *emulatorOptions, clientOpts ...optio
 
 	_, err = client.ReadWriteTransaction(ctx, func(ctx context.Context, txn *spanner.ReadWriteTransaction) error {
 		_, err = txn.BatchUpdate(ctx, opts.setupDMLs)
-		if err != nil {
-		}
-		return nil
+		return err
 	})
 	if err != nil {
 		return fmt.Errorf("failed to apply DML, err:%w", err)
