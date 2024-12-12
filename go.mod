@@ -4,7 +4,7 @@ go 1.23
 
 require (
 	cloud.google.com/go/spanner v1.73.0
-	github.com/apstndb/lox v0.0.0-20241102092239-40172f618f5c
+	github.com/apstndb/lox v0.0.0-20241212132733-62f24606dc82
 	github.com/samber/lo v1.47.0
 	github.com/testcontainers/testcontainers-go v0.34.0
 	github.com/testcontainers/testcontainers-go/modules/gcloud v0.34.0
@@ -82,5 +82,3 @@ require (
 	google.golang.org/protobuf v1.35.2 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
-
-replace github.com/apstndb/lox => ../lox

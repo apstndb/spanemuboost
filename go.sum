@@ -42,6 +42,8 @@ github.com/apache/arrow/go/v15 v15.0.2 h1:60IliRbiyTWCWjERBCkO1W4Qun9svcYoZrSLcy
 github.com/apache/arrow/go/v15 v15.0.2/go.mod h1:DGXsR3ajT524njufqf95822i+KTh+yea1jass9YXgjA=
 github.com/apstndb/lox v0.0.0-20241102092239-40172f618f5c h1:qY6RWLulQDcbGy18LT36m2IweZ5VI5tdwMuhtBwZGvI=
 github.com/apstndb/lox v0.0.0-20241102092239-40172f618f5c/go.mod h1:PbqzTjsPq7Xhn8D7Vk8g/em15kd8vvEL1Y2xkI9CgGs=
+github.com/apstndb/lox v0.0.0-20241212132733-62f24606dc82 h1:l54uIOgcH4r0lTg8xKRhehV71v8m4J+76zpjTGcRqsY=
+github.com/apstndb/lox v0.0.0-20241212132733-62f24606dc82/go.mod h1:PbqzTjsPq7Xhn8D7Vk8g/em15kd8vvEL1Y2xkI9CgGs=
 github.com/cenkalti/backoff/v4 v4.2.1 h1:y4OZtCnogmCPw98Zjyt5a6+QwPLGkiQsYW5oUqylYbM=
 github.com/cenkalti/backoff/v4 v4.2.1/go.mod h1:Y3VNntkOUPxTVeUxJ/G5vcM//AlwfmyYozVcomhLiZE=
 github.com/census-instrumentation/opencensus-proto v0.4.1 h1:iKLQ0xPNFxR/2hzXZMrBo8f1j86j5WHzznCCQxV/b8g=
