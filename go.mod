@@ -4,6 +4,7 @@ go 1.23
 
 require (
 	cloud.google.com/go/spanner v1.73.0
+	github.com/google/go-cmp v0.6.0
 	github.com/testcontainers/testcontainers-go v0.34.0
 	github.com/testcontainers/testcontainers-go/modules/gcloud v0.34.0
 	google.golang.org/api v0.211.0
