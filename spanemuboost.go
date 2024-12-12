@@ -41,27 +41,40 @@ type emulatorOptions struct {
 
 type Option func(*emulatorOptions) error
 
+// WithProjectID configures the project ID.
+// Empty string will be ignored.
 func WithProjectID(projectID string) Option {
 	return func(opts *emulatorOptions) error {
-		opts.projectID = projectID
+		if projectID != "" {
+			opts.projectID = projectID
+		}
 		return nil
 	}
 }
 
+// WithInstanceID configures the instance ID.
+// Empty string will be ignored.
 func WithInstanceID(instanceID string) Option {
 	return func(opts *emulatorOptions) error {
-		opts.instanceID = instanceID
+		if instanceID != "" {
+			opts.instanceID = instanceID
+		}
 		return nil
 	}
 }
 
+// WithDatabaseID configures the database ID.
+// Empty string will be ignored.
 func WithDatabaseID(databaseID string) Option {
 	return func(opts *emulatorOptions) error {
-		opts.databaseID = databaseID
+		if databaseID != "" {
+			opts.databaseID = databaseID
+		}
 		return nil
 	}
 }
 
+// WithDatabaseDialect configures the database dialect.
 func WithDatabaseDialect(dialect databasepb.DatabaseDialect) Option {
 	return func(opts *emulatorOptions) error {
 		opts.databaseDialect = dialect
@@ -69,13 +82,18 @@ func WithDatabaseDialect(dialect databasepb.DatabaseDialect) Option {
 	}
 }
 
+// WithEmulatorImage configures the Spanner Emulator container image.
+// Empty string will be ignored.
 func WithEmulatorImage(image string) Option {
 	return func(opts *emulatorOptions) error {
-		opts.emulatorImage = image
+		if image != "" {
+			opts.emulatorImage = image
+		}
 		return nil
 	}
 }
 
+// WithSetupDDLs sets DDLs to be executed.
 func WithSetupDDLs(ddls []string) Option {
 	return func(opts *emulatorOptions) error {
 		opts.setupDDLs = ddls
@@ -83,6 +101,7 @@ func WithSetupDDLs(ddls []string) Option {
 	}
 }
 
+// WithSetupRawDMLs sets string DMLs to be executed.
 func WithSetupRawDMLs(rawDMLs []string) Option {
 	return func(opts *emulatorOptions) error {
 		dmlStmts := make([]spanner.Statement, 0, len(rawDMLs))
@@ -95,6 +114,7 @@ func WithSetupRawDMLs(rawDMLs []string) Option {
 	}
 }
 
+// WithSetupDMLs sets DMLs in spanner.Statement to be executed.
 func WithSetupDMLs(dmls []spanner.Statement) Option {
 	return func(opts *emulatorOptions) error {
 		opts.setupDMLs = dmls
@@ -102,9 +122,18 @@ func WithSetupDMLs(dmls []spanner.Statement) Option {
 	}
 }
 
-func DisableAutoConfig(opts *emulatorOptions) Option {
+// DisableAutoConfig disables auto config.(default enable)
+func DisableAutoConfig() Option {
 	return func(opts *emulatorOptions) error {
 		opts.disableAutoConfig = true
+		return nil
+	}
+}
+
+// EnableAutoConfig enables auto config.(default enable)
+func EnableAutoConfig() Option {
+	return func(opts *emulatorOptions) error {
+		opts.disableAutoConfig = false
 		return nil
 	}
 }
@@ -146,6 +175,8 @@ func applyOptions(options ...Option) (*emulatorOptions, error) {
 	return opts, nil
 }
 
+// NewEmulator initializes Cloud Spanner Emulator.
+// The emulator will be closed when teardown is called. You should call it.
 func NewEmulator(ctx context.Context, options ...Option) (container *gcloud.GCloudContainer, teardown func(), err error) {
 	opts, err := applyOptions(options...)
 	if err != nil {
@@ -300,7 +331,7 @@ func bootstrap(ctx context.Context, opts *emulatorOptions, clientOpts ...option.
 }
 
 // NewEmulatorWithClients initializes Cloud Spanner Emulator with Spanner clients.
-// The emulator and clients are closed when teardown is called. You should call it.
+// The emulator and clients will be closed when teardown is called. You should call it.
 func NewEmulatorWithClients(ctx context.Context, options ...Option) (emulator *gcloud.GCloudContainer, clients *Clients, teardown func(), err error) {
 	opts, err := applyOptions(options...)
 	if err != nil {
