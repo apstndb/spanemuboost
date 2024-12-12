@@ -370,6 +370,7 @@ func defaultClientOpts(emulator *gcloud.GCloudContainer) []option.ClientOption {
 	return []option.ClientOption{
 		option.WithEndpoint(emulator.URI),
 		option.WithGRPCDialOption(grpc.WithTransportCredentials(insecure.NewCredentials())),
+		option.WithoutAuthentication(),
 	}
 }
 
