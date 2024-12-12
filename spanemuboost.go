@@ -1,26 +1,20 @@
 package spanemuboost
 
 import (
-	"cloud.google.com/go/spanner"
 	"context"
 	"fmt"
 	"log"
-)
 
-import (
-	"github.com/apstndb/lox"
-	"github.com/testcontainers/testcontainers-go"
-
+	"cloud.google.com/go/spanner"
 	database "cloud.google.com/go/spanner/admin/database/apiv1"
 	"cloud.google.com/go/spanner/admin/database/apiv1/databasepb"
 	instance "cloud.google.com/go/spanner/admin/instance/apiv1"
 	"cloud.google.com/go/spanner/admin/instance/apiv1/instancepb"
+	"github.com/testcontainers/testcontainers-go"
+	"github.com/testcontainers/testcontainers-go/modules/gcloud"
 	"google.golang.org/api/option"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
-
-	"github.com/samber/lo"
-	"github.com/testcontainers/testcontainers-go/modules/gcloud"
 )
 
 type noopLogger struct{}
@@ -29,7 +23,12 @@ type noopLogger struct{}
 func (n noopLogger) Printf(string, ...interface{}) {
 }
 
-const DefaultEmulatorImage = "gcr.io/cloud-spanner-emulator/emulator:1.5.25"
+const (
+	DefaultEmulatorImage = "gcr.io/cloud-spanner-emulator/emulator:1.5.25"
+	DefaultProjectID     = "emulator-project"
+	DefaultInstanceID    = "emulator-instance"
+	DefaultDatabaseID    = "emulator-database"
+)
 
 type emulatorOptions struct {
 	EmulatorImage                     string
@@ -101,14 +100,22 @@ type Clients struct {
 }
 
 func applyOptions(options ...Option) (*emulatorOptions, error) {
-	var opts emulatorOptions
+	opts := &emulatorOptions{
+		EmulatorImage:     DefaultEmulatorImage,
+		ProjectID:         DefaultProjectID,
+		InstanceID:        DefaultInstanceID,
+		DatabaseID:        DefaultDatabaseID,
+		DisableAutoConfig: false,
+		DatabaseDialect:   databasepb.DatabaseDialect_DATABASE_DIALECT_UNSPECIFIED,
+	}
+
 	for _, opt := range options {
-		if err := opt(&opts); err != nil {
+		if err := opt(opts); err != nil {
 			return nil, err
 		}
 	}
 
-	return &opts, nil
+	return opts, nil
 }
 
 func NewEmulator(ctx context.Context, options ...Option) (container *gcloud.GCloudContainer, teardown func(), err error) {
@@ -122,7 +129,11 @@ func NewEmulator(ctx context.Context, options ...Option) (container *gcloud.GClo
 func newEmulator(ctx context.Context, opts *emulatorOptions) (container *gcloud.GCloudContainer, teardown func(), err error) {
 	// Workaround to suppress log output with `-v`.
 	testcontainers.Logger = &noopLogger{}
-	container, err = gcloud.RunSpanner(ctx, lo.CoalesceOrEmpty(opts.EmulatorImage, DefaultEmulatorImage), testcontainers.WithLogger(&noopLogger{}))
+	container, err = gcloud.RunSpanner(ctx,
+		opts.EmulatorImage,
+		gcloud.WithProjectID(opts.ProjectID),
+		testcontainers.WithLogger(&noopLogger{}),
+	)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -259,11 +270,10 @@ func newClients(ctx context.Context, opts *emulatorOptions) (clients *Clients, t
 }
 
 func defaultClientOpts(emulator *gcloud.GCloudContainer) []option.ClientOption {
-	clientOpts := lox.SliceOf(
+	return []option.ClientOption{
 		option.WithEndpoint(emulator.URI),
 		option.WithGRPCDialOption(grpc.WithTransportCredentials(insecure.NewCredentials())),
-	)
-	return clientOpts
+	}
 }
 
 func projectPath(projectID string) string {
