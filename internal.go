@@ -216,6 +216,9 @@ func newClients(ctx context.Context, emulator *gcloud.GCloudContainer, opts *emu
 		InstanceClient: instanceCli,
 		DatabaseClient: dbCli,
 		Client:         client,
+		ProjectID:      opts.projectID,
+		InstanceID:     opts.instanceID,
+		DatabaseID:     opts.databaseID,
 	}, teardown, nil
 }
 

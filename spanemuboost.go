@@ -21,7 +21,13 @@ type Clients struct {
 	InstanceClient *instance.InstanceAdminClient
 	DatabaseClient *database.DatabaseAdminClient
 	Client         *spanner.Client
+
+	ProjectID, InstanceID, DatabaseID string
 }
+
+func (c *Clients) ProjectPath() string  { return projectPath(c.ProjectID) }
+func (c *Clients) InstancePath() string { return instancePath(c.ProjectID, c.InstanceID) }
+func (c *Clients) DatabasePath() string { return databasePath(c.ProjectID, c.InstanceID, c.DatabaseID) }
 
 // NewEmulator initializes Cloud Spanner Emulator.
 // The emulator will be closed when teardown is called. You should call it.
