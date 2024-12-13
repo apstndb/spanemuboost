@@ -35,11 +35,43 @@ func WithProjectID(projectID string) Option {
 	}
 }
 
+// WithRandomProjectID enables the random project ID. Default is disabled.
+func WithRandomProjectID() Option {
+	return func(opts *emulatorOptions) error {
+		opts.randomProjectID = true
+		return nil
+	}
+}
+
+// WithoutRandomProjectID disables the random project ID. Default is disabled.
+func WithoutRandomProjectID() Option {
+	return func(opts *emulatorOptions) error {
+		opts.randomProjectID = false
+		return nil
+	}
+}
+
 // WithInstanceID configures the instance ID.
 // Empty string resets to default.
 func WithInstanceID(instanceID string) Option {
 	return func(opts *emulatorOptions) error {
 		opts.instanceID = instanceID
+		return nil
+	}
+}
+
+// WithRandomInstanceID enables the random instance ID. Default is disabled.
+func WithRandomInstanceID() Option {
+	return func(opts *emulatorOptions) error {
+		opts.randomInstanceID = true
+		return nil
+	}
+}
+
+// WithoutRandomInstanceID disables the random instance ID. Default is disabled.
+func WithoutRandomInstanceID() Option {
+	return func(opts *emulatorOptions) error {
+		opts.randomInstanceID = false
 		return nil
 	}
 }
@@ -53,10 +85,18 @@ func WithDatabaseID(databaseID string) Option {
 	}
 }
 
-// WithRandomDatabaseID enables the random database ID.
-func WithRandomDatabaseID(enabled bool) Option {
+// WithRandomDatabaseID enables the random database ID. Default is disabled.
+func WithRandomDatabaseID() Option {
 	return func(opts *emulatorOptions) error {
-		opts.randomDatabaseID = enabled
+		opts.randomDatabaseID = true
+		return nil
+	}
+}
+
+// WithoutRandomDatabaseID disables the random database ID. Default is disabled.
+func WithoutRandomDatabaseID() Option {
+	return func(opts *emulatorOptions) error {
+		opts.randomDatabaseID = false
 		return nil
 	}
 }
