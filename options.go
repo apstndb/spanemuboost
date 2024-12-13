@@ -1,6 +1,10 @@
 package spanemuboost
 
 import (
+	"cmp"
+	"fmt"
+	"math/rand/v2"
+
 	"cloud.google.com/go/spanner"
 	"cloud.google.com/go/spanner/admin/database/apiv1/databasepb"
 )
@@ -8,6 +12,8 @@ import (
 type emulatorOptions struct {
 	emulatorImage                     string
 	projectID, instanceID, databaseID string
+
+	randomProjectID, randomInstanceID, randomDatabaseID bool
 
 	disableCreateInstance bool
 	disableCreateDatabase bool
@@ -21,34 +27,36 @@ type emulatorOptions struct {
 type Option func(*emulatorOptions) error
 
 // WithProjectID configures the project ID.
-// Empty string will be ignored.
+// Empty string resets to default.
 func WithProjectID(projectID string) Option {
 	return func(opts *emulatorOptions) error {
-		if projectID != "" {
-			opts.projectID = projectID
-		}
+		opts.projectID = projectID
 		return nil
 	}
 }
 
 // WithInstanceID configures the instance ID.
-// Empty string will be ignored.
+// Empty string resets to default.
 func WithInstanceID(instanceID string) Option {
 	return func(opts *emulatorOptions) error {
-		if instanceID != "" {
-			opts.instanceID = instanceID
-		}
+		opts.instanceID = instanceID
 		return nil
 	}
 }
 
 // WithDatabaseID configures the database ID.
-// Empty string will be ignored.
+// Empty string resets to default.
 func WithDatabaseID(databaseID string) Option {
 	return func(opts *emulatorOptions) error {
-		if databaseID != "" {
-			opts.databaseID = databaseID
-		}
+		opts.databaseID = databaseID
+		return nil
+	}
+}
+
+// WithRandomDatabaseID enables the random database ID.
+func WithRandomDatabaseID(enabled bool) Option {
+	return func(opts *emulatorOptions) error {
+		opts.randomDatabaseID = enabled
 		return nil
 	}
 }
@@ -65,9 +73,7 @@ func WithDatabaseDialect(dialect databasepb.DatabaseDialect) Option {
 // Empty string will be ignored.
 func WithEmulatorImage(image string) Option {
 	return func(opts *emulatorOptions) error {
-		if image != "" {
-			opts.emulatorImage = image
-		}
+		opts.emulatorImage = image
 		return nil
 	}
 }
@@ -157,15 +163,7 @@ func (o *emulatorOptions) ProjectPath() string {
 }
 
 func applyOptions(options ...Option) (*emulatorOptions, error) {
-	opts := &emulatorOptions{
-		emulatorImage:         DefaultEmulatorImage,
-		projectID:             DefaultProjectID,
-		instanceID:            DefaultInstanceID,
-		databaseID:            DefaultDatabaseID,
-		disableCreateInstance: false,
-		disableCreateDatabase: false,
-		databaseDialect:       databasepb.DatabaseDialect_DATABASE_DIALECT_UNSPECIFIED,
-	}
+	opts := &emulatorOptions{}
 
 	for _, opt := range options {
 		if err := opt(opts); err != nil {
@@ -173,5 +171,51 @@ func applyOptions(options ...Option) (*emulatorOptions, error) {
 		}
 	}
 
+	if opts.randomProjectID && opts.projectID != "" {
+		return nil, fmt.Errorf("WithRandomProjectID() and WithProjectID() are mutually exclusive")
+	}
+
+	if opts.randomInstanceID && opts.instanceID != "" {
+		return nil, fmt.Errorf("WithRandomInstanceID() and WithInstanceID() are mutually exclusive")
+	}
+
+	if opts.randomDatabaseID && opts.databaseID != "" {
+		return nil, fmt.Errorf("WithRandomDatabaseID() and WithDatabaseID() are mutually exclusive")
+	}
+
+	if opts.randomProjectID {
+		opts.projectID = generateRandomID()
+	}
+
+	if opts.randomInstanceID {
+		opts.instanceID = generateRandomID()
+	}
+
+	if opts.randomDatabaseID {
+		opts.databaseID = generateRandomID()
+	}
+
+	opts.emulatorImage = cmp.Or(opts.emulatorImage, DefaultEmulatorImage)
+	opts.projectID = cmp.Or(opts.projectID, DefaultProjectID)
+	opts.instanceID = cmp.Or(opts.instanceID, DefaultInstanceID)
+	opts.databaseID = cmp.Or(opts.databaseID, DefaultDatabaseID)
+
 	return opts, nil
+}
+
+const (
+	databaseIDFirstChars = "abcdefghjiklkmnopqrstuvwxyz"
+	databaseIDChars      = databaseIDFirstChars + "0123456789"
+	idRange              = 30
+)
+
+// generateRandomID generates a random database ID.
+// Generated ID will be this format: [a-z][a-z0-9]{29}
+func generateRandomID() string {
+	b := make([]byte, idRange)
+	b[0] = databaseIDFirstChars[rand.N(len(databaseIDFirstChars))]
+	for i := range idRange - 1 {
+		b[i+1] = databaseIDChars[rand.N(len(databaseIDChars))]
+	}
+	return string(b)
 }
