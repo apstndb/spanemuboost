@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log"
+	"slices"
 
 	"cloud.google.com/go/spanner"
 	"cloud.google.com/go/spanner/admin/database/apiv1"
@@ -217,7 +218,7 @@ func newClients(ctx context.Context, emulator *gcloud.GCloudContainer, opts *emu
 	}
 	teardown = dbCliTeardown
 
-	client, err := spanner.NewClientWithConfig(ctx, opts.DatabasePath(), opts.clientConfig, clientOpts...)
+	client, err := spanner.NewClientWithConfig(ctx, opts.DatabasePath(), opts.clientConfig, slices.Concat(clientOpts, opts.clientOptionsForClient)...)
 	if err != nil {
 		teardown()
 		return nil, nil, err

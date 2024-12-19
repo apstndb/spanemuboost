@@ -9,6 +9,7 @@ import (
 	"cloud.google.com/go/spanner/admin/database/apiv1/databasepb"
 	"github.com/docker/docker/api/types/container"
 	"github.com/testcontainers/testcontainers-go"
+	"google.golang.org/api/option"
 )
 
 type emulatorOptions struct {
@@ -20,12 +21,13 @@ type emulatorOptions struct {
 	disableCreateInstance bool
 	disableCreateDatabase bool
 
-	databaseDialect      databasepb.DatabaseDialect
-	setupDDLs            []string
-	setupDMLs            []spanner.Statement
-	clientConfig         spanner.ClientConfig
-	configModifier       func(*container.Config)
-	containerCustomizers []testcontainers.ContainerCustomizer
+	databaseDialect        databasepb.DatabaseDialect
+	setupDDLs              []string
+	setupDMLs              []spanner.Statement
+	clientConfig           spanner.ClientConfig
+	configModifier         func(*container.Config)
+	containerCustomizers   []testcontainers.ContainerCustomizer
+	clientOptionsForClient []option.ClientOption
 }
 
 type Option func(*emulatorOptions) error
@@ -44,6 +46,14 @@ func EnableFaultInjection() Option {
 		opts.containerCustomizers = append(opts.containerCustomizers, testcontainers.WithConfigModifier(func(config *container.Config) {
 			config.Cmd = append(config.Cmd, "--enable_fault_injection")
 		}))
+		return nil
+	}
+}
+
+// WithClientOptionsForClient configures ClientOption for Clients.Client.
+func WithClientOptionsForClient(option ...option.ClientOption) Option {
+	return func(opts *emulatorOptions) error {
+		opts.clientOptionsForClient = append(opts.clientOptionsForClient, option...)
 		return nil
 	}
 }
