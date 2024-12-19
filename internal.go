@@ -26,10 +26,16 @@ func (n noopLogger) Printf(string, ...interface{}) {
 func newEmulator(ctx context.Context, opts *emulatorOptions) (container *gcloud.GCloudContainer, teardown func(), err error) {
 	// Workaround to suppress log output with `-v`.
 	testcontainers.Logger = &noopLogger{}
-	container, err = gcloud.RunSpanner(ctx,
-		opts.emulatorImage,
+
+	containerCustomizers := []testcontainers.ContainerCustomizer{
 		gcloud.WithProjectID(opts.projectID),
 		testcontainers.WithLogger(&noopLogger{}),
+	}
+	containerCustomizers = append(containerCustomizers, opts.containerCustomizers...)
+
+	container, err = gcloud.RunSpanner(ctx,
+		opts.emulatorImage,
+		containerCustomizers...,
 	)
 	if err != nil {
 		return nil, nil, err

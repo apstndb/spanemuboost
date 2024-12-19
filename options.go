@@ -7,6 +7,8 @@ import (
 
 	"cloud.google.com/go/spanner"
 	"cloud.google.com/go/spanner/admin/database/apiv1/databasepb"
+	"github.com/docker/docker/api/types/container"
+	"github.com/testcontainers/testcontainers-go"
 )
 
 type emulatorOptions struct {
@@ -18,13 +20,23 @@ type emulatorOptions struct {
 	disableCreateInstance bool
 	disableCreateDatabase bool
 
-	databaseDialect databasepb.DatabaseDialect
-	setupDDLs       []string
-	setupDMLs       []spanner.Statement
-	clientConfig    spanner.ClientConfig
+	databaseDialect      databasepb.DatabaseDialect
+	setupDDLs            []string
+	setupDMLs            []spanner.Statement
+	clientConfig         spanner.ClientConfig
+	configModifier       func(*container.Config)
+	containerCustomizers []testcontainers.ContainerCustomizer
 }
 
 type Option func(*emulatorOptions) error
+
+// WithContainerCustomizers sets any testcontainers.ContainerCustomizer
+func WithContainerCustomizers(containerCustomizers ...testcontainers.ContainerCustomizer) Option {
+	return func(opts *emulatorOptions) error {
+		opts.containerCustomizers = append(opts.containerCustomizers, containerCustomizers...)
+		return nil
+	}
+}
 
 // WithProjectID configures the project ID.
 // Empty string resets to default.
