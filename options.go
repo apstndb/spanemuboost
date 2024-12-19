@@ -38,6 +38,16 @@ func WithContainerCustomizers(containerCustomizers ...testcontainers.ContainerCu
 	}
 }
 
+// EnableFaultInjection enables fault injection of Cloud Spanner Emulator.
+func EnableFaultInjection() Option {
+	return func(opts *emulatorOptions) error {
+		opts.containerCustomizers = append(opts.containerCustomizers, testcontainers.WithConfigModifier(func(config *container.Config) {
+			config.Cmd = append(config.Cmd, "--enable_fault_injection")
+		}))
+		return nil
+	}
+}
+
 // WithProjectID configures the project ID.
 // Empty string resets to default.
 func WithProjectID(projectID string) Option {

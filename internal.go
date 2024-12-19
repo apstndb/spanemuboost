@@ -10,6 +10,7 @@ import (
 	"cloud.google.com/go/spanner/admin/database/apiv1/databasepb"
 	"cloud.google.com/go/spanner/admin/instance/apiv1"
 	"cloud.google.com/go/spanner/admin/instance/apiv1/instancepb"
+	dcontainer "github.com/docker/docker/api/types/container"
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/modules/gcloud"
 	"google.golang.org/api/option"
@@ -30,6 +31,9 @@ func newEmulator(ctx context.Context, opts *emulatorOptions) (container *gcloud.
 	containerCustomizers := []testcontainers.ContainerCustomizer{
 		gcloud.WithProjectID(opts.projectID),
 		testcontainers.WithLogger(&noopLogger{}),
+		testcontainers.WithConfigModifier(func(config *dcontainer.Config) {
+			config.Cmd = []string{"./gateway_main", "--hostname", "0.0.0.0"}
+		}),
 	}
 	containerCustomizers = append(containerCustomizers, opts.containerCustomizers...)
 
