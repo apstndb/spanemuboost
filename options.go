@@ -25,7 +25,6 @@ type emulatorOptions struct {
 	setupDDLs              []string
 	setupDMLs              []spanner.Statement
 	clientConfig           spanner.ClientConfig
-	configModifier         func(*container.Config)
 	containerCustomizers   []testcontainers.ContainerCustomizer
 	clientOptionsForClient []option.ClientOption
 }
