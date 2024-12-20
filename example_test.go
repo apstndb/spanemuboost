@@ -31,7 +31,7 @@ func ExampleNewEmulatorWithClients() {
 	}
 }
 
-func ExampleNewEmulatorAndNewClients() {
+func ExampleNewClients() {
 	ctx := context.Background()
 
 	emulator, emulatorTeardown, err := spanemuboost.NewEmulator(ctx,
