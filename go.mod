@@ -4,6 +4,7 @@ go 1.23
 
 require (
 	cloud.google.com/go/spanner v1.73.0
+	github.com/docker/docker v27.1.1+incompatible
 	github.com/google/go-cmp v0.6.0
 	github.com/testcontainers/testcontainers-go v0.34.0
 	github.com/testcontainers/testcontainers-go/modules/gcloud v0.34.0
@@ -36,7 +37,6 @@ require (
 	github.com/cpuguy83/dockercfg v0.3.2 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/distribution/reference v0.6.0 // indirect
-	github.com/docker/docker v27.1.1+incompatible // indirect
 	github.com/docker/go-connections v0.5.0 // indirect
 	github.com/docker/go-units v0.5.0 // indirect
 	github.com/envoyproxy/go-control-plane v0.13.0 // indirect
