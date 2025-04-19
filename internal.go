@@ -19,19 +19,9 @@ import (
 	"google.golang.org/grpc/credentials/insecure"
 )
 
-type noopLogger struct{}
-
-// Printf implements testcontainers.Logging.
-func (n noopLogger) Printf(string, ...interface{}) {
-}
-
 func newEmulator(ctx context.Context, opts *emulatorOptions) (container *gcloud.GCloudContainer, teardown func(), err error) {
-	// Workaround to suppress log output with `-v`.
-	testcontainers.Logger = &noopLogger{}
-
 	containerCustomizers := []testcontainers.ContainerCustomizer{
 		gcloud.WithProjectID(opts.projectID),
-		testcontainers.WithLogger(&noopLogger{}),
 		testcontainers.WithConfigModifier(func(config *dcontainer.Config) {
 			config.Cmd = []string{"./gateway_main", "--hostname", "0.0.0.0"}
 		}),
