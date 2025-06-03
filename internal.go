@@ -13,22 +13,22 @@ import (
 	"cloud.google.com/go/spanner/admin/instance/apiv1/instancepb"
 	dcontainer "github.com/docker/docker/api/types/container"
 	"github.com/testcontainers/testcontainers-go"
-	"github.com/testcontainers/testcontainers-go/modules/gcloud"
+	tcspanner "github.com/testcontainers/testcontainers-go/modules/gcloud/spanner"
 	"google.golang.org/api/option"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 )
 
-func newEmulator(ctx context.Context, opts *emulatorOptions) (container *gcloud.GCloudContainer, teardown func(), err error) {
+func newEmulator(ctx context.Context, opts *emulatorOptions) (container *tcspanner.Container, teardown func(), err error) {
 	containerCustomizers := []testcontainers.ContainerCustomizer{
-		gcloud.WithProjectID(opts.projectID),
+		tcspanner.WithProjectID(opts.projectID),
 		testcontainers.WithConfigModifier(func(config *dcontainer.Config) {
 			config.Cmd = []string{"./gateway_main", "--hostname", "0.0.0.0"}
 		}),
 	}
 	containerCustomizers = append(containerCustomizers, opts.containerCustomizers...)
 
-	container, err = gcloud.RunSpanner(ctx,
+	container, err = tcspanner.Run(ctx,
 		opts.emulatorImage,
 		containerCustomizers...,
 	)
@@ -180,7 +180,7 @@ func createInstance(ctx context.Context, opts *emulatorOptions, clientOpts []opt
 	return nil
 }
 
-func newClients(ctx context.Context, emulator *gcloud.GCloudContainer, opts *emulatorOptions) (clients *Clients, teardown func(), err error) {
+func newClients(ctx context.Context, emulator *tcspanner.Container, opts *emulatorOptions) (clients *Clients, teardown func(), err error) {
 	clientOpts := defaultClientOpts(emulator)
 	instanceCli, err := instance.NewInstanceAdminClient(ctx, clientOpts...)
 	if err != nil {
@@ -229,9 +229,9 @@ func newClients(ctx context.Context, emulator *gcloud.GCloudContainer, opts *emu
 	}, teardown, nil
 }
 
-func defaultClientOpts(emulator *gcloud.GCloudContainer) []option.ClientOption {
+func defaultClientOpts(emulator *tcspanner.Container) []option.ClientOption {
 	return []option.ClientOption{
-		option.WithEndpoint(emulator.URI),
+		option.WithEndpoint(emulator.URI()),
 		option.WithGRPCDialOption(grpc.WithTransportCredentials(insecure.NewCredentials())),
 		option.WithoutAuthentication(),
 	}

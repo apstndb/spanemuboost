@@ -6,7 +6,7 @@ import (
 	"cloud.google.com/go/spanner"
 	database "cloud.google.com/go/spanner/admin/database/apiv1"
 	instance "cloud.google.com/go/spanner/admin/instance/apiv1"
-	"github.com/testcontainers/testcontainers-go/modules/gcloud"
+	tcspanner "github.com/testcontainers/testcontainers-go/modules/gcloud/spanner"
 )
 
 const (
@@ -31,7 +31,7 @@ func (c *Clients) DatabasePath() string { return databasePath(c.ProjectID, c.Ins
 
 // NewEmulator initializes Cloud Spanner Emulator.
 // The emulator will be closed when teardown is called. You should call it.
-func NewEmulator(ctx context.Context, options ...Option) (emulator *gcloud.GCloudContainer, teardown func(), err error) {
+func NewEmulator(ctx context.Context, options ...Option) (emulator *tcspanner.Container, teardown func(), err error) {
 	opts, err := applyOptions(options...)
 	if err != nil {
 		return nil, nil, err
@@ -52,7 +52,7 @@ func NewEmulator(ctx context.Context, options ...Option) (emulator *gcloud.GClou
 
 // NewEmulatorWithClients initializes Cloud Spanner Emulator with Spanner clients.
 // The emulator and clients will be closed when teardown is called. You should call it.
-func NewEmulatorWithClients(ctx context.Context, options ...Option) (emulator *gcloud.GCloudContainer, clients *Clients, teardown func(), err error) {
+func NewEmulatorWithClients(ctx context.Context, options ...Option) (emulator *tcspanner.Container, clients *Clients, teardown func(), err error) {
 	opts, err := applyOptions(options...)
 	if err != nil {
 		return nil, nil, nil, err
@@ -82,7 +82,7 @@ func NewEmulatorWithClients(ctx context.Context, options ...Option) (emulator *g
 
 // NewClients setup existing Cloud Spanner Emulator with Spanner clients.
 // The clients will be closed when teardown is called. You should call it.
-func NewClients(ctx context.Context, emulator *gcloud.GCloudContainer, options ...Option) (clients *Clients, teardown func(), err error) {
+func NewClients(ctx context.Context, emulator *tcspanner.Container, options ...Option) (clients *Clients, teardown func(), err error) {
 	opts, err := applyOptions(options...)
 	if err != nil {
 		return nil, nil, err
