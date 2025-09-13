@@ -158,7 +158,6 @@ func WithClientConfig(config spanner.ClientConfig) Option {
 }
 
 // WithSetupDDLs sets DDLs to be executed.
-// Note: comments are not permitted.
 func WithSetupDDLs(ddls []string) Option {
 	return func(opts *emulatorOptions) error {
 		opts.setupDDLs = ddls
