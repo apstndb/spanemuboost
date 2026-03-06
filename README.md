@@ -54,12 +54,51 @@ func ExampleRunEmulatorWithClients() {
 }
 ```
 
-### Shared emulator with subtests (recommended for multi-database)
+### Recommended test setup
 
-spanemuboost supports more practical setup as recommended by [Cloud Spanner Emulator FAQ](https://github.com/GoogleCloudPlatform/cloud-spanner-emulator/blob/master/README.md#what-is-the-recommended-test-setup)
+As recommended by [Cloud Spanner Emulator FAQ](https://github.com/GoogleCloudPlatform/cloud-spanner-emulator/blob/master/README.md#what-is-the-recommended-test-setup):
 
 > What is the recommended test setup?
 > Use a single emulator process and create a Cloud Spanner instance within it. Since creating databases is cheap in the emulator, we recommend that each test bring up and tear down its own database. This ensures hermetic testing and allows the test suite to run tests in parallel if needed.
+
+Use `TestMain` to start a single emulator and share it across all test functions in the package. Each test function creates its own database via `SetupClients`.
+
+Note: `testing.M` does NOT implement `testing.TB`, so `Setup*` functions cannot be used in `TestMain` itself. Use `RunEmulator` to start the emulator, then `SetupClients` in each test function for per-test database setup with automatic cleanup.
+
+```go
+var emulator *spanemuboost.Emulator
+
+func TestMain(m *testing.M) {
+    var err error
+    emulator, err = spanemuboost.RunEmulator(context.Background(),
+        spanemuboost.EnableInstanceAutoConfigOnly(),
+    )
+    if err != nil { log.Fatal(err) }
+    code := m.Run()
+    emulator.Close()
+    os.Exit(code)
+}
+
+func TestCreate(t *testing.T) {
+    clients := spanemuboost.SetupClients(t, emulator,
+        spanemuboost.WithRandomDatabaseID(),
+        spanemuboost.WithSetupDDLs(ddls),
+    )
+    // use clients.Client...
+}
+
+func TestRead(t *testing.T) {
+    clients := spanemuboost.SetupClients(t, emulator,
+        spanemuboost.WithRandomDatabaseID(),
+        spanemuboost.WithSetupDDLs(ddls),
+    )
+    // use clients.Client...
+}
+```
+
+### Shared emulator with subtests
+
+When tests are naturally related and don't need `TestMain`, you can share an emulator within subtests of a single parent test.
 
 ```go
 func TestSuite(t *testing.T) {
@@ -132,34 +171,5 @@ func ExampleOpenClients() {
 
     fmt.Println(pks)
     // Output: [0 1 2 3 4 5 6 7 8 9]
-}
-```
-
-### TestMain pattern (shared emulator across test functions)
-
-Use `TestMain` when you want to share a single emulator across independently organized test functions (`TestCreate`, `TestRead`, etc.). This avoids starting a new emulator container per test function, which is significantly more resource-efficient.
-
-Note: `testing.M` does NOT implement `testing.TB`, so `Setup*` functions cannot be used in `TestMain` itself. Use `RunEmulator` to start the emulator, then `SetupClients` in each test function for per-test database setup with automatic cleanup.
-
-```go
-var emulator *spanemuboost.Emulator
-
-func TestMain(m *testing.M) {
-    var err error
-    emulator, err = spanemuboost.RunEmulator(context.Background(),
-        spanemuboost.EnableInstanceAutoConfigOnly(),
-    )
-    if err != nil { log.Fatal(err) }
-    code := m.Run()
-    emulator.Close()
-    os.Exit(code)
-}
-
-func TestFoo(t *testing.T) {
-    clients := spanemuboost.SetupClients(t, emulator,
-        spanemuboost.WithRandomDatabaseID(),
-        spanemuboost.WithSetupDDLs(ddls),
-    )
-    // ...
 }
 ```
