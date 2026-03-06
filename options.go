@@ -274,7 +274,7 @@ func applyOptions(options ...Option) (*emulatorOptions, error) {
 }
 
 const (
-	databaseIDFirstChars = "abcdefghjiklkmnopqrstuvwxyz"
+	databaseIDFirstChars = "abcdefghijklmnopqrstuvwxyz"
 	databaseIDChars      = databaseIDFirstChars + "0123456789"
 	idRange              = 30
 )
