@@ -23,12 +23,12 @@ func ExampleNewEmulatorWithClients() {
 
 	err = clients.Client.Single().Query(ctx, spanner.NewStatement("SELECT 1")).Do(func(r *spanner.Row) error {
 		fmt.Println(r)
-		// Output: {fields: [type:{code:INT64}], values: [string_value:"1"]}
 		return nil
 	})
 	if err != nil {
 		log.Fatalln(err)
 	}
+	// Output: {fields: [type:{code:INT64}], values: [string_value:"1"]}
 }
 
 func ExampleNewClients() {
