@@ -16,7 +16,7 @@ Consider to use [memefish](https://github.com/cloudspannerecosystem/memefish) or
 
 ### Simple setup
 
-[`spanemuboost.NewEmulatorWithclients()`](https://pkg.go.dev/github.com/apstndb/spanemuboost#NewEmulatorWithClients) can be used without required configurations.
+[`spanemuboost.NewEmulatorWithClients()`](https://pkg.go.dev/github.com/apstndb/spanemuboost#NewEmulatorWithClients) can be used without required configurations.
 
 ```go
 func ExampleNewEmulatorWithClients() {
