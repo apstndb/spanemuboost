@@ -135,9 +135,11 @@ func ExampleOpenClients() {
 }
 ```
 
-### TestMain pattern (for legacy or cross-test-function sharing)
+### TestMain pattern (shared emulator across test functions)
 
-Note: `testing.M` does NOT implement `testing.TB`, so `Setup*` functions cannot be used in `TestMain`. Use the context-based `RunEmulator`/`OpenClients` API instead. The subtest pattern above is generally recommended over `TestMain`.
+Use `TestMain` when you want to share a single emulator across independently organized test functions (`TestCreate`, `TestRead`, etc.). This avoids starting a new emulator container per test function, which is significantly more resource-efficient.
+
+Note: `testing.M` does NOT implement `testing.TB`, so `Setup*` functions cannot be used in `TestMain` itself. Use `RunEmulator` to start the emulator, then `SetupClients` in each test function for per-test database setup with automatic cleanup.
 
 ```go
 var emulator *spanemuboost.Emulator
