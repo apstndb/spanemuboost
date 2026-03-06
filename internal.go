@@ -181,6 +181,37 @@ func createInstance(ctx context.Context, opts *emulatorOptions, clientOpts []opt
 	return nil
 }
 
+func newClientsFromEmulator(ctx context.Context, emu *Emulator, opts *emulatorOptions) (*Clients, error) {
+	clientOpts := emu.ClientOptions()
+
+	instanceCli, err := instance.NewInstanceAdminClient(ctx, clientOpts...)
+	if err != nil {
+		return nil, err
+	}
+
+	dbCli, err := database.NewDatabaseAdminClient(ctx, clientOpts...)
+	if err != nil {
+		instanceCli.Close()
+		return nil, err
+	}
+
+	client, err := spanner.NewClientWithConfig(ctx, opts.DatabasePath(), opts.clientConfig, slices.Concat(clientOpts, opts.clientOptionsForClient)...)
+	if err != nil {
+		dbCli.Close()
+		instanceCli.Close()
+		return nil, err
+	}
+
+	return &Clients{
+		InstanceClient: instanceCli,
+		DatabaseClient: dbCli,
+		Client:         client,
+		ProjectID:      opts.projectID,
+		InstanceID:     opts.instanceID,
+		DatabaseID:     opts.databaseID,
+	}, nil
+}
+
 func newClients(ctx context.Context, emulator *tcspanner.Container, opts *emulatorOptions) (clients *Clients, teardown func(), err error) {
 	clientOpts := defaultClientOpts(emulator)
 	instanceCli, err := instance.NewInstanceAdminClient(ctx, clientOpts...)

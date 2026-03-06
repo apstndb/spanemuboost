@@ -67,9 +67,11 @@ func WithProjectID(projectID string) Option {
 }
 
 // WithRandomProjectID enables the random project ID. Default is disabled.
+// This clears any previously set project ID (including inherited values from [OpenClients]).
 func WithRandomProjectID() Option {
 	return func(opts *emulatorOptions) error {
 		opts.randomProjectID = true
+		opts.projectID = ""
 		return nil
 	}
 }
@@ -92,9 +94,11 @@ func WithInstanceID(instanceID string) Option {
 }
 
 // WithRandomInstanceID enables the random instance ID. Default is disabled.
+// This clears any previously set instance ID (including inherited values from [OpenClients]).
 func WithRandomInstanceID() Option {
 	return func(opts *emulatorOptions) error {
 		opts.randomInstanceID = true
+		opts.instanceID = ""
 		return nil
 	}
 }
@@ -117,9 +121,11 @@ func WithDatabaseID(databaseID string) Option {
 }
 
 // WithRandomDatabaseID enables the random database ID. Default is disabled.
+// This clears any previously set database ID (including inherited values from [OpenClients]).
 func WithRandomDatabaseID() Option {
 	return func(opts *emulatorOptions) error {
 		opts.randomDatabaseID = true
+		opts.databaseID = ""
 		return nil
 	}
 }
@@ -237,6 +243,18 @@ func (o *emulatorOptions) ProjectPath() string {
 	return projectPath(o.projectID)
 }
 
+// applyOptionsWithBase applies options starting from a pre-configured base.
+// Used by [OpenClients] to inherit emulator settings.
+func applyOptionsWithBase(base *emulatorOptions, options ...Option) (*emulatorOptions, error) {
+	opts := *base
+	for _, opt := range options {
+		if err := opt(&opts); err != nil {
+			return nil, err
+		}
+	}
+	return finalizeOptions(&opts)
+}
+
 func applyOptions(options ...Option) (*emulatorOptions, error) {
 	opts := &emulatorOptions{}
 
@@ -246,6 +264,10 @@ func applyOptions(options ...Option) (*emulatorOptions, error) {
 		}
 	}
 
+	return finalizeOptions(opts)
+}
+
+func finalizeOptions(opts *emulatorOptions) (*emulatorOptions, error) {
 	if opts.randomProjectID && opts.projectID != "" {
 		return nil, fmt.Errorf("WithRandomProjectID() and WithProjectID() are mutually exclusive")
 	}

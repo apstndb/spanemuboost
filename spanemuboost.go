@@ -2,6 +2,7 @@ package spanemuboost
 
 import (
 	"context"
+	"errors"
 
 	"cloud.google.com/go/spanner"
 	database "cloud.google.com/go/spanner/admin/database/apiv1"
@@ -29,6 +30,94 @@ func (c *Clients) ProjectPath() string  { return projectPath(c.ProjectID) }
 func (c *Clients) InstancePath() string { return instancePath(c.ProjectID, c.InstanceID) }
 func (c *Clients) DatabasePath() string { return databasePath(c.ProjectID, c.InstanceID, c.DatabaseID) }
 
+// Close closes all Spanner clients.
+// [spanner.Client.Close] does not return an error, so only admin client errors are returned.
+func (c *Clients) Close() error {
+	c.Client.Close()
+	return errors.Join(
+		c.DatabaseClient.Close(),
+		c.InstanceClient.Close(),
+	)
+}
+
+// RunEmulator starts a Cloud Spanner Emulator container and performs any
+// configured bootstrap (instance/database creation, DDL, DML).
+// Call [Emulator.Close] to terminate the container when done.
+func RunEmulator(ctx context.Context, options ...Option) (*Emulator, error) {
+	opts, err := applyOptions(options...)
+	if err != nil {
+		return nil, err
+	}
+
+	container, _, err := newEmulator(ctx, opts)
+	if err != nil {
+		return nil, err
+	}
+
+	emu := &Emulator{container: container, opts: opts}
+
+	if err = bootstrap(ctx, opts, emu.ClientOptions()...); err != nil {
+		emu.Close()
+		return nil, err
+	}
+
+	return emu, nil
+}
+
+// RunEmulatorWithClients starts a Cloud Spanner Emulator and opens Spanner clients.
+// Call [Env.Close] to close clients and terminate the container.
+func RunEmulatorWithClients(ctx context.Context, options ...Option) (*Env, error) {
+	opts, err := applyOptions(options...)
+	if err != nil {
+		return nil, err
+	}
+
+	container, _, err := newEmulator(ctx, opts)
+	if err != nil {
+		return nil, err
+	}
+
+	emu := &Emulator{container: container, opts: opts}
+
+	if err = bootstrap(ctx, opts, emu.ClientOptions()...); err != nil {
+		emu.Close()
+		return nil, err
+	}
+
+	clients, err := newClientsFromEmulator(ctx, emu, opts)
+	if err != nil {
+		emu.Close()
+		return nil, err
+	}
+
+	return &Env{Clients: clients, emulator: emu}, nil
+}
+
+// OpenClients connects to an existing [Emulator] and opens Spanner clients.
+// Options inherit the emulator's projectID and instanceID; instance creation
+// is disabled by default (use [EnableAutoConfig] to override).
+// Call [Clients.Close] to close the clients when done.
+func OpenClients(ctx context.Context, emu *Emulator, options ...Option) (*Clients, error) {
+	base := &emulatorOptions{
+		projectID:             emu.opts.projectID,
+		instanceID:            emu.opts.instanceID,
+		disableCreateInstance: true,
+	}
+
+	opts, err := applyOptionsWithBase(base, options...)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := bootstrap(ctx, opts, emu.ClientOptions()...); err != nil {
+		return nil, err
+	}
+
+	return newClientsFromEmulator(ctx, emu, opts)
+}
+
+// Deprecated: Use [RunEmulator] instead.
+//
 // NewEmulator initializes Cloud Spanner Emulator.
 // The emulator will be closed when teardown is called. You should call it.
 func NewEmulator(ctx context.Context, options ...Option) (emulator *tcspanner.Container, teardown func(), err error) {
@@ -50,6 +139,8 @@ func NewEmulator(ctx context.Context, options ...Option) (emulator *tcspanner.Co
 	return emulator, teardown, nil
 }
 
+// Deprecated: Use [RunEmulatorWithClients] instead.
+//
 // NewEmulatorWithClients initializes Cloud Spanner Emulator with Spanner clients.
 // The emulator and clients will be closed when teardown is called. You should call it.
 func NewEmulatorWithClients(ctx context.Context, options ...Option) (emulator *tcspanner.Container, clients *Clients, teardown func(), err error) {
@@ -80,6 +171,8 @@ func NewEmulatorWithClients(ctx context.Context, options ...Option) (emulator *t
 	}, nil
 }
 
+// Deprecated: Use [OpenClients] instead.
+//
 // NewClients setup existing Cloud Spanner Emulator with Spanner clients.
 // The clients will be closed when teardown is called. You should call it.
 func NewClients(ctx context.Context, emulator *tcspanner.Container, options ...Option) (clients *Clients, teardown func(), err error) {
