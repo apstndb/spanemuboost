@@ -149,7 +149,7 @@ func WithEmulatorImage(image string) Option {
 	}
 }
 
-// WithClientConfig sets spanner.ClienConfig for NewClients and NewEmulatorWithClients.
+// WithClientConfig sets spanner.ClientConfig for NewClients and NewEmulatorWithClients.
 func WithClientConfig(config spanner.ClientConfig) Option {
 	return func(opts *emulatorOptions) error {
 		opts.clientConfig = config
