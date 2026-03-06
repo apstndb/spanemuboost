@@ -76,6 +76,161 @@ func TestNewEmulatorWithClientsPostgreSQL(t *testing.T) {
 	}
 }
 
+func TestRunEmulatorWithClients(t *testing.T) {
+	type row struct {
+		PK  string `spanner:"pk"`
+		Col int64  `spanner:"col"`
+	}
+
+	env := SetupEmulatorWithClients(t,
+		WithSetupDDLs([]string{"CREATE TABLE tbl (pk STRING(MAX), col INT64) PRIMARY KEY (pk)"}),
+		WithSetupRawDMLs([]string{`INSERT INTO tbl (pk, col) VALUES ('foo', 1),('bar', 2)`}),
+	)
+
+	ctx := context.Background()
+	stmt := spanner.NewStatement(`SELECT pk, col FROM tbl ORDER BY pk`)
+	want := []*row{
+		{"bar", 2},
+		{"foo", 1},
+	}
+
+	var got []*row
+	err := spanner.SelectAll(env.Client.Single().Query(ctx, stmt), &got)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Fatalf("mismatch (-want +got):\n%s", diff)
+	}
+}
+
+func TestRunEmulatorWithClientsPostgreSQL(t *testing.T) {
+	type row struct {
+		PK  string `spanner:"pk"`
+		Col int64  `spanner:"col"`
+	}
+
+	env := SetupEmulatorWithClients(t,
+		WithSetupDDLs([]string{"CREATE TABLE tbl (pk text PRIMARY KEY, col bigint)"}),
+		WithSetupRawDMLs([]string{`INSERT INTO tbl (pk, col) VALUES ('foo', 1),('bar', 2)`}),
+		WithDatabaseDialect(databasepb.DatabaseDialect_POSTGRESQL),
+	)
+
+	ctx := context.Background()
+	stmt := spanner.NewStatement(`SELECT pk, col FROM tbl ORDER BY pk`)
+	want := []*row{
+		{"bar", 2},
+		{"foo", 1},
+	}
+
+	var got []*row
+	err := spanner.SelectAll(env.Client.Single().Query(ctx, stmt), &got)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if diff := cmp.Diff(want, got); diff != "" {
+		t.Fatalf("mismatch (-want +got):\n%s", diff)
+	}
+}
+
+func TestSetupEmulatorAndSetupClients(t *testing.T) {
+	type row struct {
+		PK  string `spanner:"pk"`
+		Col int64  `spanner:"col"`
+	}
+
+	ddls := []string{"CREATE TABLE tbl (pk STRING(MAX), col INT64) PRIMARY KEY (pk)"}
+	dmls := []string{`INSERT INTO tbl (pk, col) VALUES ('foo', 1),('bar', 2)`}
+
+	emu := SetupEmulator(t, EnableInstanceAutoConfigOnly())
+
+	t.Run("default inherits instance skip", func(t *testing.T) {
+		clients := SetupClients(t, emu,
+			WithRandomDatabaseID(),
+			WithSetupDDLs(ddls),
+			WithSetupRawDMLs(dmls),
+		)
+
+		ctx := context.Background()
+		stmt := spanner.NewStatement(`SELECT pk, col FROM tbl ORDER BY pk`)
+		want := []*row{
+			{"bar", 2},
+			{"foo", 1},
+		}
+
+		var got []*row
+		err := spanner.SelectAll(clients.Client.Single().Query(ctx, stmt), &got)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if diff := cmp.Diff(want, got); diff != "" {
+			t.Fatalf("mismatch (-want +got):\n%s", diff)
+		}
+	})
+
+	t.Run("override with EnableAutoConfig", func(t *testing.T) {
+		clients := SetupClients(t, emu,
+			EnableAutoConfig(),
+			WithRandomInstanceID(),
+			WithRandomDatabaseID(),
+			WithSetupDDLs(ddls),
+			WithSetupRawDMLs(dmls),
+		)
+
+		ctx := context.Background()
+		stmt := spanner.NewStatement(`SELECT pk, col FROM tbl ORDER BY pk`)
+		want := []*row{
+			{"bar", 2},
+			{"foo", 1},
+		}
+
+		var got []*row
+		err := spanner.SelectAll(clients.Client.Single().Query(ctx, stmt), &got)
+		if err != nil {
+			t.Fatal(err)
+		}
+
+		if diff := cmp.Diff(want, got); diff != "" {
+			t.Fatalf("mismatch (-want +got):\n%s", diff)
+		}
+	})
+}
+
+func TestEmulatorAccessors(t *testing.T) {
+	emu := SetupEmulator(t, DisableAutoConfig())
+
+	if got := emu.ProjectID(); got != DefaultProjectID {
+		t.Errorf("ProjectID() = %q, want %q", got, DefaultProjectID)
+	}
+	if got := emu.InstanceID(); got != DefaultInstanceID {
+		t.Errorf("InstanceID() = %q, want %q", got, DefaultInstanceID)
+	}
+	if got := emu.DatabaseID(); got != DefaultDatabaseID {
+		t.Errorf("DatabaseID() = %q, want %q", got, DefaultDatabaseID)
+	}
+	if got := emu.URI(); got == "" {
+		t.Error("URI() is empty")
+	}
+	if got := emu.Container(); got == nil {
+		t.Error("Container() is nil")
+	}
+	if got := emu.ProjectPath(); got != "projects/"+DefaultProjectID {
+		t.Errorf("ProjectPath() = %q", got)
+	}
+	if got := emu.InstancePath(); got != "projects/"+DefaultProjectID+"/instances/"+DefaultInstanceID {
+		t.Errorf("InstancePath() = %q", got)
+	}
+	if got := emu.DatabasePath(); got != "projects/"+DefaultProjectID+"/instances/"+DefaultInstanceID+"/databases/"+DefaultDatabaseID {
+		t.Errorf("DatabasePath() = %q", got)
+	}
+	if opts := emu.ClientOptions(); len(opts) != 3 {
+		t.Errorf("ClientOptions() returned %d options, want 3", len(opts))
+	}
+}
+
 func sliceOf[T any](values ...T) []T {
 	return values
 }

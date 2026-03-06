@@ -14,26 +14,38 @@ Consider to use [memefish](https://github.com/cloudspannerecosystem/memefish) or
 
 ## Examples
 
-### Simple setup
+### Simple setup (test)
 
-[`spanemuboost.NewEmulatorWithClients()`](https://pkg.go.dev/github.com/apstndb/spanemuboost#NewEmulatorWithClients) can be used without required configurations.
+`spanemuboost.SetupEmulatorWithClients()` handles everything: starts the emulator, creates clients, and auto-cleans up when the test finishes.
 
 ```go
-func ExampleNewEmulatorWithClients() {
+func TestFoo(t *testing.T) {
+    env := spanemuboost.SetupEmulatorWithClients(t,
+        spanemuboost.WithSetupDDLs(ddls),
+    )
+    // env.Client, env.DatabaseClient, env.InstanceClient available
+    // cleanup is automatic via t.Cleanup
+}
+```
+
+### Simple setup (non-test)
+
+`spanemuboost.RunEmulatorWithClients()` can be used without required configurations.
+
+```go
+func ExampleRunEmulatorWithClients() {
     ctx := context.Background()
 
-    _, clients, teardown, err := spanemuboost.NewEmulatorWithClients(ctx)
+    env, err := spanemuboost.RunEmulatorWithClients(ctx)
     if err != nil {
         log.Fatalln(err)
         return
     }
 
-    defer teardown()
+    defer env.Close()
 
-    err = clients.Client.Single().Query(ctx, spanner.NewStatement("SELECT 1")).Do(func(r *spanner.Row) error {
+    err = env.Client.Single().Query(ctx, spanner.NewStatement("SELECT 1")).Do(func(r *spanner.Row) error {
         fmt.Println(r)
-        // Output: {fields: [type:{code:INT64}], values: [string_value:"1"]}
-		
         return nil
     })
     if err != nil {
@@ -42,7 +54,7 @@ func ExampleNewEmulatorWithClients() {
 }
 ```
 
-### Multiple databases setup
+### Shared emulator with subtests (recommended for multi-database)
 
 spanemuboost supports more practical setup as recommended by [Cloud Spanner Emulator FAQ](https://github.com/GoogleCloudPlatform/cloud-spanner-emulator/blob/master/README.md#what-is-the-recommended-test-setup)
 
@@ -50,10 +62,34 @@ spanemuboost supports more practical setup as recommended by [Cloud Spanner Emul
 > Use a single emulator process and create a Cloud Spanner instance within it. Since creating databases is cheap in the emulator, we recommend that each test bring up and tear down its own database. This ensures hermetic testing and allows the test suite to run tests in parallel if needed.
 
 ```go
-func ExampleNewEmulatorAndNewClients() {
+func TestSuite(t *testing.T) {
+    emu := spanemuboost.SetupEmulator(t, spanemuboost.EnableInstanceAutoConfigOnly())
+
+    t.Run("test1", func(t *testing.T) {
+        clients := spanemuboost.SetupClients(t, emu,
+            spanemuboost.WithRandomDatabaseID(),
+            spanemuboost.WithSetupDDLs(ddls),
+        )
+        // use clients.Client...
+    })
+
+    t.Run("test2", func(t *testing.T) {
+        clients := spanemuboost.SetupClients(t, emu,
+            spanemuboost.WithRandomDatabaseID(),
+            spanemuboost.WithSetupDDLs(otherDDLs),
+        )
+        // use clients.Client...
+    })
+}
+```
+
+### Multiple databases (non-test)
+
+```go
+func ExampleOpenClients() {
     ctx := context.Background()
 
-    emulator, emulatorTeardown, err := spanemuboost.NewEmulator(ctx,
+    emu, err := spanemuboost.RunEmulator(ctx,
         spanemuboost.EnableInstanceAutoConfigOnly(),
     )
     if err != nil {
@@ -61,13 +97,12 @@ func ExampleNewEmulatorAndNewClients() {
         return
     }
 
-    defer emulatorTeardown()
+    defer emu.Close()
 
     var pks []int64
-    for i := 0; i < 10; i++ {
+    for i := range 10 {
         func() {
-            clients, clientsTeardown, err := spanemuboost.NewClients(ctx, emulator,
-                spanemuboost.EnableDatabaseAutoConfigOnly(),
+            clients, err := spanemuboost.OpenClients(ctx, emu,
                 spanemuboost.WithRandomDatabaseID(),
                 spanemuboost.WithSetupDDLs([]string{"CREATE TABLE tbl (PK INT64 PRIMARY KEY)"}),
                 spanemuboost.WithSetupDMLs([]spanner.Statement{
@@ -79,7 +114,7 @@ func ExampleNewEmulatorAndNewClients() {
                 return
             }
 
-            defer clientsTeardown()
+            defer clients.Close()
 
             err = clients.Client.Single().Query(ctx, spanner.NewStatement("SELECT PK FROM tbl")).Do(func(r *spanner.Row) error {
                 var pk int64
@@ -97,5 +132,32 @@ func ExampleNewEmulatorAndNewClients() {
 
     fmt.Println(pks)
     // Output: [0 1 2 3 4 5 6 7 8 9]
+}
+```
+
+### TestMain pattern (for legacy or cross-test-function sharing)
+
+Note: `testing.M` does NOT implement `testing.TB`, so `Setup*` functions cannot be used in `TestMain`. Use the context-based `RunEmulator`/`OpenClients` API instead. The subtest pattern above is generally recommended over `TestMain`.
+
+```go
+var emulator *spanemuboost.Emulator
+
+func TestMain(m *testing.M) {
+    var err error
+    emulator, err = spanemuboost.RunEmulator(context.Background(),
+        spanemuboost.EnableInstanceAutoConfigOnly(),
+    )
+    if err != nil { log.Fatal(err) }
+    code := m.Run()
+    emulator.Close()
+    os.Exit(code)
+}
+
+func TestFoo(t *testing.T) {
+    clients := spanemuboost.SetupClients(t, emulator,
+        spanemuboost.WithRandomDatabaseID(),
+        spanemuboost.WithSetupDDLs(ddls),
+    )
+    // ...
 }
 ```
