@@ -217,6 +217,8 @@ func newClientsFromEmulator(ctx context.Context, emu *Emulator, opts *emulatorOp
 		ProjectID:      opts.projectID,
 		InstanceID:     opts.instanceID,
 		DatabaseID:     opts.databaseID,
+		dropDatabase:   opts.strictTeardown && !opts.disableCreateDatabase,
+		dropInstance:   opts.strictTeardown && !opts.disableCreateInstance,
 	}, nil
 }
 

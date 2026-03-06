@@ -3,10 +3,13 @@ package spanemuboost
 import (
 	"context"
 	"errors"
+	"fmt"
 
 	"cloud.google.com/go/spanner"
 	database "cloud.google.com/go/spanner/admin/database/apiv1"
+	"cloud.google.com/go/spanner/admin/database/apiv1/databasepb"
 	instance "cloud.google.com/go/spanner/admin/instance/apiv1"
+	"cloud.google.com/go/spanner/admin/instance/apiv1/instancepb"
 	tcspanner "github.com/testcontainers/testcontainers-go/modules/gcloud/spanner"
 )
 
@@ -24,6 +27,9 @@ type Clients struct {
 	Client         *spanner.Client
 
 	ProjectID, InstanceID, DatabaseID string
+
+	dropDatabase bool
+	dropInstance bool
 }
 
 func (c *Clients) ProjectPath() string  { return projectPath(c.ProjectID) }
@@ -31,13 +37,34 @@ func (c *Clients) InstancePath() string { return instancePath(c.ProjectID, c.Ins
 func (c *Clients) DatabasePath() string { return databasePath(c.ProjectID, c.InstanceID, c.DatabaseID) }
 
 // Close closes all Spanner clients.
-// [spanner.Client.Close] does not return an error, so only admin client errors are returned.
+// If [WithStrictTeardown] was used, any auto-created database or instance is
+// dropped before the clients are closed.
+// [spanner.Client.Close] does not return an error, so only admin client and
+// resource cleanup errors are returned.
 func (c *Clients) Close() error {
 	c.Client.Close()
-	return errors.Join(
+
+	var dropErrs []error
+	ctx := context.Background()
+	if c.dropDatabase {
+		if err := c.DatabaseClient.DropDatabase(ctx, &databasepb.DropDatabaseRequest{
+			Database: c.DatabasePath(),
+		}); err != nil {
+			dropErrs = append(dropErrs, fmt.Errorf("drop database %s: %w", c.DatabasePath(), err))
+		}
+	}
+	if c.dropInstance {
+		if err := c.InstanceClient.DeleteInstance(ctx, &instancepb.DeleteInstanceRequest{
+			Name: c.InstancePath(),
+		}); err != nil {
+			dropErrs = append(dropErrs, fmt.Errorf("delete instance %s: %w", c.InstancePath(), err))
+		}
+	}
+
+	return errors.Join(append(dropErrs,
 		c.DatabaseClient.Close(),
 		c.InstanceClient.Close(),
-	)
+	)...)
 }
 
 // RunEmulator starts a Cloud Spanner Emulator container and performs any
