@@ -63,7 +63,7 @@ func executeDMLs(ctx context.Context, opts *emulatorOptions, clientOpts ...optio
 		return err
 	})
 	if err != nil {
-		return fmt.Errorf("failed to apply DML:%w", err)
+		return fmt.Errorf("failed to apply DML: %w", err)
 	}
 
 	return nil
