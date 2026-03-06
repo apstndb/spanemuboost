@@ -75,7 +75,9 @@ func TestMain(m *testing.M) {
     )
     if err != nil { log.Fatal(err) }
     code := m.Run()
-    emulator.Close()
+    if err := emulator.Close(); err != nil {
+        log.Printf("failed to close emulator: %v", err)
+    }
     os.Exit(code)
 }
 
