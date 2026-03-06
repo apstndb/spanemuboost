@@ -158,6 +158,7 @@ func WithClientConfig(config spanner.ClientConfig) Option {
 }
 
 // WithSetupDDLs sets DDLs to be executed.
+// Calling this multiple times replaces the previous value.
 func WithSetupDDLs(ddls []string) Option {
 	return func(opts *emulatorOptions) error {
 		opts.setupDDLs = ddls
@@ -166,6 +167,8 @@ func WithSetupDDLs(ddls []string) Option {
 }
 
 // WithSetupRawDMLs sets string DMLs to be executed.
+// Calling this multiple times replaces the previous value.
+// This is mutually exclusive with WithSetupDMLs; the last one called wins.
 func WithSetupRawDMLs(rawDMLs []string) Option {
 	return func(opts *emulatorOptions) error {
 		dmlStmts := make([]spanner.Statement, 0, len(rawDMLs))
@@ -179,6 +182,8 @@ func WithSetupRawDMLs(rawDMLs []string) Option {
 }
 
 // WithSetupDMLs sets DMLs in spanner.Statement to be executed.
+// Calling this multiple times replaces the previous value.
+// This is mutually exclusive with WithSetupRawDMLs; the last one called wins.
 func WithSetupDMLs(dmls []spanner.Statement) Option {
 	return func(opts *emulatorOptions) error {
 		opts.setupDMLs = dmls
