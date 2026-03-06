@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"slices"
+	"strings"
 
 	"cloud.google.com/go/spanner"
 	"cloud.google.com/go/spanner/admin/database/apiv1"
@@ -133,7 +134,7 @@ func createDatabase(ctx context.Context, opts *emulatorOptions, clientOpts []opt
 	if opts.databaseDialect != databasepb.DatabaseDialect_POSTGRESQL {
 		createStmt = fmt.Sprintf("CREATE DATABASE `%v`", opts.databaseID)
 	} else {
-		createStmt = fmt.Sprintf("CREATE DATABASE %q", opts.databaseID)
+		createStmt = fmt.Sprintf(`CREATE DATABASE "%s"`, strings.ReplaceAll(opts.databaseID, `"`, `""`))
 	}
 	createDBOp, err := dbCli.CreateDatabase(ctx, &databasepb.CreateDatabaseRequest{
 		Parent:          opts.InstancePath(),
