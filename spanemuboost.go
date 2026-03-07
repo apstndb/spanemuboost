@@ -57,7 +57,7 @@ func RunEmulator(ctx context.Context, options ...Option) (*Emulator, error) {
 	emu := &Emulator{container: container, opts: opts}
 
 	if err = bootstrap(ctx, opts, emu.ClientOptions()...); err != nil {
-		emu.Close()
+		_ = emu.Close()
 		return nil, err
 	}
 
@@ -80,13 +80,13 @@ func RunEmulatorWithClients(ctx context.Context, options ...Option) (*Env, error
 	emu := &Emulator{container: container, opts: opts}
 
 	if err = bootstrap(ctx, opts, emu.ClientOptions()...); err != nil {
-		emu.Close()
+		_ = emu.Close()
 		return nil, err
 	}
 
 	clients, err := newClientsFromEmulator(ctx, emu, opts)
 	if err != nil {
-		emu.Close()
+		_ = emu.Close()
 		return nil, err
 	}
 

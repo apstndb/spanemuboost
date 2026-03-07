@@ -19,7 +19,7 @@ func ExampleRunEmulatorWithClients() {
 		return
 	}
 
-	defer env.Close()
+	defer env.Close() //nolint:errcheck
 
 	err = env.Client.Single().Query(ctx, spanner.NewStatement("SELECT 1")).Do(func(r *spanner.Row) error {
 		fmt.Println(r)
@@ -42,7 +42,7 @@ func ExampleOpenClients() {
 		return
 	}
 
-	defer emu.Close()
+	defer emu.Close() //nolint:errcheck
 
 	var pks []int64
 	for i := range 10 {
@@ -59,7 +59,7 @@ func ExampleOpenClients() {
 				return
 			}
 
-			defer clients.Close()
+			defer clients.Close() //nolint:errcheck
 
 			err = clients.Client.Single().Query(ctx, spanner.NewStatement("SELECT PK FROM tbl")).Do(func(r *spanner.Row) error {
 				var pk int64
