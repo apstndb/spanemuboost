@@ -253,8 +253,8 @@ func TestEmulatorAccessors(t *testing.T) {
 	if got := emu.DatabasePath(); got != "projects/"+DefaultProjectID+"/instances/"+DefaultInstanceID+"/databases/"+DefaultDatabaseID {
 		t.Errorf("DatabasePath() = %q", got)
 	}
-	if opts := emu.ClientOptions(); len(opts) != 3 {
-		t.Errorf("ClientOptions() returned %d options, want 3", len(opts))
+	if opts := emu.ClientOptions(); len(opts) != 4 {
+		t.Errorf("ClientOptions() returned %d options, want 4", len(opts))
 	}
 }
 

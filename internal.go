@@ -16,6 +16,7 @@ import (
 	"github.com/testcontainers/testcontainers-go"
 	tcspanner "github.com/testcontainers/testcontainers-go/modules/gcloud/spanner"
 	"google.golang.org/api/option"
+	"google.golang.org/api/option/internaloption"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 )
@@ -319,10 +320,19 @@ func newClients(ctx context.Context, emulator *tcspanner.Container, opts *emulat
 	}, teardown, nil
 }
 
+// defaultClientOpts returns client options for connecting to the emulator.
+// It is the shared implementation for [Emulator.ClientOptions] and the deprecated
+// newClients path. Once the deprecated path is removed, this function should be
+// inlined into [Emulator.ClientOptions].
 func defaultClientOpts(emulator *tcspanner.Container) []option.ClientOption {
 	return []option.ClientOption{
-		option.WithEndpoint(emulator.URI()),
+		// passthrough:/// tells gRPC to use the address as-is without DNS resolution.
+		option.WithEndpoint("passthrough:///" + emulator.URI()),
 		option.WithGRPCDialOption(grpc.WithTransportCredentials(insecure.NewCredentials())),
 		option.WithoutAuthentication(),
+		// SkipDialSettingsValidation is required because the passthrough:/// prefix
+		// fails the default endpoint validation. This is an internal option also used
+		// by the Spanner, Bigtable, and Datastore client libraries for emulator paths.
+		internaloption.SkipDialSettingsValidation(),
 	}
 }
