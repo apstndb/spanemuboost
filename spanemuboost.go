@@ -46,18 +46,19 @@ func (c *Clients) Close() error {
 
 	var dropErrs []error
 	ctx := context.Background()
-	if c.dropDatabase {
-		if err := c.DatabaseClient.DropDatabase(ctx, &databasepb.DropDatabaseRequest{
-			Database: c.DatabasePath(),
-		}); err != nil {
-			dropErrs = append(dropErrs, fmt.Errorf("drop database %s: %w", c.DatabasePath(), err))
-		}
-	}
 	if c.dropInstance {
+		// Deleting the instance also removes all databases within it,
+		// so there is no need to drop the database separately.
 		if err := c.InstanceClient.DeleteInstance(ctx, &instancepb.DeleteInstanceRequest{
 			Name: c.InstancePath(),
 		}); err != nil {
 			dropErrs = append(dropErrs, fmt.Errorf("delete instance %s: %w", c.InstancePath(), err))
+		}
+	} else if c.dropDatabase {
+		if err := c.DatabaseClient.DropDatabase(ctx, &databasepb.DropDatabaseRequest{
+			Database: c.DatabasePath(),
+		}); err != nil {
+			dropErrs = append(dropErrs, fmt.Errorf("drop database %s: %w", c.DatabasePath(), err))
 		}
 	}
 
@@ -116,6 +117,11 @@ func RunEmulatorWithClients(ctx context.Context, options ...Option) (*Env, error
 		_ = emu.Close()
 		return nil, err
 	}
+
+	// Env owns the emulator lifecycle — resources are cleaned up when the
+	// container terminates, so explicit drop on Clients.Close is unnecessary.
+	clients.dropDatabase = false
+	clients.dropInstance = false
 
 	return &Env{Clients: clients, emulator: emu}, nil
 }
