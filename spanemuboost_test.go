@@ -200,6 +200,64 @@ func TestSetupEmulatorAndSetupClients(t *testing.T) {
 	})
 }
 
+func TestWithRandomIDImpliesCreation(t *testing.T) {
+	ddls := []string{"CREATE TABLE tbl (pk STRING(MAX)) PRIMARY KEY (pk)"}
+
+	// SetupEmulator with EnableInstanceAutoConfigOnly sets disableCreateInstance=false
+	// but the base for SetupClients sets disableCreateInstance=true.
+	// WithRandomInstanceID should implicitly re-enable instance creation,
+	// so this must succeed without an explicit EnableAutoConfig call.
+	emu := SetupEmulator(t, EnableInstanceAutoConfigOnly())
+
+	t.Run("random instance ID implies creation", func(t *testing.T) {
+		clients := SetupClients(t, emu,
+			WithRandomInstanceID(),
+			WithRandomDatabaseID(),
+			WithSetupDDLs(ddls),
+		)
+
+		ctx := context.Background()
+		iter := clients.Client.Single().Query(ctx, spanner.NewStatement("SELECT 1"))
+		defer iter.Stop()
+		_, err := iter.Next()
+		if err != nil {
+			t.Fatal(err)
+		}
+	})
+
+	t.Run("random database ID implies creation", func(t *testing.T) {
+		clients := SetupClients(t, emu,
+			WithRandomDatabaseID(),
+			WithSetupDDLs(ddls),
+		)
+
+		ctx := context.Background()
+		iter := clients.Client.Single().Query(ctx, spanner.NewStatement("SELECT 1"))
+		defer iter.Stop()
+		_, err := iter.Next()
+		if err != nil {
+			t.Fatal(err)
+		}
+	})
+
+	t.Run("DisableAutoConfig after random ID overrides", func(t *testing.T) {
+		// Use OpenClients instead of SetupClients because we need to inspect
+		// the returned error: SetupClients would call t.Fatal internally.
+		// WithRandomInstanceID enables creation, but DisableAutoConfig afterwards
+		// should re-disable it, verifying sequential override behavior.
+		// On error OpenClients returns (nil, err), so no Close call is needed.
+		_, err := OpenClients(context.Background(), emu,
+			WithRandomInstanceID(),
+			WithRandomDatabaseID(),
+			DisableAutoConfig(),
+			WithSetupDDLs(ddls),
+		)
+		if err == nil {
+			t.Fatal("expected error when DisableAutoConfig follows WithRandomInstanceID, but got nil")
+		}
+	})
+}
+
 func TestWithStrictTeardown(t *testing.T) {
 	ddls := []string{"CREATE TABLE tbl (pk STRING(MAX)) PRIMARY KEY (pk)"}
 
