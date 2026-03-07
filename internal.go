@@ -39,7 +39,7 @@ func newEmulator(ctx context.Context, opts *emulatorOptions) (container *tcspann
 	}
 
 	teardown = func() {
-		if err := container.Terminate(context.WithoutCancel(ctx)); err != nil {
+		if err := container.Terminate(context.Background()); err != nil {
 			log.Printf("failed to terminate Cloud Spanner Emulator: %v", err)
 		}
 	}
