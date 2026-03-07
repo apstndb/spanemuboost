@@ -100,13 +100,14 @@ func TestRead(t *testing.T) {
 
 ### Shared emulator with subtests
 
-When tests are naturally related and don't need `TestMain`, you can share an emulator within subtests of a single parent test.
+When tests are naturally related and don't need `TestMain`, you can share an emulator within subtests of a single parent test. Since each subtest creates its own database via `WithRandomDatabaseID()`, subtests can safely run in parallel with `t.Parallel()`.
 
 ```go
 func TestSuite(t *testing.T) {
     emu := spanemuboost.SetupEmulator(t, spanemuboost.EnableInstanceAutoConfigOnly())
 
     t.Run("test1", func(t *testing.T) {
+        t.Parallel()
         clients := spanemuboost.SetupClients(t, emu,
             spanemuboost.WithRandomDatabaseID(),
             spanemuboost.WithSetupDDLs(ddls),
@@ -115,6 +116,7 @@ func TestSuite(t *testing.T) {
     })
 
     t.Run("test2", func(t *testing.T) {
+        t.Parallel()
         clients := spanemuboost.SetupClients(t, emu,
             spanemuboost.WithRandomDatabaseID(),
             spanemuboost.WithSetupDDLs(otherDDLs),
@@ -123,6 +125,23 @@ func TestSuite(t *testing.T) {
     })
 }
 ```
+
+### Using `SPANNER_EMULATOR_HOST` environment variable
+
+For serial tests with code that reads `SPANNER_EMULATOR_HOST` directly instead of accepting a client, you can use `t.Setenv` to set the environment variable:
+
+```go
+func TestWithEnvVar(t *testing.T) {
+    emu := spanemuboost.SetupEmulator(t, spanemuboost.EnableInstanceAutoConfigOnly())
+    t.Setenv("SPANNER_EMULATOR_HOST", emu.URI())
+    // Code under test that reads SPANNER_EMULATOR_HOST directly
+}
+```
+
+**Caveats:**
+- `t.Setenv` cannot be used with `t.Parallel()` or tests with parallel ancestors (it panics).
+- The environment variable is process-global and doesn't scale to concurrent tests.
+- Prefer passing `emu.ClientOptions()` or clients directly when possible.
 
 ### Multiple databases (non-test)
 

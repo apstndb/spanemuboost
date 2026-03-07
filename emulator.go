@@ -17,6 +17,13 @@ type Emulator struct {
 
 // URI returns the gRPC endpoint (host:port) of the emulator,
 // suitable for use as SPANNER_EMULATOR_HOST.
+//
+// In serial tests, you can use [testing.T.Setenv] to set the environment variable:
+//
+//	t.Setenv("SPANNER_EMULATOR_HOST", emu.URI())
+//
+// Note that [testing.T.Setenv] panics if the test or an ancestor has called [testing.T.Parallel].
+// Prefer [Emulator.ClientOptions] when possible.
 func (e *Emulator) URI() string {
 	return e.container.URI()
 }
