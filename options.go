@@ -96,10 +96,15 @@ func WithInstanceID(instanceID string) Option {
 
 // WithRandomInstanceID enables the random instance ID. Default is disabled.
 // This clears any previously set instance ID (including inherited values from [OpenClients]).
+//
+// Because a random ID will never match an existing instance, this option also
+// enables instance auto-creation (sets disableCreateInstance to false).
+// To disable creation again, call [DisableAutoConfig] after this option.
 func WithRandomInstanceID() Option {
 	return func(opts *emulatorOptions) error {
 		opts.randomInstanceID = true
 		opts.instanceID = ""
+		opts.disableCreateInstance = false
 		return nil
 	}
 }
@@ -123,10 +128,15 @@ func WithDatabaseID(databaseID string) Option {
 
 // WithRandomDatabaseID enables the random database ID. Default is disabled.
 // This clears any previously set database ID (including inherited values from [OpenClients]).
+//
+// Because a random ID will never match an existing database, this option also
+// enables database auto-creation (sets disableCreateDatabase to false).
+// To disable creation again, call [DisableAutoConfig] after this option.
 func WithRandomDatabaseID() Option {
 	return func(opts *emulatorOptions) error {
 		opts.randomDatabaseID = true
 		opts.databaseID = ""
+		opts.disableCreateDatabase = false
 		return nil
 	}
 }
