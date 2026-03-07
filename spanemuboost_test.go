@@ -203,11 +203,21 @@ func TestSetupEmulatorAndSetupClients(t *testing.T) {
 func TestWithRandomIDImpliesCreation(t *testing.T) {
 	ddls := []string{"CREATE TABLE tbl (pk STRING(MAX)) PRIMARY KEY (pk)"}
 
-	// SetupEmulator with EnableInstanceAutoConfigOnly sets disableCreateInstance=false
-	// but the base for SetupClients sets disableCreateInstance=true.
-	// WithRandomInstanceID should implicitly re-enable instance creation,
-	// so this must succeed without an explicit EnableAutoConfig call.
 	emu := SetupEmulator(t, EnableInstanceAutoConfigOnly())
+
+	t.Run("random instance ID without creation fails", func(t *testing.T) {
+		// OpenClients disables instance creation by default.
+		// A bare WithRandomInstanceID without implicit creation would fail here.
+		// On error OpenClients returns (nil, err), so no Close call is needed.
+		_, err := OpenClients(t.Context(), emu,
+			WithoutRandomInstanceID(),
+			WithRandomDatabaseID(),
+			WithSetupDDLs(ddls),
+		)
+		if err == nil {
+			t.Fatal("expected error for random instance ID without creation enabled, but got nil")
+		}
+	})
 
 	t.Run("random instance ID implies creation", func(t *testing.T) {
 		clients := SetupClients(t, emu,
@@ -215,14 +225,7 @@ func TestWithRandomIDImpliesCreation(t *testing.T) {
 			WithRandomDatabaseID(),
 			WithSetupDDLs(ddls),
 		)
-
-		ctx := context.Background()
-		iter := clients.Client.Single().Query(ctx, spanner.NewStatement("SELECT 1"))
-		defer iter.Stop()
-		_, err := iter.Next()
-		if err != nil {
-			t.Fatal(err)
-		}
+		mustConsumeQuery(t, clients, "SELECT 1")
 	})
 
 	t.Run("random database ID implies creation", func(t *testing.T) {
@@ -230,23 +233,12 @@ func TestWithRandomIDImpliesCreation(t *testing.T) {
 			WithRandomDatabaseID(),
 			WithSetupDDLs(ddls),
 		)
-
-		ctx := context.Background()
-		iter := clients.Client.Single().Query(ctx, spanner.NewStatement("SELECT 1"))
-		defer iter.Stop()
-		_, err := iter.Next()
-		if err != nil {
-			t.Fatal(err)
-		}
+		mustConsumeQuery(t, clients, "SELECT 1")
 	})
 
 	t.Run("DisableAutoConfig after random ID overrides", func(t *testing.T) {
-		// Use OpenClients instead of SetupClients because we need to inspect
-		// the returned error: SetupClients would call t.Fatal internally.
-		// WithRandomInstanceID enables creation, but DisableAutoConfig afterwards
-		// should re-disable it, verifying sequential override behavior.
 		// On error OpenClients returns (nil, err), so no Close call is needed.
-		_, err := OpenClients(context.Background(), emu,
+		_, err := OpenClients(t.Context(), emu,
 			WithRandomInstanceID(),
 			WithRandomDatabaseID(),
 			DisableAutoConfig(),
@@ -272,14 +264,7 @@ func TestWithStrictTeardown(t *testing.T) {
 				WithStrictTeardown(),
 				WithSetupDDLs(ddls),
 			)
-
-			ctx := context.Background()
-			iter := clients.Client.Single().Query(ctx, spanner.NewStatement("SELECT 1"))
-			defer iter.Stop()
-			_, err := iter.Next()
-			if err != nil {
-				t.Fatal(err)
-			}
+			mustConsumeQuery(t, clients, "SELECT 1")
 		})
 	}
 }
@@ -313,6 +298,16 @@ func TestEmulatorAccessors(t *testing.T) {
 	}
 	if opts := emu.ClientOptions(); len(opts) != 4 {
 		t.Errorf("ClientOptions() returned %d options, want 4", len(opts))
+	}
+}
+
+// mustConsumeQuery executes a query and fails the test if it returns an error.
+func mustConsumeQuery(t *testing.T, clients *Clients, sql string) {
+	t.Helper()
+	iter := clients.Client.Single().Query(t.Context(), spanner.NewStatement(sql))
+	defer iter.Stop()
+	if _, err := iter.Next(); err != nil {
+		t.Fatal(err)
 	}
 }
 
