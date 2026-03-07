@@ -311,17 +311,30 @@ func TestSchemaTeardown(t *testing.T) {
 	})
 
 	t.Run("random ID is not dropped by default", func(t *testing.T) {
-		// Random IDs never collide, so teardown is unnecessary.
-		// Verify that dropDatabase is false by default for random IDs.
+		// Random IDs are not dropped by default. Verify by creating a
+		// database with a random ID, closing the clients, and then
+		// successfully reconnecting to it.
+		var dbID string
 		t.Run("create", func(t *testing.T) {
 			clients := SetupClients(t, emu,
 				WithRandomDatabaseID(),
 				WithSetupDDLs(ddls),
 			)
+			dbID = clients.DatabaseID
 			mustConsumeQuery(t, clients, "SELECT 1")
 		})
-		// This just verifies random IDs work without teardown overhead.
-		// No "already exists" check since the ID is random.
+		// After "create" subtest, clients are closed. The database should
+		// still exist. Reconnect with auto-creation disabled to confirm.
+		reconnectClients, err := OpenClients(t.Context(), emu,
+			WithDatabaseID(dbID),
+			DisableAutoConfig(),
+		)
+		if err != nil {
+			t.Fatalf("expected to reconnect to existing random-ID database, but got error: %v", err)
+		}
+		if err := reconnectClients.Close(); err != nil {
+			t.Errorf("failed to close reconnect clients: %v", err)
+		}
 	})
 }
 
