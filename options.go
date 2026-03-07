@@ -25,8 +25,7 @@ type emulatorOptions struct {
 	databaseDialect        databasepb.DatabaseDialect
 	setupDDLs              []string
 	setupDMLs              []spanner.Statement
-	clientConfig           spanner.ClientConfig
-	clientConfigSet        bool
+	clientConfig           *spanner.ClientConfig // nil until finalizeOptions; guaranteed non-nil after
 	containerCustomizers   []testcontainers.ContainerCustomizer
 	clientOptionsForClient []option.ClientOption
 }
@@ -166,8 +165,7 @@ func WithEmulatorImage(image string) Option {
 // consider setting DisableNativeMetrics: true explicitly.
 func WithClientConfig(config spanner.ClientConfig) Option {
 	return func(opts *emulatorOptions) error {
-		opts.clientConfig = config
-		opts.clientConfigSet = true
+		opts.clientConfig = &config
 		return nil
 	}
 }
@@ -322,8 +320,8 @@ func finalizeOptions(opts *emulatorOptions) (*emulatorOptions, error) {
 	// Without SPANNER_EMULATOR_HOST, the Spanner client tries to create a real
 	// Cloud Monitoring exporter and contacts the GCP metadata server, adding
 	// unnecessary latency and errors. See #9.
-	if !opts.clientConfigSet {
-		opts.clientConfig.DisableNativeMetrics = true
+	if opts.clientConfig == nil {
+		opts.clientConfig = &spanner.ClientConfig{DisableNativeMetrics: true}
 	}
 
 	return opts, nil

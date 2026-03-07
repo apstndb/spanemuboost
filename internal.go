@@ -244,7 +244,7 @@ func bootstrapAndCreateClients(ctx context.Context, emu *Emulator, opts *emulato
 
 	// Create the data client before DML execution so that the same client
 	// can be reused for both bootstrap DMLs and user operations.
-	client, err := spanner.NewClientWithConfig(ctx, opts.DatabasePath(), opts.clientConfig, slices.Concat(clientOpts, opts.clientOptionsForClient)...)
+	client, err := spanner.NewClientWithConfig(ctx, opts.DatabasePath(), *opts.clientConfig, slices.Concat(clientOpts, opts.clientOptionsForClient)...)
 	if err != nil {
 		return nil, err
 	}
@@ -300,7 +300,7 @@ func newClients(ctx context.Context, emulator *tcspanner.Container, opts *emulat
 	}
 	teardown = dbCliTeardown
 
-	client, err := spanner.NewClientWithConfig(ctx, opts.DatabasePath(), opts.clientConfig, slices.Concat(clientOpts, opts.clientOptionsForClient)...)
+	client, err := spanner.NewClientWithConfig(ctx, opts.DatabasePath(), *opts.clientConfig, slices.Concat(clientOpts, opts.clientOptionsForClient)...)
 	if err != nil {
 		teardown()
 		return nil, nil, err
