@@ -107,12 +107,7 @@ func RunEmulatorWithClients(ctx context.Context, options ...Option) (*Env, error
 
 	emu := &Emulator{container: container, opts: opts}
 
-	if err = bootstrap(ctx, opts, emu.ClientOptions()...); err != nil {
-		_ = emu.Close()
-		return nil, err
-	}
-
-	clients, err := newClientsFromEmulator(ctx, emu, opts)
+	clients, err := bootstrapAndCreateClients(ctx, emu, opts)
 	if err != nil {
 		_ = emu.Close()
 		return nil, err
@@ -142,11 +137,7 @@ func OpenClients(ctx context.Context, emu *Emulator, options ...Option) (*Client
 		return nil, err
 	}
 
-	if err := bootstrap(ctx, opts, emu.ClientOptions()...); err != nil {
-		return nil, err
-	}
-
-	return newClientsFromEmulator(ctx, emu, opts)
+	return bootstrapAndCreateClients(ctx, emu, opts)
 }
 
 // Deprecated: Use [RunEmulator] instead.
