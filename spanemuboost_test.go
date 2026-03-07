@@ -1,7 +1,6 @@
 package spanemuboost
 
 import (
-	"fmt"
 	"testing"
 
 	"cloud.google.com/go/spanner"
@@ -266,23 +265,77 @@ func TestWithRandomIDImpliesCreation(t *testing.T) {
 	})
 }
 
-func TestWithStrictTeardown(t *testing.T) {
+func TestSchemaTeardown(t *testing.T) {
 	ddls := []string{"CREATE TABLE tbl (pk STRING(MAX)) PRIMARY KEY (pk)"}
 
 	emu := SetupEmulator(t, EnableInstanceAutoConfigOnly())
 
-	// Run two sequential subtests with the same database ID and AutoConfig.
-	// Without WithStrictTeardown, the second subtest would fail with "already exists".
-	for i := range 2 {
-		t.Run(fmt.Sprintf("iteration_%d", i), func(t *testing.T) {
+	t.Run("fixed ID is dropped by default", func(t *testing.T) {
+		// Create database in a subtest so it is closed (and torn down) on exit.
+		t.Run("create", func(t *testing.T) {
 			clients := SetupClients(t, emu,
-				WithDatabaseID("strict-teardown-test"),
-				WithStrictTeardown(),
+				WithDatabaseID("fixed-teardown"),
 				WithSetupDDLs(ddls),
 			)
 			mustConsumeQuery(t, clients, "SELECT 1")
 		})
-	}
+		// If teardown worked, re-creating with the same ID should succeed.
+		t.Run("recreate", func(t *testing.T) {
+			clients := SetupClients(t, emu,
+				WithDatabaseID("fixed-teardown"),
+				WithSetupDDLs(ddls),
+			)
+			mustConsumeQuery(t, clients, "SELECT 1")
+		})
+	})
+
+	t.Run("SkipSchemaTeardown keeps database", func(t *testing.T) {
+		// Create database with teardown skipped in a subtest.
+		t.Run("create", func(t *testing.T) {
+			clients := SetupClients(t, emu,
+				WithDatabaseID("skip-teardown"),
+				SkipSchemaTeardown(),
+				WithSetupDDLs(ddls),
+			)
+			mustConsumeQuery(t, clients, "SELECT 1")
+		})
+		// Database still exists, so re-creating should fail.
+		// On error OpenClients returns (nil, err), so no Close call is needed.
+		_, err := OpenClients(t.Context(), emu,
+			WithDatabaseID("skip-teardown"),
+			WithSetupDDLs(ddls),
+		)
+		if err == nil {
+			t.Fatal("expected 'already exists' error, but got nil")
+		}
+	})
+
+	t.Run("random ID is not dropped by default", func(t *testing.T) {
+		// Random IDs are not dropped by default. Verify by creating a
+		// database with a random ID, closing the clients, and then
+		// successfully reconnecting to it.
+		var dbID string
+		t.Run("create", func(t *testing.T) {
+			clients := SetupClients(t, emu,
+				WithRandomDatabaseID(),
+				WithSetupDDLs(ddls),
+			)
+			dbID = clients.DatabaseID
+			mustConsumeQuery(t, clients, "SELECT 1")
+		})
+		// After "create" subtest, clients are closed. The database should
+		// still exist. Reconnect with auto-creation disabled to confirm.
+		reconnectClients, err := OpenClients(t.Context(), emu,
+			WithDatabaseID(dbID),
+			DisableAutoConfig(),
+		)
+		if err != nil {
+			t.Fatalf("expected to reconnect to existing random-ID database, but got error: %v", err)
+		}
+		if err := reconnectClients.Close(); err != nil {
+			t.Errorf("failed to close reconnect clients: %v", err)
+		}
+	})
 }
 
 func TestEmulatorAccessors(t *testing.T) {

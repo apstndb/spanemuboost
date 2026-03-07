@@ -272,8 +272,8 @@ func bootstrapAndCreateClients(ctx context.Context, emu *Emulator, opts *emulato
 		ProjectID:      opts.projectID,
 		InstanceID:     opts.instanceID,
 		DatabaseID:     opts.databaseID,
-		dropDatabase:   opts.strictTeardown && !opts.disableCreateDatabase,
-		dropInstance:   opts.strictTeardown && !opts.disableCreateInstance,
+		dropDatabase:   opts.shouldDropDatabase(),
+		dropInstance:   opts.shouldDropInstance(),
 	}, nil
 }
 

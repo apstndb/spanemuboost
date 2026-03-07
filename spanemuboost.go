@@ -20,7 +20,16 @@ const (
 	DefaultDatabaseID    = "emulator-database"
 )
 
-// Clients struct is container of Spanner clients.
+// Clients holds Spanner clients and manages the lifecycle of schema resources
+// (instances and databases) auto-created during bootstrap.
+//
+// By default, auto-created resources with fixed IDs are dropped on [Clients.Close],
+// while resources with random IDs are not (since they never collide).
+// Use [ForceSchemaTeardown] or [SkipSchemaTeardown] to override.
+//
+// For [RunEmulatorWithClients]/[SetupEmulatorWithClients], teardown is disabled
+// because the emulator container owns the resource lifecycle;
+// use [ForceSchemaTeardown] to override.
 type Clients struct {
 	InstanceClient *instance.InstanceAdminClient
 	DatabaseClient *database.DatabaseAdminClient
@@ -37,8 +46,8 @@ func (c *Clients) InstancePath() string { return instancePath(c.ProjectID, c.Ins
 func (c *Clients) DatabasePath() string { return databasePath(c.ProjectID, c.InstanceID, c.DatabaseID) }
 
 // Close closes all Spanner clients.
-// If [WithStrictTeardown] was used, any auto-created database or instance is
-// dropped before the clients are closed.
+// By default, auto-created resources with fixed IDs are dropped before
+// the clients are closed. See [ForceSchemaTeardown] and [SkipSchemaTeardown].
 // [spanner.Client.Close] does not return an error, so only admin client and
 // resource cleanup errors are returned.
 func (c *Clients) Close() error {
@@ -117,9 +126,12 @@ func RunEmulatorWithClients(ctx context.Context, options ...Option) (*Env, error
 	}
 
 	// Env owns the emulator lifecycle — resources are cleaned up when the
-	// container terminates, so explicit drop on Clients.Close is unnecessary.
-	clients.dropDatabase = false
-	clients.dropInstance = false
+	// container terminates, so disable schema teardown unless explicitly forced.
+	forceTeardown := opts.schemaTeardown != nil && *opts.schemaTeardown
+	if !forceTeardown {
+		clients.dropDatabase = false
+		clients.dropInstance = false
+	}
 
 	return &Env{Clients: clients, emulator: emu}, nil
 }
