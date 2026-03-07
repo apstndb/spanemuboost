@@ -6,6 +6,7 @@ import (
 
 	tcspanner "github.com/testcontainers/testcontainers-go/modules/gcloud/spanner"
 	"google.golang.org/api/option"
+	"google.golang.org/api/option/internaloption"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 )
@@ -27,9 +28,10 @@ func (e *Emulator) URI() string {
 // to this emulator (endpoint, insecure credentials, no authentication).
 func (e *Emulator) ClientOptions() []option.ClientOption {
 	return []option.ClientOption{
-		option.WithEndpoint(e.container.URI()),
+		option.WithEndpoint("passthrough:///" + e.container.URI()),
 		option.WithGRPCDialOption(grpc.WithTransportCredentials(insecure.NewCredentials())),
 		option.WithoutAuthentication(),
+		internaloption.SkipDialSettingsValidation(),
 	}
 }
 
