@@ -205,17 +205,16 @@ func TestWithRandomIDImpliesCreation(t *testing.T) {
 
 	emu := SetupEmulator(t, EnableInstanceAutoConfigOnly())
 
-	t.Run("random instance ID without creation fails", func(t *testing.T) {
+	t.Run("nonexistent instance without creation fails", func(t *testing.T) {
 		// OpenClients disables instance creation by default.
-		// A bare WithRandomInstanceID without implicit creation would fail here.
+		// Using a non-existent instance ID without creation should fail.
 		// On error OpenClients returns (nil, err), so no Close call is needed.
 		_, err := OpenClients(t.Context(), emu,
-			WithoutRandomInstanceID(),
-			WithRandomDatabaseID(),
+			WithInstanceID("nonexistent"),
 			WithSetupDDLs(ddls),
 		)
 		if err == nil {
-			t.Fatal("expected error for random instance ID without creation enabled, but got nil")
+			t.Fatal("expected error for nonexistent instance without creation enabled, but got nil")
 		}
 	})
 
