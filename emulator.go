@@ -26,11 +26,25 @@ func (e *Emulator) URI() string {
 
 // ClientOptions returns [option.ClientOption] values configured for connecting
 // to this emulator (endpoint, insecure credentials, no authentication).
+//
+// The endpoint uses the passthrough:/// scheme to bypass gRPC name resolution
+// and avoid the slow authentication code path that would otherwise be triggered
+// when grpc.NewClient (dns resolver by default) is used by the auth layer.
+// This mirrors the approach used by the Spanner client library's
+// SPANNER_EMULATOR_HOST handling (googleapis/google-cloud-go#10947), as well as
+// the Bigtable and Datastore SDKs for their emulator paths.
+//
+// Currently the auth layer uses grpc.DialContext (passthrough by default), so
+// this is a defensive measure for the planned migration to grpc.NewClient.
 func (e *Emulator) ClientOptions() []option.ClientOption {
 	return []option.ClientOption{
+		// passthrough:/// tells gRPC to use the address as-is without DNS resolution.
 		option.WithEndpoint("passthrough:///" + e.container.URI()),
 		option.WithGRPCDialOption(grpc.WithTransportCredentials(insecure.NewCredentials())),
 		option.WithoutAuthentication(),
+		// SkipDialSettingsValidation is required because the passthrough:/// prefix
+		// fails the default endpoint validation. This is an internal option also used
+		// by the Spanner, Bigtable, and Datastore client libraries for emulator paths.
 		internaloption.SkipDialSettingsValidation(),
 	}
 }

@@ -320,6 +320,8 @@ func newClients(ctx context.Context, emulator *tcspanner.Container, opts *emulat
 	}, teardown, nil
 }
 
+// defaultClientOpts returns client options for connecting to the emulator.
+// See [Emulator.ClientOptions] for details on passthrough:/// and SkipDialSettingsValidation.
 func defaultClientOpts(emulator *tcspanner.Container) []option.ClientOption {
 	return []option.ClientOption{
 		option.WithEndpoint("passthrough:///" + emulator.URI()),
