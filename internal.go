@@ -47,10 +47,16 @@ func newEmulator(ctx context.Context, opts *emulatorOptions) (container *tcspann
 	return container, teardown, nil
 }
 
+// executeDMLs creates a short-lived internal client solely for bootstrap DML
+// execution in the deprecated path. It uses a minimal config intentionally:
+// the user-provided ClientConfig is not applied here because this client is
+// discarded immediately after DMLs complete. In the new API path,
+// executeDMLsWithClient is used instead with the user-facing client.
 func executeDMLs(ctx context.Context, opts *emulatorOptions, clientOpts ...option.ClientOption) error {
 	client, err := spanner.NewClientWithConfig(ctx, opts.DatabasePath(),
 		spanner.ClientConfig{
-			SessionPoolConfig: spanner.SessionPoolConfig{MinOpened: 1, MaxOpened: 1},
+			SessionPoolConfig:    spanner.SessionPoolConfig{MinOpened: 1, MaxOpened: 1},
+			DisableNativeMetrics: true,
 		},
 		clientOpts...)
 	if err != nil {
@@ -243,7 +249,7 @@ func bootstrapAndCreateClients(ctx context.Context, emu *Emulator, opts *emulato
 
 	// Create the data client before DML execution so that the same client
 	// can be reused for both bootstrap DMLs and user operations.
-	client, err := spanner.NewClientWithConfig(ctx, opts.DatabasePath(), opts.clientConfig, slices.Concat(clientOpts, opts.clientOptionsForClient)...)
+	client, err := spanner.NewClientWithConfig(ctx, opts.DatabasePath(), *opts.clientConfig, slices.Concat(clientOpts, opts.clientOptionsForClient)...)
 	if err != nil {
 		return nil, err
 	}
@@ -299,7 +305,7 @@ func newClients(ctx context.Context, emulator *tcspanner.Container, opts *emulat
 	}
 	teardown = dbCliTeardown
 
-	client, err := spanner.NewClientWithConfig(ctx, opts.DatabasePath(), opts.clientConfig, slices.Concat(clientOpts, opts.clientOptionsForClient)...)
+	client, err := spanner.NewClientWithConfig(ctx, opts.DatabasePath(), *opts.clientConfig, slices.Concat(clientOpts, opts.clientOptionsForClient)...)
 	if err != nil {
 		teardown()
 		return nil, nil, err
