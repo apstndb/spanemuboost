@@ -128,7 +128,11 @@ func createDatabase(ctx context.Context, opts *emulatorOptions, clientOpts []opt
 		return err
 	}
 
-	defer dbCli.Close()
+	defer func() {
+		if err := dbCli.Close(); err != nil {
+			log.Printf("failed to close database admin client: %v", err)
+		}
+	}()
 
 	var createStmt string
 	if opts.databaseDialect != databasepb.DatabaseDialect_POSTGRESQL {
@@ -159,7 +163,11 @@ func createInstance(ctx context.Context, opts *emulatorOptions, clientOpts []opt
 		return err
 	}
 
-	defer instanceCli.Close()
+	defer func() {
+		if err := instanceCli.Close(); err != nil {
+			log.Printf("failed to close instance admin client: %v", err)
+		}
+	}()
 
 	createInstanceOp, err := instanceCli.CreateInstance(ctx, &instancepb.CreateInstanceRequest{
 		Parent:     opts.ProjectPath(),
@@ -191,14 +199,14 @@ func newClientsFromEmulator(ctx context.Context, emu *Emulator, opts *emulatorOp
 
 	dbCli, err := database.NewDatabaseAdminClient(ctx, clientOpts...)
 	if err != nil {
-		instanceCli.Close()
+		_ = instanceCli.Close()
 		return nil, err
 	}
 
 	client, err := spanner.NewClientWithConfig(ctx, opts.DatabasePath(), opts.clientConfig, slices.Concat(clientOpts, opts.clientOptionsForClient)...)
 	if err != nil {
-		dbCli.Close()
-		instanceCli.Close()
+		_ = dbCli.Close()
+		_ = instanceCli.Close()
 		return nil, err
 	}
 
