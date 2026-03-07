@@ -1,7 +1,6 @@
 package spanemuboost
 
 import (
-	"context"
 	"fmt"
 	"testing"
 
@@ -16,7 +15,7 @@ func TestNewEmulatorWithClients(t *testing.T) {
 		Col int64  `spanner:"col"`
 	}
 
-	ctx := context.Background()
+	ctx := t.Context()
 	_, clients, teardown, err := NewEmulatorWithClients(ctx,
 		WithSetupDDLs([]string{"CREATE TABLE tbl (pk STRING(MAX), col INT64) PRIMARY KEY (pk)"}),
 		WithSetupRawDMLs([]string{`INSERT INTO tbl (pk, col) VALUES ('foo', 1),('bar', 2)`}),
@@ -49,7 +48,7 @@ func TestNewEmulatorWithClientsPostgreSQL(t *testing.T) {
 		Col int64  `spanner:"col"`
 	}
 
-	ctx := context.Background()
+	ctx := t.Context()
 	_, clients, teardown, err := NewEmulatorWithClients(ctx,
 		WithSetupDDLs([]string{"CREATE TABLE tbl (pk text PRIMARY KEY, col bigint)"}),
 		WithSetupRawDMLs([]string{`INSERT INTO tbl (pk, col) VALUES ('foo', 1),('bar', 2)`}),
@@ -88,7 +87,7 @@ func TestRunEmulatorWithClients(t *testing.T) {
 		WithSetupRawDMLs([]string{`INSERT INTO tbl (pk, col) VALUES ('foo', 1),('bar', 2)`}),
 	)
 
-	ctx := context.Background()
+	ctx := t.Context()
 	stmt := spanner.NewStatement(`SELECT pk, col FROM tbl ORDER BY pk`)
 	want := []*row{
 		{"bar", 2},
@@ -118,7 +117,7 @@ func TestRunEmulatorWithClientsPostgreSQL(t *testing.T) {
 		WithDatabaseDialect(databasepb.DatabaseDialect_POSTGRESQL),
 	)
 
-	ctx := context.Background()
+	ctx := t.Context()
 	stmt := spanner.NewStatement(`SELECT pk, col FROM tbl ORDER BY pk`)
 	want := []*row{
 		{"bar", 2},
@@ -154,7 +153,7 @@ func TestSetupEmulatorAndSetupClients(t *testing.T) {
 			WithSetupRawDMLs(dmls),
 		)
 
-		ctx := context.Background()
+		ctx := t.Context()
 		stmt := spanner.NewStatement(`SELECT pk, col FROM tbl ORDER BY pk`)
 		want := []*row{
 			{"bar", 2},
@@ -181,7 +180,7 @@ func TestSetupEmulatorAndSetupClients(t *testing.T) {
 			WithSetupRawDMLs(dmls),
 		)
 
-		ctx := context.Background()
+		ctx := t.Context()
 		stmt := spanner.NewStatement(`SELECT pk, col FROM tbl ORDER BY pk`)
 		want := []*row{
 			{"bar", 2},
@@ -215,7 +214,7 @@ func TestWithStrictTeardown(t *testing.T) {
 				WithSetupDDLs(ddls),
 			)
 
-			ctx := context.Background()
+			ctx := t.Context()
 			iter := clients.Client.Single().Query(ctx, spanner.NewStatement("SELECT 1"))
 			defer iter.Stop()
 			_, err := iter.Next()
@@ -268,7 +267,7 @@ func TestNewEmulatorAndNewClientsWithDisableAutoConfig(t *testing.T) {
 		Col int64  `spanner:"col"`
 	}
 
-	ctx := context.Background()
+	ctx := t.Context()
 
 	// Use the same DDLs and DMLs for all tests.
 	ddls := []string{"CREATE TABLE tbl (pk STRING(MAX), col INT64) PRIMARY KEY (pk)"}
