@@ -321,12 +321,18 @@ func newClients(ctx context.Context, emulator *tcspanner.Container, opts *emulat
 }
 
 // defaultClientOpts returns client options for connecting to the emulator.
-// See [Emulator.ClientOptions] for details on passthrough:/// and SkipDialSettingsValidation.
+// It is the shared implementation for [Emulator.ClientOptions] and the deprecated
+// newClients path. Once the deprecated path is removed, this function should be
+// inlined into [Emulator.ClientOptions].
 func defaultClientOpts(emulator *tcspanner.Container) []option.ClientOption {
 	return []option.ClientOption{
+		// passthrough:/// tells gRPC to use the address as-is without DNS resolution.
 		option.WithEndpoint("passthrough:///" + emulator.URI()),
 		option.WithGRPCDialOption(grpc.WithTransportCredentials(insecure.NewCredentials())),
 		option.WithoutAuthentication(),
+		// SkipDialSettingsValidation is required because the passthrough:/// prefix
+		// fails the default endpoint validation. This is an internal option also used
+		// by the Spanner, Bigtable, and Datastore client libraries for emulator paths.
 		internaloption.SkipDialSettingsValidation(),
 	}
 }

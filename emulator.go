@@ -6,9 +6,6 @@ import (
 
 	tcspanner "github.com/testcontainers/testcontainers-go/modules/gcloud/spanner"
 	"google.golang.org/api/option"
-	"google.golang.org/api/option/internaloption"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials/insecure"
 )
 
 // Emulator wraps a Cloud Spanner Emulator container.
@@ -37,16 +34,7 @@ func (e *Emulator) URI() string {
 // Currently the auth layer uses grpc.DialContext (passthrough by default), so
 // this is a defensive measure for the planned migration to grpc.NewClient.
 func (e *Emulator) ClientOptions() []option.ClientOption {
-	return []option.ClientOption{
-		// passthrough:/// tells gRPC to use the address as-is without DNS resolution.
-		option.WithEndpoint("passthrough:///" + e.container.URI()),
-		option.WithGRPCDialOption(grpc.WithTransportCredentials(insecure.NewCredentials())),
-		option.WithoutAuthentication(),
-		// SkipDialSettingsValidation is required because the passthrough:/// prefix
-		// fails the default endpoint validation. This is an internal option also used
-		// by the Spanner, Bigtable, and Datastore client libraries for emulator paths.
-		internaloption.SkipDialSettingsValidation(),
-	}
+	return defaultClientOpts(e.container)
 }
 
 // Close terminates the emulator container.
