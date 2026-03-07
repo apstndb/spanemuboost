@@ -95,6 +95,25 @@ func updateDDLs(ctx context.Context, opts *emulatorOptions, dbCli *database.Data
 	return nil
 }
 
+// bootstrapInstance creates the instance if auto-config is enabled.
+func bootstrapInstance(ctx context.Context, opts *emulatorOptions, instanceCli *instance.InstanceAdminClient) error {
+	if opts.disableCreateInstance {
+		return nil
+	}
+	return createInstance(ctx, opts, instanceCli)
+}
+
+// bootstrapDatabase creates the database (with DDLs) or applies DDLs to an existing database.
+func bootstrapDatabase(ctx context.Context, opts *emulatorOptions, dbCli *database.DatabaseAdminClient) error {
+	if !opts.disableCreateDatabase {
+		return createDatabase(ctx, opts, dbCli)
+	}
+	if len(opts.setupDDLs) > 0 {
+		return updateDDLs(ctx, opts, dbCli)
+	}
+	return nil
+}
+
 func bootstrap(ctx context.Context, opts *emulatorOptions, clientOpts ...option.ClientOption) error {
 	if !opts.disableCreateInstance {
 		instanceCli, err := instance.NewInstanceAdminClient(ctx, clientOpts...)
@@ -123,14 +142,8 @@ func bootstrap(ctx context.Context, opts *emulatorOptions, clientOpts ...option.
 			}
 		}()
 
-		if !opts.disableCreateDatabase {
-			if err := createDatabase(ctx, opts, dbCli); err != nil {
-				return err
-			}
-		} else if len(opts.setupDDLs) > 0 {
-			if err := updateDDLs(ctx, opts, dbCli); err != nil {
-				return err
-			}
+		if err := bootstrapDatabase(ctx, opts, dbCli); err != nil {
+			return err
 		}
 	}
 
@@ -201,9 +214,15 @@ func bootstrapAndCreateClients(ctx context.Context, emu *Emulator, opts *emulato
 	}
 	defer func() {
 		if retErr != nil {
-			_ = instanceCli.Close()
+			if err := instanceCli.Close(); err != nil {
+				log.Printf("failed to close instance admin client: %v", err)
+			}
 		}
 	}()
+
+	if err := bootstrapInstance(ctx, opts, instanceCli); err != nil {
+		return nil, err
+	}
 
 	dbCli, err := database.NewDatabaseAdminClient(ctx, clientOpts...)
 	if err != nil {
@@ -211,25 +230,14 @@ func bootstrapAndCreateClients(ctx context.Context, emu *Emulator, opts *emulato
 	}
 	defer func() {
 		if retErr != nil {
-			_ = dbCli.Close()
+			if err := dbCli.Close(); err != nil {
+				log.Printf("failed to close database admin client: %v", err)
+			}
 		}
 	}()
 
-	// Bootstrap using the same admin clients that will be returned to the caller.
-	if !opts.disableCreateInstance {
-		if err := createInstance(ctx, opts, instanceCli); err != nil {
-			return nil, err
-		}
-	}
-
-	if !opts.disableCreateDatabase {
-		if err := createDatabase(ctx, opts, dbCli); err != nil {
-			return nil, err
-		}
-	} else if len(opts.setupDDLs) > 0 {
-		if err := updateDDLs(ctx, opts, dbCli); err != nil {
-			return nil, err
-		}
+	if err := bootstrapDatabase(ctx, opts, dbCli); err != nil {
+		return nil, err
 	}
 
 	// Create the data client before DML execution so that the same client
