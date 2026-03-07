@@ -228,7 +228,10 @@ func TestWithRandomIDImpliesCreation(t *testing.T) {
 	})
 
 	t.Run("random database ID implies creation", func(t *testing.T) {
+		// DisableAutoConfig first so that WithRandomDatabaseID() must
+		// re-enable database creation to succeed.
 		clients := SetupClients(t, emu,
+			DisableAutoConfig(),
 			WithRandomDatabaseID(),
 			WithSetupDDLs(ddls),
 		)
