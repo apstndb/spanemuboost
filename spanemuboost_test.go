@@ -311,8 +311,7 @@ func sliceOf[T any](values ...T) []T {
 func mustConsumeQuery(t *testing.T, clients *Clients, sql string) {
 	t.Helper()
 	iter := clients.Client.Single().Query(t.Context(), spanner.NewStatement(sql))
-	defer iter.Stop()
-	if _, err := iter.Next(); err != nil {
+	if err := iter.Do(func(*spanner.Row) error { return nil }); err != nil {
 		t.Fatal(err)
 	}
 }
