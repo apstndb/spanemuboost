@@ -69,18 +69,18 @@ func executeDMLs(ctx context.Context, opts *emulatorOptions, clientOpts ...optio
 	return nil
 }
 
-func updateDDLs(ctx context.Context, opts *emulatorOptions, clientOpts ...option.ClientOption) error {
-	dbCli, err := database.NewDatabaseAdminClient(ctx, clientOpts...)
-	if err != nil {
+func executeDMLsWithClient(ctx context.Context, opts *emulatorOptions, client *spanner.Client) error {
+	_, err := client.ReadWriteTransaction(ctx, func(ctx context.Context, txn *spanner.ReadWriteTransaction) error {
+		_, err := txn.BatchUpdate(ctx, opts.setupDMLs)
 		return err
+	})
+	if err != nil {
+		return fmt.Errorf("failed to apply DML: %w", err)
 	}
+	return nil
+}
 
-	defer func(dbCli *database.DatabaseAdminClient) {
-		if err := dbCli.Close(); err != nil {
-			log.Println(err)
-		}
-	}(dbCli)
-
+func updateDDLs(ctx context.Context, opts *emulatorOptions, dbCli *database.DatabaseAdminClient) error {
 	op, err := dbCli.UpdateDatabaseDdl(ctx, &databasepb.UpdateDatabaseDdlRequest{
 		Database:   databasePath(opts.projectID, opts.instanceID, opts.databaseID),
 		Statements: opts.setupDDLs,
@@ -97,19 +97,40 @@ func updateDDLs(ctx context.Context, opts *emulatorOptions, clientOpts ...option
 
 func bootstrap(ctx context.Context, opts *emulatorOptions, clientOpts ...option.ClientOption) error {
 	if !opts.disableCreateInstance {
-		err := createInstance(ctx, opts, clientOpts)
+		instanceCli, err := instance.NewInstanceAdminClient(ctx, clientOpts...)
 		if err != nil {
+			return err
+		}
+		defer func() {
+			if err := instanceCli.Close(); err != nil {
+				log.Printf("failed to close instance admin client: %v", err)
+			}
+		}()
+
+		if err := createInstance(ctx, opts, instanceCli); err != nil {
 			return err
 		}
 	}
 
-	if !opts.disableCreateDatabase {
-		if err := createDatabase(ctx, opts, clientOpts); err != nil {
+	if !opts.disableCreateDatabase || len(opts.setupDDLs) > 0 {
+		dbCli, err := database.NewDatabaseAdminClient(ctx, clientOpts...)
+		if err != nil {
 			return err
 		}
-	} else if len(opts.setupDDLs) > 0 {
-		if err := updateDDLs(ctx, opts, clientOpts...); err != nil {
-			return err
+		defer func() {
+			if err := dbCli.Close(); err != nil {
+				log.Printf("failed to close database admin client: %v", err)
+			}
+		}()
+
+		if !opts.disableCreateDatabase {
+			if err := createDatabase(ctx, opts, dbCli); err != nil {
+				return err
+			}
+		} else if len(opts.setupDDLs) > 0 {
+			if err := updateDDLs(ctx, opts, dbCli); err != nil {
+				return err
+			}
 		}
 	}
 
@@ -122,18 +143,7 @@ func bootstrap(ctx context.Context, opts *emulatorOptions, clientOpts ...option.
 	return nil
 }
 
-func createDatabase(ctx context.Context, opts *emulatorOptions, clientOpts []option.ClientOption) error {
-	dbCli, err := database.NewDatabaseAdminClient(ctx, clientOpts...)
-	if err != nil {
-		return err
-	}
-
-	defer func() {
-		if err := dbCli.Close(); err != nil {
-			log.Printf("failed to close database admin client: %v", err)
-		}
-	}()
-
+func createDatabase(ctx context.Context, opts *emulatorOptions, dbCli *database.DatabaseAdminClient) error {
 	var createStmt string
 	if opts.databaseDialect != databasepb.DatabaseDialect_POSTGRESQL {
 		createStmt = fmt.Sprintf("CREATE DATABASE `%v`", opts.databaseID)
@@ -157,18 +167,7 @@ func createDatabase(ctx context.Context, opts *emulatorOptions, clientOpts []opt
 	return nil
 }
 
-func createInstance(ctx context.Context, opts *emulatorOptions, clientOpts []option.ClientOption) error {
-	instanceCli, err := instance.NewInstanceAdminClient(ctx, clientOpts...)
-	if err != nil {
-		return err
-	}
-
-	defer func() {
-		if err := instanceCli.Close(); err != nil {
-			log.Printf("failed to close instance admin client: %v", err)
-		}
-	}()
-
+func createInstance(ctx context.Context, opts *emulatorOptions, instanceCli *instance.InstanceAdminClient) error {
 	createInstanceOp, err := instanceCli.CreateInstance(ctx, &instancepb.CreateInstanceRequest{
 		Parent:     opts.ProjectPath(),
 		InstanceId: opts.instanceID,
@@ -189,25 +188,66 @@ func createInstance(ctx context.Context, opts *emulatorOptions, clientOpts []opt
 	return nil
 }
 
-func newClientsFromEmulator(ctx context.Context, emu *Emulator, opts *emulatorOptions) (*Clients, error) {
+// bootstrapAndCreateClients creates admin clients, runs bootstrap operations
+// (instance/database creation, DDL, DML) using them, creates the data client,
+// and returns all clients as [Clients]. This avoids creating admin clients twice
+// (once for bootstrap, once for the caller).
+func bootstrapAndCreateClients(ctx context.Context, emu *Emulator, opts *emulatorOptions) (_ *Clients, retErr error) {
 	clientOpts := emu.ClientOptions()
 
 	instanceCli, err := instance.NewInstanceAdminClient(ctx, clientOpts...)
 	if err != nil {
 		return nil, err
 	}
+	defer func() {
+		if retErr != nil {
+			_ = instanceCli.Close()
+		}
+	}()
 
 	dbCli, err := database.NewDatabaseAdminClient(ctx, clientOpts...)
 	if err != nil {
-		_ = instanceCli.Close()
 		return nil, err
 	}
+	defer func() {
+		if retErr != nil {
+			_ = dbCli.Close()
+		}
+	}()
 
+	// Bootstrap using the same admin clients that will be returned to the caller.
+	if !opts.disableCreateInstance {
+		if err := createInstance(ctx, opts, instanceCli); err != nil {
+			return nil, err
+		}
+	}
+
+	if !opts.disableCreateDatabase {
+		if err := createDatabase(ctx, opts, dbCli); err != nil {
+			return nil, err
+		}
+	} else if len(opts.setupDDLs) > 0 {
+		if err := updateDDLs(ctx, opts, dbCli); err != nil {
+			return nil, err
+		}
+	}
+
+	// Create the data client before DML execution so that the same client
+	// can be reused for both bootstrap DMLs and user operations.
 	client, err := spanner.NewClientWithConfig(ctx, opts.DatabasePath(), opts.clientConfig, slices.Concat(clientOpts, opts.clientOptionsForClient)...)
 	if err != nil {
-		_ = dbCli.Close()
-		_ = instanceCli.Close()
 		return nil, err
+	}
+	defer func() {
+		if retErr != nil {
+			client.Close()
+		}
+	}()
+
+	if len(opts.setupDMLs) > 0 {
+		if err := executeDMLsWithClient(ctx, opts, client); err != nil {
+			return nil, err
+		}
 	}
 
 	return &Clients{
