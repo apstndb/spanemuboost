@@ -1,7 +1,6 @@
 package spanemuboost
 
 import (
-	"context"
 	"testing"
 )
 
@@ -12,7 +11,7 @@ import (
 func SetupEmulator(tb testing.TB, options ...Option) *Emulator {
 	tb.Helper()
 
-	emu, err := RunEmulator(context.Background(), options...)
+	emu, err := RunEmulator(tb.Context(), options...)
 	if err != nil {
 		tb.Fatal(err)
 	}
@@ -32,7 +31,7 @@ func SetupEmulator(tb testing.TB, options ...Option) *Emulator {
 func SetupEmulatorWithClients(tb testing.TB, options ...Option) *Env {
 	tb.Helper()
 
-	env, err := RunEmulatorWithClients(context.Background(), options...)
+	env, err := RunEmulatorWithClients(tb.Context(), options...)
 	if err != nil {
 		tb.Fatal(err)
 	}
@@ -52,7 +51,7 @@ func SetupEmulatorWithClients(tb testing.TB, options ...Option) *Env {
 func SetupClients(tb testing.TB, emu *Emulator, options ...Option) *Clients {
 	tb.Helper()
 
-	clients, err := OpenClients(context.Background(), emu, options...)
+	clients, err := OpenClients(tb.Context(), emu, options...)
 	if err != nil {
 		tb.Fatal(err)
 	}
