@@ -300,6 +300,10 @@ func TestEmulatorAccessors(t *testing.T) {
 	}
 }
 
+func sliceOf[T any](values ...T) []T {
+	return values
+}
+
 // mustConsumeQuery executes a query and fails the test if it returns an error.
 func mustConsumeQuery(t *testing.T, clients *Clients, sql string) {
 	t.Helper()
@@ -308,10 +312,6 @@ func mustConsumeQuery(t *testing.T, clients *Clients, sql string) {
 	if _, err := iter.Next(); err != nil {
 		t.Fatal(err)
 	}
-}
-
-func sliceOf[T any](values ...T) []T {
-	return values
 }
 
 func TestNewEmulatorAndNewClientsWithDisableAutoConfig(t *testing.T) {
