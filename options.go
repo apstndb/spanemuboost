@@ -20,6 +20,7 @@ type emulatorOptions struct {
 
 	disableCreateInstance bool
 	disableCreateDatabase bool
+	strictTeardown        bool
 
 	databaseDialect        databasepb.DatabaseDialect
 	setupDDLs              []string
@@ -227,6 +228,18 @@ func EnableDatabaseAutoConfigOnly() Option {
 	return func(opts *emulatorOptions) error {
 		opts.disableCreateInstance = true
 		opts.disableCreateDatabase = false
+		return nil
+	}
+}
+
+// WithStrictTeardown enables strict resource cleanup on [Clients.Close].
+// When enabled, [Clients.Close] drops any database or instance that was
+// auto-created during bootstrap before closing the Go clients.
+// This is useful when sequential tests reuse the same database ID with AutoConfig,
+// as it prevents "already exists" errors.
+func WithStrictTeardown() Option {
+	return func(opts *emulatorOptions) error {
+		opts.strictTeardown = true
 		return nil
 	}
 }

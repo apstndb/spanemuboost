@@ -2,6 +2,7 @@ package spanemuboost
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	"cloud.google.com/go/spanner"
@@ -197,6 +198,32 @@ func TestSetupEmulatorAndSetupClients(t *testing.T) {
 			t.Fatalf("mismatch (-want +got):\n%s", diff)
 		}
 	})
+}
+
+func TestWithStrictTeardown(t *testing.T) {
+	ddls := []string{"CREATE TABLE tbl (pk STRING(MAX)) PRIMARY KEY (pk)"}
+
+	emu := SetupEmulator(t, EnableInstanceAutoConfigOnly())
+
+	// Run two sequential subtests with the same database ID and AutoConfig.
+	// Without WithStrictTeardown, the second subtest would fail with "already exists".
+	for i := range 2 {
+		t.Run(fmt.Sprintf("iteration_%d", i), func(t *testing.T) {
+			clients := SetupClients(t, emu,
+				WithDatabaseID("strict-teardown-test"),
+				WithStrictTeardown(),
+				WithSetupDDLs(ddls),
+			)
+
+			ctx := context.Background()
+			iter := clients.Client.Single().Query(ctx, spanner.NewStatement("SELECT 1"))
+			defer iter.Stop()
+			_, err := iter.Next()
+			if err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
 }
 
 func TestEmulatorAccessors(t *testing.T) {
