@@ -26,6 +26,7 @@ type emulatorOptions struct {
 	setupDDLs              []string
 	setupDMLs              []spanner.Statement
 	clientConfig           spanner.ClientConfig
+	clientConfigSet        bool
 	containerCustomizers   []testcontainers.ContainerCustomizer
 	clientOptionsForClient []option.ClientOption
 }
@@ -157,9 +158,16 @@ func WithEmulatorImage(image string) Option {
 }
 
 // WithClientConfig sets spanner.ClientConfig for NewClients and NewEmulatorWithClients.
+//
+// When this option is not used, spanemuboost sets DisableNativeMetrics to true
+// by default, since the Spanner native metrics infrastructure is unnecessary
+// for emulator connections and can add overhead (metadata server lookups,
+// monitoring exporter creation). If you provide a custom [spanner.ClientConfig],
+// consider setting DisableNativeMetrics: true explicitly.
 func WithClientConfig(config spanner.ClientConfig) Option {
 	return func(opts *emulatorOptions) error {
 		opts.clientConfig = config
+		opts.clientConfigSet = true
 		return nil
 	}
 }
@@ -309,6 +317,14 @@ func finalizeOptions(opts *emulatorOptions) (*emulatorOptions, error) {
 	opts.projectID = cmp.Or(opts.projectID, DefaultProjectID)
 	opts.instanceID = cmp.Or(opts.instanceID, DefaultInstanceID)
 	opts.databaseID = cmp.Or(opts.databaseID, DefaultDatabaseID)
+
+	// Disable native metrics by default for emulator connections.
+	// Without SPANNER_EMULATOR_HOST, the Spanner client tries to create a real
+	// Cloud Monitoring exporter and contacts the GCP metadata server, adding
+	// unnecessary latency and errors. See #9.
+	if !opts.clientConfigSet {
+		opts.clientConfig.DisableNativeMetrics = true
+	}
 
 	return opts, nil
 }

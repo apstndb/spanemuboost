@@ -50,7 +50,8 @@ func newEmulator(ctx context.Context, opts *emulatorOptions) (container *tcspann
 func executeDMLs(ctx context.Context, opts *emulatorOptions, clientOpts ...option.ClientOption) error {
 	client, err := spanner.NewClientWithConfig(ctx, opts.DatabasePath(),
 		spanner.ClientConfig{
-			SessionPoolConfig: spanner.SessionPoolConfig{MinOpened: 1, MaxOpened: 1},
+			SessionPoolConfig:    spanner.SessionPoolConfig{MinOpened: 1, MaxOpened: 1},
+			DisableNativeMetrics: true,
 		},
 		clientOpts...)
 	if err != nil {
