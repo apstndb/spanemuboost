@@ -218,6 +218,21 @@ func TestWithRandomIDImpliesCreation(t *testing.T) {
 		}
 	})
 
+	t.Run("nonexistent database without creation fails", func(t *testing.T) {
+		// OpenClients allows database creation by default, so explicitly disable it.
+		// DDLs are needed to trigger an operation against the nonexistent database;
+		// without DDLs, bootstrap skips the database step entirely.
+		// On error OpenClients returns (nil, err), so no Close call is needed.
+		_, err := OpenClients(t.Context(), emu,
+			DisableAutoConfig(),
+			WithDatabaseID("nonexistent"),
+			WithSetupDDLs(ddls),
+		)
+		if err == nil {
+			t.Fatal("expected error for nonexistent database without creation enabled, but got nil")
+		}
+	})
+
 	t.Run("random instance ID implies creation", func(t *testing.T) {
 		clients := SetupClients(t, emu,
 			WithRandomInstanceID(),
