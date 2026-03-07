@@ -71,6 +71,8 @@ func (c *Clients) Close() error {
 // RunEmulator starts a Cloud Spanner Emulator container and performs any
 // configured bootstrap (instance/database creation, DDL, DML).
 // Call [Emulator.Close] to terminate the container when done.
+// In tests, prefer [SetupEmulator] which handles cleanup automatically.
+// In TestMain, use this function since [testing.M] does not implement [testing.TB].
 func RunEmulator(ctx context.Context, options ...Option) (*Emulator, error) {
 	opts, err := applyOptions(options...)
 	if err != nil {
@@ -94,6 +96,7 @@ func RunEmulator(ctx context.Context, options ...Option) (*Emulator, error) {
 
 // RunEmulatorWithClients starts a Cloud Spanner Emulator and opens Spanner clients.
 // Call [Env.Close] to close clients and terminate the container.
+// In tests, prefer [SetupEmulatorWithClients] which handles cleanup automatically.
 func RunEmulatorWithClients(ctx context.Context, options ...Option) (*Env, error) {
 	opts, err := applyOptions(options...)
 	if err != nil {
@@ -125,6 +128,7 @@ func RunEmulatorWithClients(ctx context.Context, options ...Option) (*Env, error
 // Options inherit the emulator's projectID and instanceID; instance creation
 // is disabled by default (use [EnableAutoConfig] to override).
 // Call [Clients.Close] to close the clients when done.
+// In tests, prefer [SetupClients] which handles cleanup automatically.
 func OpenClients(ctx context.Context, emu *Emulator, options ...Option) (*Clients, error) {
 	base := &emulatorOptions{
 		projectID:             emu.opts.projectID,
@@ -140,7 +144,7 @@ func OpenClients(ctx context.Context, emu *Emulator, options ...Option) (*Client
 	return bootstrapAndCreateClients(ctx, emu, opts)
 }
 
-// Deprecated: Use [RunEmulator] or [SetupEmulator] instead.
+// Deprecated: Use [SetupEmulator] (for tests) or [RunEmulator] instead.
 //
 // NewEmulator initializes Cloud Spanner Emulator.
 // The emulator will be closed when teardown is called. You should call it.
@@ -163,7 +167,7 @@ func NewEmulator(ctx context.Context, options ...Option) (emulator *tcspanner.Co
 	return emulator, teardown, nil
 }
 
-// Deprecated: Use [RunEmulatorWithClients] or [SetupEmulatorWithClients] instead.
+// Deprecated: Use [SetupEmulatorWithClients] (for tests) or [RunEmulatorWithClients] instead.
 //
 // NewEmulatorWithClients initializes Cloud Spanner Emulator with Spanner clients.
 // The emulator and clients will be closed when teardown is called. You should call it.
@@ -195,7 +199,7 @@ func NewEmulatorWithClients(ctx context.Context, options ...Option) (emulator *t
 	}, nil
 }
 
-// Deprecated: Use [OpenClients] or [SetupClients] instead.
+// Deprecated: Use [SetupClients] (for tests) or [OpenClients] instead.
 //
 // NewClients setup existing Cloud Spanner Emulator with Spanner clients.
 // The clients will be closed when teardown is called. You should call it.

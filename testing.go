@@ -8,6 +8,7 @@ import (
 // SetupEmulator starts a Cloud Spanner Emulator and registers cleanup via [testing.TB.Cleanup].
 // It calls [testing.TB.Fatal] on setup error.
 // Use [RunEmulator] if you need a [context.Context] or are not in a test.
+// Note that [testing.M] does not implement [testing.TB], so use [RunEmulator] in TestMain.
 func SetupEmulator(tb testing.TB, options ...Option) *Emulator {
 	tb.Helper()
 
