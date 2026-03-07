@@ -200,6 +200,73 @@ func TestSetupEmulatorAndSetupClients(t *testing.T) {
 	})
 }
 
+func TestWithRandomIDImpliesCreation(t *testing.T) {
+	ddls := []string{"CREATE TABLE tbl (pk STRING(MAX)) PRIMARY KEY (pk)"}
+
+	emu := SetupEmulator(t, EnableInstanceAutoConfigOnly())
+
+	t.Run("nonexistent instance without creation fails", func(t *testing.T) {
+		// OpenClients disables instance creation by default.
+		// Using a non-existent instance ID without creation should fail.
+		// On error OpenClients returns (nil, err), so no Close call is needed.
+		_, err := OpenClients(t.Context(), emu,
+			WithInstanceID("nonexistent"),
+			WithSetupDDLs(ddls),
+		)
+		if err == nil {
+			t.Fatal("expected error for nonexistent instance without creation enabled, but got nil")
+		}
+	})
+
+	t.Run("nonexistent database without creation fails", func(t *testing.T) {
+		// OpenClients allows database creation by default, so explicitly disable it.
+		// DDLs are needed to trigger an operation against the nonexistent database;
+		// without DDLs, bootstrap skips the database step entirely.
+		// On error OpenClients returns (nil, err), so no Close call is needed.
+		_, err := OpenClients(t.Context(), emu,
+			DisableAutoConfig(),
+			WithDatabaseID("nonexistent"),
+			WithSetupDDLs(ddls),
+		)
+		if err == nil {
+			t.Fatal("expected error for nonexistent database without creation enabled, but got nil")
+		}
+	})
+
+	t.Run("random instance ID implies creation", func(t *testing.T) {
+		clients := SetupClients(t, emu,
+			WithRandomInstanceID(),
+			WithRandomDatabaseID(),
+			WithSetupDDLs(ddls),
+		)
+		mustConsumeQuery(t, clients, "SELECT 1")
+	})
+
+	t.Run("random database ID implies creation", func(t *testing.T) {
+		// DisableAutoConfig first so that WithRandomDatabaseID() must
+		// re-enable database creation to succeed.
+		clients := SetupClients(t, emu,
+			DisableAutoConfig(),
+			WithRandomDatabaseID(),
+			WithSetupDDLs(ddls),
+		)
+		mustConsumeQuery(t, clients, "SELECT 1")
+	})
+
+	t.Run("DisableAutoConfig after random ID overrides", func(t *testing.T) {
+		// On error OpenClients returns (nil, err), so no Close call is needed.
+		_, err := OpenClients(t.Context(), emu,
+			WithRandomInstanceID(),
+			WithRandomDatabaseID(),
+			DisableAutoConfig(),
+			WithSetupDDLs(ddls),
+		)
+		if err == nil {
+			t.Fatal("expected error when DisableAutoConfig follows WithRandomInstanceID, but got nil")
+		}
+	})
+}
+
 func TestWithStrictTeardown(t *testing.T) {
 	ddls := []string{"CREATE TABLE tbl (pk STRING(MAX)) PRIMARY KEY (pk)"}
 
@@ -214,14 +281,7 @@ func TestWithStrictTeardown(t *testing.T) {
 				WithStrictTeardown(),
 				WithSetupDDLs(ddls),
 			)
-
-			ctx := context.Background()
-			iter := clients.Client.Single().Query(ctx, spanner.NewStatement("SELECT 1"))
-			defer iter.Stop()
-			_, err := iter.Next()
-			if err != nil {
-				t.Fatal(err)
-			}
+			mustConsumeQuery(t, clients, "SELECT 1")
 		})
 	}
 }
@@ -260,6 +320,15 @@ func TestEmulatorAccessors(t *testing.T) {
 
 func sliceOf[T any](values ...T) []T {
 	return values
+}
+
+// mustConsumeQuery executes a query and fails the test if it returns an error.
+func mustConsumeQuery(t *testing.T, clients *Clients, sql string) {
+	t.Helper()
+	iter := clients.Client.Single().Query(t.Context(), spanner.NewStatement(sql))
+	if err := iter.Do(func(*spanner.Row) error { return nil }); err != nil {
+		t.Fatal(err)
+	}
 }
 
 func TestNewEmulatorAndNewClientsWithDisableAutoConfig(t *testing.T) {
