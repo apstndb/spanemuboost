@@ -20,7 +20,7 @@ type emulatorOptions struct {
 
 	disableCreateInstance bool
 	disableCreateDatabase bool
-	strictTeardown        bool
+	schemaTeardown        *bool
 
 	databaseDialect        databasepb.DatabaseDialect
 	setupDDLs              []string
@@ -248,16 +248,59 @@ func EnableDatabaseAutoConfigOnly() Option {
 	}
 }
 
-// WithStrictTeardown enables strict resource cleanup on [Clients.Close].
-// When enabled, [Clients.Close] drops any database or instance that was
-// auto-created during bootstrap before closing the Go clients.
-// This is useful when sequential tests reuse the same database ID with AutoConfig,
-// as it prevents "already exists" errors.
-func WithStrictTeardown() Option {
+// ForceSchemaTeardown forces schema resource cleanup on [Clients.Close],
+// dropping any auto-created database or instance before closing the Go clients.
+//
+// By default, schema teardown is enabled for fixed IDs and disabled for random IDs.
+// This option overrides that default for all resources.
+func ForceSchemaTeardown() Option {
 	return func(opts *emulatorOptions) error {
-		opts.strictTeardown = true
+		opts.schemaTeardown = ptrOf(true)
 		return nil
 	}
+}
+
+// SkipSchemaTeardown disables schema resource cleanup on [Clients.Close].
+// Auto-created databases and instances will not be dropped on close.
+//
+// By default, schema teardown is enabled for fixed IDs;
+// use this option to opt out.
+func SkipSchemaTeardown() Option {
+	return func(opts *emulatorOptions) error {
+		opts.schemaTeardown = ptrOf(false)
+		return nil
+	}
+}
+
+// Deprecated: Use [ForceSchemaTeardown] instead.
+func WithStrictTeardown() Option {
+	return ForceSchemaTeardown()
+}
+
+// shouldDropInstance returns whether the instance should be dropped on Close.
+// If schemaTeardown is explicitly set, it takes precedence.
+// Otherwise, a non-random (fixed) instance ID implies teardown.
+func (o *emulatorOptions) shouldDropInstance() bool {
+	if o.disableCreateInstance {
+		return false
+	}
+	if o.schemaTeardown != nil {
+		return *o.schemaTeardown
+	}
+	return !o.randomInstanceID
+}
+
+// shouldDropDatabase returns whether the database should be dropped on Close.
+// If schemaTeardown is explicitly set, it takes precedence.
+// Otherwise, a non-random (fixed) database ID implies teardown.
+func (o *emulatorOptions) shouldDropDatabase() bool {
+	if o.disableCreateDatabase {
+		return false
+	}
+	if o.schemaTeardown != nil {
+		return *o.schemaTeardown
+	}
+	return !o.randomDatabaseID
 }
 
 func (o *emulatorOptions) DatabasePath() string {
@@ -342,6 +385,8 @@ const (
 	databaseIDChars      = databaseIDFirstChars + "0123456789"
 	idRange              = 30
 )
+
+func ptrOf[T any](v T) *T { return &v }
 
 // generateRandomID generates a random database ID.
 // Generated ID will be this format: [a-z][a-z0-9]{29}
