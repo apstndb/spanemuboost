@@ -336,8 +336,6 @@ func TestNewEmulatorAndNewClientsWithDisableAutoConfig(t *testing.T) {
 		Col int64  `spanner:"col"`
 	}
 
-	ctx := t.Context()
-
 	// Use the same DDLs and DMLs for all tests.
 	ddls := []string{"CREATE TABLE tbl (pk STRING(MAX), col INT64) PRIMARY KEY (pk)"}
 	dmls := []string{`INSERT INTO tbl (pk, col) VALUES ('foo', 1),('bar', 2)`}
@@ -390,6 +388,7 @@ func TestNewEmulatorAndNewClientsWithDisableAutoConfig(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.desc, func(t *testing.T) {
+			ctx := t.Context()
 			emulator, emuTeardown, err := NewEmulator(ctx, test.newEmulatorOpts...)
 			if err != nil {
 				t.Fatal(err)
