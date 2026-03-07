@@ -278,29 +278,26 @@ func WithStrictTeardown() Option {
 }
 
 // shouldDropInstance returns whether the instance should be dropped on Close.
-// If schemaTeardown is explicitly set, it takes precedence.
-// Otherwise, a non-random (fixed) instance ID implies teardown.
 func (o *emulatorOptions) shouldDropInstance() bool {
-	if o.disableCreateInstance {
-		return false
-	}
-	if o.schemaTeardown != nil {
-		return *o.schemaTeardown
-	}
-	return !o.randomInstanceID
+	return o.shouldDropResource(o.disableCreateInstance, o.randomInstanceID)
 }
 
 // shouldDropDatabase returns whether the database should be dropped on Close.
-// If schemaTeardown is explicitly set, it takes precedence.
-// Otherwise, a non-random (fixed) database ID implies teardown.
 func (o *emulatorOptions) shouldDropDatabase() bool {
-	if o.disableCreateDatabase {
+	return o.shouldDropResource(o.disableCreateDatabase, o.randomDatabaseID)
+}
+
+// shouldDropResource returns whether a resource should be dropped on Close.
+// If schemaTeardown is explicitly set, it takes precedence.
+// Otherwise, a non-random (fixed) ID implies teardown.
+func (o *emulatorOptions) shouldDropResource(disableCreate, isRandomID bool) bool {
+	if disableCreate {
 		return false
 	}
 	if o.schemaTeardown != nil {
 		return *o.schemaTeardown
 	}
-	return !o.randomDatabaseID
+	return !isRandomID
 }
 
 func (o *emulatorOptions) DatabasePath() string {
