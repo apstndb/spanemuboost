@@ -11,6 +11,7 @@ import (
 	instance "cloud.google.com/go/spanner/admin/instance/apiv1"
 	"cloud.google.com/go/spanner/admin/instance/apiv1/instancepb"
 	tcspanner "github.com/testcontainers/testcontainers-go/modules/gcloud/spanner"
+	"google.golang.org/api/option"
 )
 
 const (
@@ -37,6 +38,9 @@ type Clients struct {
 
 	ProjectID, InstanceID, DatabaseID string
 
+	clientOpts []option.ClientOption
+	uri        string
+
 	dropDatabase bool
 	dropInstance bool
 }
@@ -44,6 +48,20 @@ type Clients struct {
 func (c *Clients) ProjectPath() string  { return projectPath(c.ProjectID) }
 func (c *Clients) InstancePath() string { return instancePath(c.ProjectID, c.InstanceID) }
 func (c *Clients) DatabasePath() string { return databasePath(c.ProjectID, c.InstanceID, c.DatabaseID) }
+
+// ClientOptions returns the [option.ClientOption] values used to connect to the
+// emulator. This is useful when callers need to create additional gRPC clients
+// (e.g., with custom interceptors) against the same emulator without holding a
+// separate [*Emulator] reference.
+func (c *Clients) ClientOptions() []option.ClientOption {
+	return c.clientOpts
+}
+
+// URI returns the gRPC endpoint (host:port) of the emulator this [Clients]
+// is connected to, suitable for use as SPANNER_EMULATOR_HOST.
+func (c *Clients) URI() string {
+	return c.uri
+}
 
 // Close closes all Spanner clients.
 // By default, auto-created resources with fixed IDs are dropped before
@@ -136,15 +154,22 @@ func RunEmulatorWithClients(ctx context.Context, options ...Option) (*Env, error
 	return &Env{Clients: clients, emulator: emu}, nil
 }
 
-// OpenClients connects to an existing [Emulator] and opens Spanner clients.
+// OpenClients connects to an existing emulator and opens Spanner clients.
+// The emu parameter accepts both [*Emulator] and [*LazyEmulator].
+// When a [*LazyEmulator] is passed, the emulator is started automatically on first use.
 // Options inherit the emulator's projectID and instanceID; instance creation
 // is disabled by default (use [EnableAutoConfig] to override).
 // Call [Clients.Close] to close the clients when done.
 // In tests, prefer [SetupClients] which handles cleanup automatically.
-func OpenClients(ctx context.Context, emu *Emulator, options ...Option) (*Clients, error) {
+func OpenClients(ctx context.Context, emu abstractEmulator, options ...Option) (*Clients, error) {
+	e, err := emu.get(ctx)
+	if err != nil {
+		return nil, err
+	}
+
 	base := &emulatorOptions{
-		projectID:             emu.opts.projectID,
-		instanceID:            emu.opts.instanceID,
+		projectID:             e.opts.projectID,
+		instanceID:            e.opts.instanceID,
 		disableCreateInstance: true,
 	}
 
@@ -153,7 +178,7 @@ func OpenClients(ctx context.Context, emu *Emulator, options ...Option) (*Client
 		return nil, err
 	}
 
-	return bootstrapAndCreateClients(ctx, emu, opts)
+	return bootstrapAndCreateClients(ctx, e, opts)
 }
 
 // Deprecated: Use [SetupEmulator] (for tests) or [RunEmulator] instead.

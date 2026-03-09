@@ -272,6 +272,8 @@ func bootstrapAndCreateClients(ctx context.Context, emu *Emulator, opts *emulato
 		ProjectID:      opts.projectID,
 		InstanceID:     opts.instanceID,
 		DatabaseID:     opts.databaseID,
+		clientOpts:     clientOpts,
+		uri:            emu.URI(),
 		dropDatabase:   opts.shouldDropDatabase(),
 		dropInstance:   opts.shouldDropInstance(),
 	}, nil
@@ -323,6 +325,8 @@ func newClients(ctx context.Context, emulator *tcspanner.Container, opts *emulat
 		ProjectID:      opts.projectID,
 		InstanceID:     opts.instanceID,
 		DatabaseID:     opts.databaseID,
+		clientOpts:     clientOpts,
+		uri:            emulator.URI(),
 	}, teardown, nil
 }
 
