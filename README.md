@@ -50,7 +50,9 @@ var lazyEmu = spanemuboost.NewLazyEmulator(spanemuboost.EnableInstanceAutoConfig
 
 func TestMain(m *testing.M) {
     code := m.Run()
-    lazyEmu.Close() // no-op if no test used the emulator
+    if err := lazyEmu.Close(); err != nil { // no-op if no test used the emulator
+        log.Printf("failed to close emulator: %v", err)
+    }
     os.Exit(code)
 }
 
@@ -81,7 +83,9 @@ func TestMain(m *testing.M) {
     )
     if err != nil { log.Fatal(err) }
     code := m.Run()
-    emulator.Close()
+    if err := emulator.Close(); err != nil {
+        log.Printf("failed to close emulator: %v", err)
+    }
     os.Exit(code)
 }
 

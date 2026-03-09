@@ -85,7 +85,11 @@ func ExampleLazyEmulator_Get() {
 	lazy := spanemuboost.NewLazyEmulator(
 		spanemuboost.EnableInstanceAutoConfigOnly(),
 	)
-	defer lazy.Close() //nolint:errcheck
+	defer func() {
+		if err := lazy.Close(); err != nil {
+			log.Printf("failed to close lazy emulator: %v", err)
+		}
+	}()
 
 	// Get starts the emulator on first call.
 	// Subsequent calls return the cached emulator.
@@ -100,7 +104,11 @@ func ExampleLazyEmulator_Get() {
 	if err != nil {
 		log.Fatalln(err)
 	}
-	defer clients.Close() //nolint:errcheck
+	defer func() {
+		if err := clients.Close(); err != nil {
+			log.Printf("failed to close clients: %v", err)
+		}
+	}()
 
 	err = clients.Client.Single().Query(ctx, spanner.NewStatement("SELECT 1")).Do(func(r *spanner.Row) error {
 		fmt.Println(r)
