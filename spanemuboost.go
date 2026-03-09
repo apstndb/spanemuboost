@@ -11,6 +11,7 @@ import (
 	instance "cloud.google.com/go/spanner/admin/instance/apiv1"
 	"cloud.google.com/go/spanner/admin/instance/apiv1/instancepb"
 	tcspanner "github.com/testcontainers/testcontainers-go/modules/gcloud/spanner"
+	"google.golang.org/api/option"
 )
 
 const (
@@ -37,6 +38,9 @@ type Clients struct {
 
 	ProjectID, InstanceID, DatabaseID string
 
+	clientOpts []option.ClientOption
+	uri        string
+
 	dropDatabase bool
 	dropInstance bool
 }
@@ -44,6 +48,20 @@ type Clients struct {
 func (c *Clients) ProjectPath() string  { return projectPath(c.ProjectID) }
 func (c *Clients) InstancePath() string { return instancePath(c.ProjectID, c.InstanceID) }
 func (c *Clients) DatabasePath() string { return databasePath(c.ProjectID, c.InstanceID, c.DatabaseID) }
+
+// ClientOptions returns the [option.ClientOption] values used to connect to the
+// emulator. This is useful when callers need to create additional gRPC clients
+// (e.g., with custom interceptors) against the same emulator without holding a
+// separate [*Emulator] reference.
+func (c *Clients) ClientOptions() []option.ClientOption {
+	return c.clientOpts
+}
+
+// URI returns the gRPC endpoint (host:port) of the emulator this [Clients]
+// is connected to, suitable for use as SPANNER_EMULATOR_HOST.
+func (c *Clients) URI() string {
+	return c.uri
+}
 
 // Close closes all Spanner clients.
 // By default, auto-created resources with fixed IDs are dropped before

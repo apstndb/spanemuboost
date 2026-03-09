@@ -370,6 +370,23 @@ func TestEmulatorAccessors(t *testing.T) {
 	}
 }
 
+func TestClientsAccessors(t *testing.T) {
+	emu := SetupEmulator(t, EnableInstanceAutoConfigOnly())
+
+	clients := SetupClients(t, emu,
+		WithRandomDatabaseID(),
+	)
+
+	if opts := clients.ClientOptions(); len(opts) != 4 {
+		t.Errorf("ClientOptions() returned %d options, want 4", len(opts))
+	}
+	if uri := clients.URI(); uri == "" {
+		t.Error("URI() is empty")
+	} else if uri != emu.URI() {
+		t.Errorf("URI() = %q, want %q (from emulator)", uri, emu.URI())
+	}
+}
+
 func TestLazyEmulatorWithSetupClients(t *testing.T) {
 	ddls := []string{"CREATE TABLE tbl (pk STRING(MAX)) PRIMARY KEY (pk)"}
 
@@ -421,6 +438,29 @@ func TestLazyEmulatorWithOpenClients(t *testing.T) {
 	}()
 
 	mustConsumeQuery(t, clients, "SELECT 1")
+}
+
+func TestLazyEmulatorClientsAccessors(t *testing.T) {
+	// Verify that Clients.ClientOptions() and Clients.URI() work when
+	// created via SetupClients with a LazyEmulator, so callers don't need
+	// a separate *Emulator reference for connection info.
+	lazy := NewLazyEmulator(EnableInstanceAutoConfigOnly())
+	defer func() {
+		if err := lazy.Close(); err != nil {
+			t.Errorf("failed to close lazy emulator: %v", err)
+		}
+	}()
+
+	clients := SetupClients(t, lazy,
+		WithRandomDatabaseID(),
+	)
+
+	if opts := clients.ClientOptions(); len(opts) != 4 {
+		t.Errorf("ClientOptions() returned %d options, want 4", len(opts))
+	}
+	if uri := clients.URI(); uri == "" {
+		t.Error("URI() is empty")
+	}
 }
 
 func TestLazyEmulatorGetReturnsSameInstance(t *testing.T) {
