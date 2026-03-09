@@ -1,6 +1,7 @@
 package spanemuboost
 
 import (
+	"sync"
 	"testing"
 
 	"cloud.google.com/go/spanner"
@@ -460,6 +461,38 @@ func TestLazyEmulatorClientsAccessors(t *testing.T) {
 	}
 	if uri := clients.URI(); uri == "" {
 		t.Error("URI() is empty")
+	}
+}
+
+func TestLazyEmulatorConcurrentGet(t *testing.T) {
+	lazy := NewLazyEmulator(EnableInstanceAutoConfigOnly())
+	defer func() {
+		if err := lazy.Close(); err != nil {
+			t.Errorf("failed to close lazy emulator: %v", err)
+		}
+	}()
+
+	const goroutines = 10
+	emus := make([]*Emulator, goroutines)
+	errs := make([]error, goroutines)
+
+	var wg sync.WaitGroup
+	wg.Add(goroutines)
+	for i := range goroutines {
+		go func() {
+			defer wg.Done()
+			emus[i], errs[i] = lazy.Get(t.Context())
+		}()
+	}
+	wg.Wait()
+
+	for i := range goroutines {
+		if errs[i] != nil {
+			t.Fatalf("goroutine %d: Get() failed: %v", i, errs[i])
+		}
+		if emus[i] != emus[0] {
+			t.Errorf("goroutine %d: Get() returned different instance", i)
+		}
 	}
 }
 
