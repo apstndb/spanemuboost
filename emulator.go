@@ -96,6 +96,9 @@ type LazyEmulator struct {
 	emu  *Emulator
 	err  error
 	opts []Option
+
+	closeOnce sync.Once
+	closeErr  error
 }
 
 // NewLazyEmulator creates a [LazyEmulator] that will start an emulator with the
@@ -111,7 +114,7 @@ func (le *LazyEmulator) get(ctx context.Context) (*Emulator, error) {
 		le.emu, le.err = RunEmulator(ctx, le.opts...)
 	})
 	if le.emu == nil && le.err == nil {
-		return nil, errors.New("spanemuboost: lazy emulator used after Close or without initialization")
+		return nil, errors.New("spanemuboost: lazy emulator used after Close was called before initialization")
 	}
 	return le.emu, le.err
 }
@@ -123,14 +126,17 @@ func (le *LazyEmulator) Get(ctx context.Context) (*Emulator, error) {
 }
 
 // Close terminates the emulator if it was started. No-op otherwise.
+// Close is idempotent — subsequent calls return the result of the first call.
 // Close waits for any in-progress initialization to complete before checking.
 // If Close is called before any Get or Setup, the emulator will never be started.
 func (le *LazyEmulator) Close() error {
 	le.once.Do(func() {})
-	if le.emu != nil {
-		return le.emu.Close()
-	}
-	return nil
+	le.closeOnce.Do(func() {
+		if le.emu != nil {
+			le.closeErr = le.emu.Close()
+		}
+	})
+	return le.closeErr
 }
 
 // Env combines an [Emulator] with [Clients] for the single-call use case.
