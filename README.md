@@ -48,13 +48,7 @@ The emulator starts only when the first test calls `SetupClients` with the `Lazy
 ```go
 var lazyEmu = spanemuboost.NewLazyEmulator(spanemuboost.EnableInstanceAutoConfigOnly())
 
-func TestMain(m *testing.M) {
-    code := m.Run()
-    if err := lazyEmu.Close(); err != nil { // no-op if no test used the emulator
-        log.Printf("failed to close emulator: %v", err)
-    }
-    os.Exit(code)
-}
+func TestMain(m *testing.M) { lazyEmu.TestMain(m) }
 
 func TestCreate(t *testing.T) {
     clients := spanemuboost.SetupClients(t, lazyEmu,
@@ -82,11 +76,7 @@ func TestMain(m *testing.M) {
         spanemuboost.EnableInstanceAutoConfigOnly(),
     )
     if err != nil { log.Fatal(err) }
-    code := m.Run()
-    if err := emulator.Close(); err != nil {
-        log.Printf("failed to close emulator: %v", err)
-    }
-    os.Exit(code)
+    emulator.TestMain(m)
 }
 
 func TestCreate(t *testing.T) {

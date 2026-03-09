@@ -1,8 +1,60 @@
 package spanemuboost
 
 import (
+	"log"
+	"os"
 	"testing"
 )
+
+// runTestMain runs tests, closes the emulator, logs any close error, and exits.
+func runTestMain(m *testing.M, close func() error) {
+	code := m.Run()
+	if err := close(); err != nil {
+		log.Printf("spanemuboost: failed to close: %v", err)
+		if code == 0 {
+			code = 1
+		}
+	}
+	os.Exit(code)
+}
+
+// TestMain runs m.Run(), closes the emulator, and calls os.Exit with the
+// appropriate code. A close failure is logged and causes a non-zero exit code.
+//
+// Because TestMain calls os.Exit, it must be the last statement in your
+// TestMain function. If you need additional cleanup, refer to the
+// source of this method and write the logic manually.
+//
+// Usage in TestMain:
+//
+//	func TestMain(m *testing.M) {
+//	    var err error
+//	    emulator, err = spanemuboost.RunEmulator(context.Background(),
+//	        spanemuboost.EnableInstanceAutoConfigOnly(),
+//	    )
+//	    if err != nil { log.Fatal(err) }
+//	    emulator.TestMain(m)
+//	}
+func (e *Emulator) TestMain(m *testing.M) {
+	runTestMain(m, e.Close)
+}
+
+// TestMain runs m.Run(), closes the lazy emulator, and calls os.Exit with the
+// appropriate code. A close failure is logged and causes a non-zero exit code.
+// If the emulator was never started, Close is a no-op.
+//
+// Because TestMain calls os.Exit, it must be the last statement in your
+// TestMain function. If you need additional cleanup, refer to the
+// source of this method and write the logic manually.
+//
+// Usage in TestMain:
+//
+//	var lazyEmu = spanemuboost.NewLazyEmulator(spanemuboost.EnableInstanceAutoConfigOnly())
+//
+//	func TestMain(m *testing.M) { lazyEmu.TestMain(m) }
+func (le *LazyEmulator) TestMain(m *testing.M) {
+	runTestMain(m, le.Close)
+}
 
 // Setup starts the emulator on first call (thread-safe via [sync.Once]) and
 // returns the cached [*Emulator] on subsequent calls.
