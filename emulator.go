@@ -3,10 +3,18 @@ package spanemuboost
 import (
 	"context"
 	"errors"
+	"sync"
 
 	tcspanner "github.com/testcontainers/testcontainers-go/modules/gcloud/spanner"
 	"google.golang.org/api/option"
 )
+
+// abstractEmulator is satisfied by both [*Emulator] and [*LazyEmulator].
+// The unexported method prevents external implementations.
+// It allows [OpenClients] and [SetupClients] to accept either type.
+type abstractEmulator interface {
+	get(context.Context) (*Emulator, error)
+}
 
 // Emulator wraps a Cloud Spanner Emulator container.
 // Use [RunEmulator] or [SetupEmulator] to create one.
@@ -73,6 +81,50 @@ func (e *Emulator) InstancePath() string { return instancePath(e.opts.projectID,
 // DatabasePath returns the database resource path.
 func (e *Emulator) DatabasePath() string {
 	return databasePath(e.opts.projectID, e.opts.instanceID, e.opts.databaseID)
+}
+
+func (e *Emulator) get(_ context.Context) (*Emulator, error) {
+	return e, nil
+}
+
+// LazyEmulator defers emulator startup until first use.
+// Use [NewLazyEmulator] in a package-level var, then pass directly to [SetupClients]
+// or [OpenClients]. Call [LazyEmulator.Setup] or [LazyEmulator.Get] for standalone access.
+// [LazyEmulator.Close] is safe to call even if the emulator was never started (no-op).
+type LazyEmulator struct {
+	once sync.Once
+	emu  *Emulator
+	err  error
+	opts []Option
+}
+
+// NewLazyEmulator creates a [LazyEmulator] that will start an emulator with the
+// given options on first use. The emulator is not started until it is passed to
+// [SetupClients], [OpenClients], or until [LazyEmulator.Setup] / [LazyEmulator.Get]
+// is called directly.
+func NewLazyEmulator(options ...Option) *LazyEmulator {
+	return &LazyEmulator{opts: options}
+}
+
+func (le *LazyEmulator) get(ctx context.Context) (*Emulator, error) {
+	le.once.Do(func() {
+		le.emu, le.err = RunEmulator(ctx, le.opts...)
+	})
+	return le.emu, le.err
+}
+
+// Get starts the emulator on first call (thread-safe via [sync.Once]) and
+// returns the cached [*Emulator] on subsequent calls.
+func (le *LazyEmulator) Get(ctx context.Context) (*Emulator, error) {
+	return le.get(ctx)
+}
+
+// Close terminates the emulator if it was started. No-op otherwise.
+func (le *LazyEmulator) Close() error {
+	if le.emu != nil {
+		return le.emu.Close()
+	}
+	return nil
 }
 
 // Env combines an [Emulator] with [Clients] for the single-call use case.

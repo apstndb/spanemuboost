@@ -4,6 +4,20 @@ import (
 	"testing"
 )
 
+// Setup starts the emulator on first call (thread-safe via [sync.Once]) and
+// returns the cached [*Emulator] on subsequent calls.
+// It calls [testing.TB.Fatal] if startup fails.
+// For use with [SetupClients] or [OpenClients], you can pass [*LazyEmulator] directly
+// without calling Setup.
+func (le *LazyEmulator) Setup(tb testing.TB) *Emulator {
+	tb.Helper()
+	emu, err := le.Get(tb.Context())
+	if err != nil {
+		tb.Fatal(err)
+	}
+	return emu
+}
+
 // SetupEmulator starts a Cloud Spanner Emulator and registers cleanup via [testing.TB.Cleanup].
 // It calls [testing.TB.Fatal] on setup error.
 // Use [RunEmulator] if you need a [context.Context] or are not in a test.
@@ -45,10 +59,12 @@ func SetupEmulatorWithClients(tb testing.TB, options ...Option) *Env {
 	return env
 }
 
-// SetupClients opens Spanner clients against an existing [Emulator] and registers
+// SetupClients opens Spanner clients against an existing emulator and registers
 // cleanup via [testing.TB.Cleanup]. It calls [testing.TB.Fatal] on setup error.
+// The emu parameter accepts both [*Emulator] and [*LazyEmulator].
+// When a [*LazyEmulator] is passed, the emulator is started automatically on first use.
 // Use [OpenClients] if you need a [context.Context] or are not in a test.
-func SetupClients(tb testing.TB, emu *Emulator, options ...Option) *Clients {
+func SetupClients(tb testing.TB, emu abstractEmulator, options ...Option) *Clients {
 	tb.Helper()
 
 	clients, err := OpenClients(tb.Context(), emu, options...)
