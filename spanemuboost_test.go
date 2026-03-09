@@ -370,6 +370,100 @@ func TestEmulatorAccessors(t *testing.T) {
 	}
 }
 
+func TestLazyEmulatorWithSetupClients(t *testing.T) {
+	ddls := []string{"CREATE TABLE tbl (pk STRING(MAX)) PRIMARY KEY (pk)"}
+
+	lazy := NewLazyEmulator(EnableInstanceAutoConfigOnly())
+	defer func() {
+		if err := lazy.Close(); err != nil {
+			t.Errorf("failed to close lazy emulator: %v", err)
+		}
+	}()
+
+	t.Run("first call starts emulator", func(t *testing.T) {
+		clients := SetupClients(t, lazy,
+			WithRandomDatabaseID(),
+			WithSetupDDLs(ddls),
+		)
+		mustConsumeQuery(t, clients, "SELECT 1")
+	})
+
+	t.Run("second call reuses emulator", func(t *testing.T) {
+		clients := SetupClients(t, lazy,
+			WithRandomDatabaseID(),
+			WithSetupDDLs(ddls),
+		)
+		mustConsumeQuery(t, clients, "SELECT 1")
+	})
+}
+
+func TestLazyEmulatorWithOpenClients(t *testing.T) {
+	ddls := []string{"CREATE TABLE tbl (pk STRING(MAX)) PRIMARY KEY (pk)"}
+
+	lazy := NewLazyEmulator(EnableInstanceAutoConfigOnly())
+	defer func() {
+		if err := lazy.Close(); err != nil {
+			t.Errorf("failed to close lazy emulator: %v", err)
+		}
+	}()
+
+	clients, err := OpenClients(t.Context(), lazy,
+		WithRandomDatabaseID(),
+		WithSetupDDLs(ddls),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		if err := clients.Close(); err != nil {
+			t.Errorf("failed to close clients: %v", err)
+		}
+	}()
+
+	mustConsumeQuery(t, clients, "SELECT 1")
+}
+
+func TestLazyEmulatorGetReturnsSameInstance(t *testing.T) {
+	lazy := NewLazyEmulator(EnableInstanceAutoConfigOnly())
+	defer func() {
+		if err := lazy.Close(); err != nil {
+			t.Errorf("failed to close lazy emulator: %v", err)
+		}
+	}()
+
+	ctx := t.Context()
+	emu1, err := lazy.Get(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	emu2, err := lazy.Get(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if emu1 != emu2 {
+		t.Error("Get() returned different instances")
+	}
+}
+
+func TestLazyEmulatorCloseWithoutStart(t *testing.T) {
+	lazy := NewLazyEmulator(EnableInstanceAutoConfigOnly())
+	if err := lazy.Close(); err != nil {
+		t.Fatalf("Close() on unused LazyEmulator should be no-op, got: %v", err)
+	}
+}
+
+func TestLazyEmulatorGetAfterClose(t *testing.T) {
+	lazy := NewLazyEmulator(EnableInstanceAutoConfigOnly())
+	if err := lazy.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := lazy.Get(t.Context())
+	if err == nil {
+		t.Fatal("Get() after Close() should return an error")
+	}
+}
+
 func sliceOf[T any](values ...T) []T {
 	return values
 }
