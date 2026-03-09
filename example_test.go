@@ -79,7 +79,7 @@ func ExampleOpenClients() {
 	// Output: [0 1 2 3 4 5 6 7 8 9]
 }
 
-func ExampleLazyEmulator_Get() {
+func ExampleLazyEmulator() {
 	ctx := context.Background()
 
 	lazy := spanemuboost.NewLazyEmulator(
@@ -91,18 +91,13 @@ func ExampleLazyEmulator_Get() {
 		}
 	}()
 
-	// Get starts the emulator on first call.
-	// Subsequent calls return the cached emulator.
-	emu, err := lazy.Get(ctx)
-	if err != nil {
-		log.Fatalln(err)
-	}
-
-	clients, err := spanemuboost.OpenClients(ctx, emu,
+	// OpenClients accepts a *LazyEmulator directly and starts it on first use.
+	clients, err := spanemuboost.OpenClients(ctx, lazy,
 		spanemuboost.WithRandomDatabaseID(),
 	)
 	if err != nil {
 		log.Fatalln(err)
+		return
 	}
 	defer func() {
 		if err := clients.Close(); err != nil {
