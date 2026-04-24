@@ -23,9 +23,6 @@ func (s *closeState) close(fn func() error) error {
 }
 
 func ensureCloseState(slot **closeState) *closeState {
-	if *slot != nil {
-		return *slot
-	}
 	closeStateInitMu.Lock()
 	defer closeStateInitMu.Unlock()
 	if *slot == nil {
