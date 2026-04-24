@@ -13,11 +13,25 @@ type closeState struct {
 	err  error
 }
 
+var closeStateInitMu sync.Mutex
+
 func (s *closeState) close(fn func() error) error {
 	s.once.Do(func() {
 		s.err = fn()
 	})
 	return s.err
+}
+
+func ensureCloseState(slot **closeState) *closeState {
+	if *slot != nil {
+		return *slot
+	}
+	closeStateInitMu.Lock()
+	defer closeStateInitMu.Unlock()
+	if *slot == nil {
+		*slot = &closeState{}
+	}
+	return *slot
 }
 
 func newCloseContext() (context.Context, context.CancelFunc) {

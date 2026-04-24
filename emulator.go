@@ -14,7 +14,7 @@ type Emulator struct {
 	container *tcspanner.Container
 	opts      *emulatorOptions
 
-	closeState closeState
+	closeState *closeState
 }
 
 func (*Emulator) spanemuboostRuntime() {}
@@ -55,7 +55,7 @@ func (e *Emulator) Close() error {
 	if e == nil {
 		return nil
 	}
-	return e.closeState.close(func() error {
+	return ensureCloseState(&e.closeState).close(func() error {
 		if e.container == nil {
 			return nil
 		}
@@ -152,7 +152,7 @@ type Env struct {
 	*Clients
 	emulator *Emulator
 
-	closeState closeState
+	closeState *closeState
 }
 
 // Emulator returns the underlying [Emulator].
@@ -167,7 +167,7 @@ func (e *Env) Close() error {
 	if e == nil {
 		return nil
 	}
-	return e.closeState.close(func() error {
+	return ensureCloseState(&e.closeState).close(func() error {
 		var errs []error
 		if e.Clients != nil {
 			errs = append(errs, e.Clients.Close())

@@ -126,7 +126,7 @@ type RuntimeEnv struct {
 	*Clients
 	runtime Runtime
 
-	closeState closeState
+	closeState *closeState
 }
 
 // Runtime returns the started runtime behind this environment.
@@ -141,7 +141,7 @@ func (e *RuntimeEnv) Close() error {
 	if e == nil {
 		return nil
 	}
-	return e.closeState.close(func() error {
+	return ensureCloseState(&e.closeState).close(func() error {
 		var errs []error
 		if e.Clients != nil {
 			errs = append(errs, e.Clients.Close())
