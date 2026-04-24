@@ -289,6 +289,26 @@ func TestEmulatorInheritedOptionsReuseExistingDatabase(t *testing.T) {
 	}
 }
 
+func TestEmulatorInheritedOptionsKeepReuseWhenDatabaseIsUnchanged(t *testing.T) {
+	opts, err := applyOptions(WithDatabaseID("existing-database"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	emu := &Emulator{opts: opts}
+	inherited, err := emu.inheritedOptions(WithDatabaseID("existing-database"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if inherited.databaseID != "existing-database" {
+		t.Fatalf("databaseID = %q, want existing-database", inherited.databaseID)
+	}
+	if !inherited.disableCreateDatabase {
+		t.Fatal("disableCreateDatabase = false, want true")
+	}
+}
+
 func TestRuntimeEnvCloseZeroValue(t *testing.T) {
 	var env RuntimeEnv
 	if err := env.Close(); err != nil {

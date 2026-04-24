@@ -151,6 +151,26 @@ func TestOmniInheritedOptionsAllowDatabaseOverride(t *testing.T) {
 	}
 }
 
+func TestOmniInheritedOptionsKeepReuseWhenDatabaseIsUnchanged(t *testing.T) {
+	opts, err := applyOmniOptions()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	omni := &omniRuntime{opts: opts}
+	inherited, err := omni.inheritedOptions(WithDatabaseID(opts.databaseID))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if inherited.databaseID != opts.databaseID {
+		t.Fatalf("databaseID = %q, want %q", inherited.databaseID, opts.databaseID)
+	}
+	if !inherited.disableCreateDatabase {
+		t.Fatal("disableCreateDatabase = false, want true")
+	}
+}
+
 func TestOmniInheritedOptionsRespectDisableAutoConfigForDatabaseOverride(t *testing.T) {
 	opts, err := applyOmniOptions()
 	if err != nil {

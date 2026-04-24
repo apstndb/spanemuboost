@@ -123,7 +123,9 @@ func WithoutRandomInstanceID() Option {
 // Empty string resets to default.
 func WithDatabaseID(databaseID string) Option {
 	return func(opts *emulatorOptions) error {
-		if opts.reuseExistingDatabase {
+		currentDatabaseID := cmp.Or(opts.databaseID, DefaultDatabaseID)
+		targetDatabaseID := cmp.Or(databaseID, DefaultDatabaseID)
+		if opts.reuseExistingDatabase && targetDatabaseID != currentDatabaseID {
 			opts.disableCreateDatabase = false
 		}
 		opts.reuseExistingDatabase = false
