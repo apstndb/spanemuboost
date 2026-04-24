@@ -156,7 +156,7 @@ func RunEmulatorWithClients(ctx context.Context, options ...Option) (*Env, error
 
 // OpenClients connects to an existing runtime and opens Spanner clients.
 // The runtime parameter accepts [*Emulator], [*LazyEmulator], and the [Runtime]
-// returned by [Run] or [Setup] with [BackendOmni].
+// returned by [Run] or [Setup].
 // When a [*LazyEmulator] is passed, the emulator is started automatically on first use.
 // Options inherit the runtime's projectID and instanceID; instance creation
 // is disabled by default (use [EnableAutoConfig] to override where supported).

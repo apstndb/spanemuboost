@@ -85,6 +85,8 @@ func (e *Emulator) inheritedOptions(options ...Option) (*emulatorOptions, error)
 		projectID:             e.opts.projectID,
 		instanceID:            e.opts.instanceID,
 		disableCreateInstance: true,
+		disableCreateDatabase: true,
+		reuseExistingDatabase: true,
 	}
 	if e.opts.clientConfig != nil {
 		config := *e.opts.clientConfig

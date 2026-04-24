@@ -148,7 +148,7 @@ func SetupEmulatorWithClients(tb testing.TB, options ...Option) *Env {
 // SetupClients opens Spanner clients against an existing runtime and registers
 // cleanup via [testing.TB.Cleanup]. It calls [testing.TB.Fatal] on setup error.
 // The runtime parameter accepts [*Emulator], [*LazyEmulator], and the [Runtime]
-// returned by [Run] or [Setup] with [BackendOmni].
+// returned by [Run] or [Setup].
 // When a [*LazyEmulator] is passed, the emulator is started automatically on first use.
 // Use [OpenClients] if you need a [context.Context] or are not in a test.
 func SetupClients(tb testing.TB, runtime abstractRuntime, options ...Option) *Clients {

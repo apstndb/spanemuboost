@@ -266,6 +266,29 @@ func TestWithRandomIDImpliesCreation(t *testing.T) {
 	})
 }
 
+func TestEmulatorInheritedOptionsReuseExistingDatabase(t *testing.T) {
+	opts, err := applyOptions()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	emu := &Emulator{opts: opts}
+	inherited, err := emu.inheritedOptions()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !inherited.disableCreateInstance {
+		t.Fatal("disableCreateInstance = false, want true")
+	}
+	if !inherited.disableCreateDatabase {
+		t.Fatal("disableCreateDatabase = false, want true")
+	}
+	if inherited.databaseID != DefaultDatabaseID {
+		t.Fatalf("databaseID = %q, want %q", inherited.databaseID, DefaultDatabaseID)
+	}
+}
+
 func TestSchemaTeardown(t *testing.T) {
 	ddls := []string{"CREATE TABLE tbl (pk STRING(MAX)) PRIMARY KEY (pk)"}
 
