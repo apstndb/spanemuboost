@@ -473,6 +473,37 @@ func TestLazyRuntimeWithOmni(t *testing.T) {
 	}
 }
 
+func TestOpenOmniClientsRollsBackCreatedDatabaseOnFailure(t *testing.T) {
+	if os.Getenv("SPANEMUBOOST_ENABLE_OMNI_TESTS") == "" {
+		t.Skip("set SPANEMUBOOST_ENABLE_OMNI_TESTS=1 to run Spanner Omni tests")
+	}
+
+	omni := Setup(t, BackendOmni)
+	const dbID = "rollback-omni-dml-failure"
+
+	_, err := OpenClients(t.Context(), omni,
+		WithDatabaseID(dbID),
+		WithSetupDMLs([]spanner.Statement{
+			spanner.NewStatement("INSERT INTO missing_table (pk) VALUES ('x')"),
+		}),
+	)
+	if err == nil {
+		t.Fatal("first OpenClients() error = nil, want non-nil")
+	}
+
+	clients, err := OpenClients(t.Context(), omni, WithDatabaseID(dbID))
+	if err != nil {
+		t.Fatalf("second OpenClients() error = %v, want nil", err)
+	}
+	defer func() {
+		if err := clients.Close(); err != nil {
+			t.Errorf("failed to close clients: %v", err)
+		}
+	}()
+
+	mustConsumeQuery(t, clients, "SELECT 1")
+}
+
 func TestRunInvalidBackend(t *testing.T) {
 	_, err := Run(context.Background(), Backend("invalid"))
 	if err == nil {

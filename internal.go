@@ -2,6 +2,7 @@ package spanemuboost
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log"
 	"slices"
@@ -20,6 +21,11 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials/insecure"
 )
+
+type createdSchemaResources struct {
+	instance bool
+	database bool
+}
 
 func newEmulator(ctx context.Context, opts *emulatorOptions) (container *tcspanner.Container, teardown func(), err error) {
 	containerCustomizers := []testcontainers.ContainerCustomizer{
@@ -113,22 +119,28 @@ func updateDDLs(ctx context.Context, opts *emulatorOptions, dbCli *database.Data
 }
 
 // bootstrapInstance creates the instance if auto-config is enabled.
-func bootstrapInstance(ctx context.Context, opts *emulatorOptions, instanceCli *instance.InstanceAdminClient) error {
+func bootstrapInstance(ctx context.Context, opts *emulatorOptions, instanceCli *instance.InstanceAdminClient) (bool, error) {
 	if opts.disableCreateInstance {
-		return nil
+		return false, nil
 	}
-	return createInstance(ctx, opts, instanceCli)
+	if err := createInstance(ctx, opts, instanceCli); err != nil {
+		return false, err
+	}
+	return true, nil
 }
 
 // bootstrapDatabase creates the database (with DDLs) or applies DDLs to an existing database.
-func bootstrapDatabase(ctx context.Context, opts *emulatorOptions, dbCli *database.DatabaseAdminClient) error {
+func bootstrapDatabase(ctx context.Context, opts *emulatorOptions, dbCli *database.DatabaseAdminClient) (bool, error) {
 	if !opts.disableCreateDatabase {
-		return createDatabase(ctx, opts, dbCli)
+		if err := createDatabase(ctx, opts, dbCli); err != nil {
+			return false, err
+		}
+		return true, nil
 	}
 	if len(opts.setupDDLs) > 0 {
-		return updateDDLs(ctx, opts, dbCli)
+		return false, updateDDLs(ctx, opts, dbCli)
 	}
-	return nil
+	return false, nil
 }
 
 func bootstrap(ctx context.Context, opts *emulatorOptions, clientOpts ...option.ClientOption) error {
@@ -143,7 +155,7 @@ func bootstrap(ctx context.Context, opts *emulatorOptions, clientOpts ...option.
 			}
 		}()
 
-		if err := createInstance(ctx, opts, instanceCli); err != nil {
+		if _, err := bootstrapInstance(ctx, opts, instanceCli); err != nil {
 			return err
 		}
 	}
@@ -159,7 +171,7 @@ func bootstrap(ctx context.Context, opts *emulatorOptions, clientOpts ...option.
 			}
 		}()
 
-		if err := bootstrapDatabase(ctx, opts, dbCli); err != nil {
+		if _, err := bootstrapDatabase(ctx, opts, dbCli); err != nil {
 			return err
 		}
 	}
@@ -185,7 +197,7 @@ func bootstrapWithManagedClientConfig(ctx context.Context, opts *emulatorOptions
 			}
 		}()
 
-		if err := bootstrapInstance(ctx, opts, instanceCli); err != nil {
+		if _, err := bootstrapInstance(ctx, opts, instanceCli); err != nil {
 			return err
 		}
 	}
@@ -201,7 +213,7 @@ func bootstrapWithManagedClientConfig(ctx context.Context, opts *emulatorOptions
 			}
 		}()
 
-		if err := bootstrapDatabase(ctx, opts, dbCli); err != nil {
+		if _, err := bootstrapDatabase(ctx, opts, dbCli); err != nil {
 			return err
 		}
 	}
@@ -277,43 +289,45 @@ func bootstrapAndCreateClientsWithOptions(ctx context.Context, uri string, opts 
 	if err != nil {
 		return nil, err
 	}
+	var (
+		dbCli             *database.DatabaseAdminClient
+		client            *spanner.Client
+		createdResources  createdSchemaResources
+	)
 	defer func() {
 		if retErr != nil {
-			if err := instanceCli.Close(); err != nil {
-				log.Printf("failed to close instance admin client: %v", err)
+			if err := rollbackCreatedResources(instanceCli, dbCli, opts, createdResources); err != nil {
+				retErr = errors.Join(retErr, err)
 			}
+			if client != nil {
+				client.Close()
+			}
+			if dbCli != nil {
+				logCloseError("close database admin client", dbCli.Close())
+			}
+			logCloseError("close instance admin client", instanceCli.Close())
 		}
 	}()
 
-	if err := bootstrapInstance(ctx, opts, instanceCli); err != nil {
-		return nil, err
-	}
-
-	dbCli, err := database.NewDatabaseAdminClient(ctx, clientOpts...)
+	createdResources.instance, err = bootstrapInstance(ctx, opts, instanceCli)
 	if err != nil {
 		return nil, err
 	}
-	defer func() {
-		if retErr != nil {
-			if err := dbCli.Close(); err != nil {
-				log.Printf("failed to close database admin client: %v", err)
-			}
-		}
-	}()
 
-	if err := bootstrapDatabase(ctx, opts, dbCli); err != nil {
-		return nil, err
-	}
-
-	client, err := spanner.NewClientWithConfig(ctx, opts.DatabasePath(), *opts.clientConfig, slices.Concat(clientOpts, opts.clientOptionsForClient)...)
+	dbCli, err = database.NewDatabaseAdminClient(ctx, clientOpts...)
 	if err != nil {
 		return nil, err
 	}
-	defer func() {
-		if retErr != nil {
-			client.Close()
-		}
-	}()
+
+	createdResources.database, err = bootstrapDatabase(ctx, opts, dbCli)
+	if err != nil {
+		return nil, err
+	}
+
+	client, err = spanner.NewClientWithConfig(ctx, opts.DatabasePath(), *opts.clientConfig, slices.Concat(clientOpts, opts.clientOptionsForClient)...)
+	if err != nil {
+		return nil, err
+	}
 
 	if len(opts.setupDMLs) > 0 {
 		if err := executeDMLsWithClient(ctx, opts, client); err != nil {
@@ -333,6 +347,26 @@ func bootstrapAndCreateClientsWithOptions(ctx context.Context, uri string, opts 
 		dropDatabase:   opts.shouldDropDatabase(),
 		dropInstance:   opts.shouldDropInstance(),
 	}, nil
+}
+
+func rollbackCreatedResources(instanceCli *instance.InstanceAdminClient, dbCli *database.DatabaseAdminClient, opts *emulatorOptions, resources createdSchemaResources) error {
+	ctx := context.Background()
+
+	if resources.instance {
+		err := instanceCli.DeleteInstance(ctx, &instancepb.DeleteInstanceRequest{Name: opts.InstancePath()})
+		if err != nil {
+			return fmt.Errorf("rollback delete instance %s: %w", opts.InstancePath(), err)
+		}
+		return nil
+	}
+
+	if resources.database {
+		err := dbCli.DropDatabase(ctx, &databasepb.DropDatabaseRequest{Database: opts.DatabasePath()})
+		if err != nil {
+			return fmt.Errorf("rollback drop database %s: %w", opts.DatabasePath(), err)
+		}
+	}
+	return nil
 }
 
 func newClients(ctx context.Context, emulator *tcspanner.Container, opts *emulatorOptions) (clients *Clients, teardown func(), err error) {
