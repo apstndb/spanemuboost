@@ -152,7 +152,7 @@ func SetupEmulatorWithClients(tb testing.TB, options ...Option) *Env {
 // When a [*LazyEmulator] is passed, the emulator is started automatically on first use.
 // Options inherit the runtime's projectID, instanceID, and databaseID.
 // Use [OpenClients] if you need a [context.Context] or are not in a test.
-func SetupClients(tb testing.TB, runtime abstractRuntime, options ...Option) *Clients {
+func SetupClients(tb testing.TB, runtime any, options ...Option) *Clients {
 	tb.Helper()
 
 	clients, err := OpenClients(tb.Context(), runtime, options...)

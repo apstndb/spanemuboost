@@ -165,8 +165,8 @@ func RunEmulatorWithClients(ctx context.Context, options ...Option) (*Env, error
 // [EnableAutoConfig]).
 // Call [Clients.Close] to close the clients when done.
 // In tests, prefer [SetupClients] which handles cleanup automatically.
-func OpenClients(ctx context.Context, runtime abstractRuntime, options ...Option) (*Clients, error) {
-	r, err := runtime.get(ctx)
+func OpenClients(ctx context.Context, runtime any, options ...Option) (*Clients, error) {
+	r, err := resolveRuntime(ctx, runtime)
 	if err != nil {
 		return nil, err
 	}

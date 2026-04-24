@@ -22,7 +22,6 @@ const (
 
 // Runtime is a started Spanner-compatible test runtime.
 type Runtime interface {
-	get(context.Context) (runtimeInstance, error)
 	URI() string
 	ClientOptions() []option.ClientOption
 	Close() error
@@ -41,6 +40,14 @@ type runtimeInstance interface {
 
 type abstractRuntime interface {
 	get(context.Context) (runtimeInstance, error)
+}
+
+func resolveRuntime(ctx context.Context, runtime any) (runtimeInstance, error) {
+	r, ok := runtime.(abstractRuntime)
+	if !ok {
+		return nil, fmt.Errorf("spanemuboost: unsupported runtime type %T; use *Emulator, *LazyEmulator, or a Runtime returned by Run or Setup", runtime)
+	}
+	return r.get(ctx)
 }
 
 // RuntimeEnv combines a [Runtime] with [Clients] for backend-neutral startup.
