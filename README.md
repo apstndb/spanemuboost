@@ -2,7 +2,7 @@
 
 [![Go Reference](https://pkg.go.dev/badge/github.com/apstndb/spanemuboost.svg)](https://pkg.go.dev/github.com/apstndb/spanemuboost)
 
-spanemuboost bootstraps Cloud Spanner Emulator and client with no required configuration using [testcontainers-go](https://github.com/testcontainers/testcontainers-go).
+spanemuboost bootstraps Cloud Spanner Emulator and, experimentally, Spanner Omni for tests using [testcontainers-go](https://github.com/testcontainers/testcontainers-go). Review the [Spanner Omni software requirements](https://docs.cloud.google.com/spanner-omni/system-requirements#software-requirements) before enabling the Omni path in local development or CI.
 
 It inspired by `autoConfigEmulator` of:
 
@@ -27,6 +27,59 @@ func TestFoo(t *testing.T) {
 ```
 
 For non-test usage (e.g. embedding the emulator in an application where the `testing` package is unavailable), see runnable examples on [pkg.go.dev](https://pkg.go.dev/github.com/apstndb/spanemuboost#pkg-examples).
+
+### Spanner Omni (experimental)
+
+`Setup`, `Run`, `RunWithClients`, and `SetupWithClients` with `BackendOmni` start a Spanner Omni single-server container and use the public Spanner gRPC API on port `15000` for database creation, DDL application, DML setup, and managed client creation. This path is intended for integration tests that want a real Omni runtime without depending on the emulator.
+
+```go
+func TestOmni(t *testing.T) {
+    env := spanemuboost.SetupWithClients(t, spanemuboost.BackendOmni,
+        spanemuboost.WithRandomDatabaseID(),
+        spanemuboost.WithSetupDDLs([]string{
+            "CREATE TABLE tbl (pk STRING(MAX), col INT64) PRIMARY KEY (pk)",
+        }),
+        spanemuboost.WithSetupRawDMLs([]string{
+            "INSERT INTO tbl (pk, col) VALUES ('foo', 1)",
+        }),
+    )
+
+    err := env.Client.Single().Query(t.Context(), spanner.NewStatement(
+        "SELECT col FROM tbl WHERE pk = 'foo'",
+    )).Do(func(r *spanner.Row) error {
+        var col int64
+        return r.Column(0, &col)
+    })
+    if err != nil { t.Fatal(err) }
+}
+```
+
+| Omni caveat | Detail |
+|---|---|
+| Experimental runtime | Omni support is newer than the emulator path and should be treated as integration-test-oriented |
+| Primary endpoint | The main Spanner gRPC endpoint is `15000`; the console remains separate |
+| Recommended client config | Managed Omni clients force the `RecommendedOmniClientConfig()` transport defaults (`DisableNativeMetrics` and `IsExperimentalHost`) unless guardrails are disabled; the same helper remains the recommended base for external Go clients |
+| Host and container prerequisites | Review the [Spanner Omni software requirements](https://docs.cloud.google.com/spanner-omni/system-requirements#software-requirements) before enabling Omni in local development or CI |
+| Guardrails | Known-invalid single-server Omni settings fail fast with human-readable errors; use `DisableBackendGuardrails()` only when testing a newer backend whose constraints may have changed |
+
+The repository's Omni integration tests are gated by `SPANEMUBOOST_ENABLE_OMNI_TESTS=1` so default test runs stay hermetic unless the environment is explicitly prepared for Omni.
+
+Once a runtime is started, the shared client helpers are backend-neutral:
+
+```go
+func TestSharedHelpers(t *testing.T) {
+    runtime := spanemuboost.Setup(t, spanemuboost.BackendOmni)
+    clients := spanemuboost.SetupClients(t, runtime,
+        spanemuboost.WithRandomDatabaseID(),
+        spanemuboost.WithSetupDDLs([]string{
+            "CREATE TABLE tbl (pk STRING(MAX)) PRIMARY KEY (pk)",
+        }),
+    )
+    _ = clients
+}
+```
+
+`Run`, `RunWithClients`, `Setup`, `SetupWithClients`, `OpenClients`, and `SetupClients` work across emulator and Omni. `BackendOmni` is the backend selector; Omni does not add separate exported startup or client-opening helpers.
 
 ### Shared emulator patterns
 

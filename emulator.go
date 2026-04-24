@@ -9,19 +9,14 @@ import (
 	"google.golang.org/api/option"
 )
 
-// abstractEmulator is satisfied by both [*Emulator] and [*LazyEmulator].
-// The unexported method prevents external implementations.
-// It allows [OpenClients] and [SetupClients] to accept either type.
-type abstractEmulator interface {
-	get(context.Context) (*Emulator, error)
-}
-
 // Emulator wraps a Cloud Spanner Emulator container.
 // Use [RunEmulator] or [SetupEmulator] to create one.
 type Emulator struct {
 	container *tcspanner.Container
 	opts      *emulatorOptions
 }
+
+func (*Emulator) spanemuboostRuntime() {}
 
 // URI returns the gRPC endpoint (host:port) of the emulator,
 // suitable for use as SPANNER_EMULATOR_HOST.
@@ -83,8 +78,9 @@ func (e *Emulator) DatabasePath() string {
 	return databasePath(e.opts.projectID, e.opts.instanceID, e.opts.databaseID)
 }
 
-func (e *Emulator) get(_ context.Context) (*Emulator, error) {
-	return e, nil
+func (e *Emulator) inheritedOptions(options ...Option) (*emulatorOptions, error) {
+	base := inheritedRuntimeOptions(e.opts)
+	return applyOptionsWithBase(base, options...)
 }
 
 // LazyEmulator defers emulator startup until first use.
@@ -101,6 +97,8 @@ type LazyEmulator struct {
 	closeErr  error
 }
 
+func (*LazyEmulator) spanemuboostRuntime() {}
+
 // NewLazyEmulator creates a [LazyEmulator] that will start an emulator with the
 // given options on first use. The emulator is not started until it is passed to
 // [SetupClients], [OpenClients], or until [LazyEmulator.Setup] / [LazyEmulator.Get]
@@ -109,7 +107,7 @@ func NewLazyEmulator(options ...Option) *LazyEmulator {
 	return &LazyEmulator{opts: options}
 }
 
-func (le *LazyEmulator) get(ctx context.Context) (*Emulator, error) {
+func (le *LazyEmulator) get(ctx context.Context) (runtimeInstance, error) {
 	le.once.Do(func() {
 		le.emu, le.err = RunEmulator(ctx, le.opts...)
 	})
@@ -122,7 +120,15 @@ func (le *LazyEmulator) get(ctx context.Context) (*Emulator, error) {
 // Get starts the emulator on first call (thread-safe via [sync.Once]) and
 // returns the cached [*Emulator] on subsequent calls.
 func (le *LazyEmulator) Get(ctx context.Context) (*Emulator, error) {
-	return le.get(ctx)
+	runtime, err := le.get(ctx)
+	if err != nil {
+		return nil, err
+	}
+	emu, ok := runtime.(*Emulator)
+	if !ok {
+		return nil, errors.New("spanemuboost: lazy emulator returned unexpected runtime type")
+	}
+	return emu, nil
 }
 
 // Close terminates the emulator if it was started. No-op otherwise.

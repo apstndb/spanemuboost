@@ -266,6 +266,126 @@ func TestWithRandomIDImpliesCreation(t *testing.T) {
 	})
 }
 
+func TestEmulatorInheritedOptionsReuseExistingDatabase(t *testing.T) {
+	opts, err := applyOptions(WithDatabaseID("existing-database"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	emu := &Emulator{opts: opts}
+	inherited, err := emu.inheritedOptions()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !inherited.disableCreateInstance {
+		t.Fatal("disableCreateInstance = false, want true")
+	}
+	if !inherited.disableCreateDatabase {
+		t.Fatal("disableCreateDatabase = false, want true")
+	}
+	if inherited.databaseID != "existing-database" {
+		t.Fatalf("databaseID = %q, want existing-database", inherited.databaseID)
+	}
+}
+
+func TestEmulatorInheritedOptionsKeepReuseWhenDatabaseIsUnchanged(t *testing.T) {
+	opts, err := applyOptions(WithDatabaseID("existing-database"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	emu := &Emulator{opts: opts}
+	inherited, err := emu.inheritedOptions(WithDatabaseID("existing-database"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if inherited.databaseID != "existing-database" {
+		t.Fatalf("databaseID = %q, want existing-database", inherited.databaseID)
+	}
+	if !inherited.disableCreateDatabase {
+		t.Fatal("disableCreateDatabase = false, want true")
+	}
+}
+
+func TestEmulatorInheritedOptionsPreserveDatabaseDialect(t *testing.T) {
+	opts, err := applyOptions(WithDatabaseDialect(databasepb.DatabaseDialect_POSTGRESQL))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	emu := &Emulator{opts: opts}
+	inherited, err := emu.inheritedOptions(WithRandomDatabaseID())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if inherited.databaseDialect != databasepb.DatabaseDialect_POSTGRESQL {
+		t.Fatalf("databaseDialect = %v, want %v", inherited.databaseDialect, databasepb.DatabaseDialect_POSTGRESQL)
+	}
+}
+
+func TestRuntimeEnvCloseZeroValue(t *testing.T) {
+	var env RuntimeEnv
+	if err := env.Close(); err != nil {
+		t.Fatalf("Close() error = %v, want nil", err)
+	}
+
+	var nilEnv *RuntimeEnv
+	if err := nilEnv.Close(); err != nil {
+		t.Fatalf("nil Close() error = %v, want nil", err)
+	}
+}
+
+func TestMinimalBootstrapClientConfig(t *testing.T) {
+	original := spanner.ClientConfig{
+		DisableNativeMetrics: true,
+		SessionPoolConfig: spanner.SessionPoolConfig{
+			MinOpened: 5,
+			MaxOpened: 7,
+		},
+	}
+
+	got := minimalBootstrapClientConfig(original)
+
+	if got.MinOpened != 1 {
+		t.Fatalf("MinOpened = %d, want 1", got.MinOpened)
+	}
+	if got.MaxOpened != 1 {
+		t.Fatalf("MaxOpened = %d, want 1", got.MaxOpened)
+	}
+	if !got.DisableNativeMetrics {
+		t.Fatal("DisableNativeMetrics = false, want true")
+	}
+	if original.MinOpened != 5 {
+		t.Fatalf("original MinOpened = %d, want 5", original.MinOpened)
+	}
+	if original.MaxOpened != 7 {
+		t.Fatalf("original MaxOpened = %d, want 7", original.MaxOpened)
+	}
+}
+
+func TestOpenClientsRejectsNilRuntime(t *testing.T) {
+	var nilEmulator *Emulator
+	_, err := OpenClients(t.Context(), nilEmulator)
+	if err == nil {
+		t.Fatal("OpenClients(nil *Emulator) error = nil, want non-nil")
+	}
+
+	var nilLazy *LazyEmulator
+	_, err = OpenClients(t.Context(), nilLazy)
+	if err == nil {
+		t.Fatal("OpenClients(nil *LazyEmulator) error = nil, want non-nil")
+	}
+
+	var nilRuntime Runtime = (*Emulator)(nil)
+	_, err = OpenClients(t.Context(), nilRuntime)
+	if err == nil {
+		t.Fatal("OpenClients(nil Runtime) error = nil, want non-nil")
+	}
+}
+
 func TestSchemaTeardown(t *testing.T) {
 	ddls := []string{"CREATE TABLE tbl (pk STRING(MAX)) PRIMARY KEY (pk)"}
 

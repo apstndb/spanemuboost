@@ -54,10 +54,13 @@ func newEmulator(ctx context.Context, opts *emulatorOptions) (container *tcspann
 // executeDMLsWithClient is used instead with the user-facing client.
 func executeDMLs(ctx context.Context, opts *emulatorOptions, clientOpts ...option.ClientOption) error {
 	client, err := spanner.NewClientWithConfig(ctx, opts.DatabasePath(),
-		spanner.ClientConfig{
-			SessionPoolConfig:    spanner.SessionPoolConfig{MinOpened: 1, MaxOpened: 1},
+		minimalBootstrapClientConfig(spanner.ClientConfig{
+			// This deprecated bootstrap path creates its own throwaway client and
+			// bypasses the managed-client config finalization used elsewhere.
+			// Keep native metrics disabled here explicitly rather than assuming
+			// minimalBootstrapClientConfig will do it for us.
 			DisableNativeMetrics: true,
-		},
+		}),
 		clientOpts...)
 	if err != nil {
 		return err
@@ -85,6 +88,13 @@ func executeDMLsWithClient(ctx context.Context, opts *emulatorOptions, client *s
 		return fmt.Errorf("failed to apply DML: %w", err)
 	}
 	return nil
+}
+
+func minimalBootstrapClientConfig(config spanner.ClientConfig) spanner.ClientConfig {
+	cfg := config
+	cfg.MinOpened = 1
+	cfg.MaxOpened = 1
+	return cfg
 }
 
 func updateDDLs(ctx context.Context, opts *emulatorOptions, dbCli *database.DatabaseAdminClient) error {
@@ -163,6 +173,52 @@ func bootstrap(ctx context.Context, opts *emulatorOptions, clientOpts ...option.
 	return nil
 }
 
+func bootstrapWithManagedClientConfig(ctx context.Context, opts *emulatorOptions, clientOpts []option.ClientOption) error {
+	if !opts.disableCreateInstance {
+		instanceCli, err := instance.NewInstanceAdminClient(ctx, clientOpts...)
+		if err != nil {
+			return err
+		}
+		defer func() {
+			if err := instanceCli.Close(); err != nil {
+				log.Printf("failed to close instance admin client: %v", err)
+			}
+		}()
+
+		if err := bootstrapInstance(ctx, opts, instanceCli); err != nil {
+			return err
+		}
+	}
+
+	if !opts.disableCreateDatabase || len(opts.setupDDLs) > 0 {
+		dbCli, err := database.NewDatabaseAdminClient(ctx, clientOpts...)
+		if err != nil {
+			return err
+		}
+		defer func() {
+			if err := dbCli.Close(); err != nil {
+				log.Printf("failed to close database admin client: %v", err)
+			}
+		}()
+
+		if err := bootstrapDatabase(ctx, opts, dbCli); err != nil {
+			return err
+		}
+	}
+	if len(opts.setupDMLs) == 0 {
+		return nil
+	}
+
+	clientConfig := minimalBootstrapClientConfig(*opts.clientConfig)
+	client, err := spanner.NewClientWithConfig(ctx, opts.DatabasePath(), clientConfig, slices.Concat(clientOpts, opts.clientOptionsForClient)...)
+	if err != nil {
+		return err
+	}
+	defer client.Close()
+
+	return executeDMLsWithClient(ctx, opts, client)
+}
+
 func createDatabase(ctx context.Context, opts *emulatorOptions, dbCli *database.DatabaseAdminClient) error {
 	var createStmt string
 	if opts.databaseDialect != databasepb.DatabaseDialect_POSTGRESQL {
@@ -213,8 +269,10 @@ func createInstance(ctx context.Context, opts *emulatorOptions, instanceCli *ins
 // and returns all clients as [Clients]. This avoids creating admin clients twice
 // (once for bootstrap, once for the caller).
 func bootstrapAndCreateClients(ctx context.Context, emu *Emulator, opts *emulatorOptions) (_ *Clients, retErr error) {
-	clientOpts := emu.ClientOptions()
+	return bootstrapAndCreateClientsWithOptions(ctx, emu.URI(), opts, emu.ClientOptions())
+}
 
+func bootstrapAndCreateClientsWithOptions(ctx context.Context, uri string, opts *emulatorOptions, clientOpts []option.ClientOption) (_ *Clients, retErr error) {
 	instanceCli, err := instance.NewInstanceAdminClient(ctx, clientOpts...)
 	if err != nil {
 		return nil, err
@@ -247,8 +305,6 @@ func bootstrapAndCreateClients(ctx context.Context, emu *Emulator, opts *emulato
 		return nil, err
 	}
 
-	// Create the data client before DML execution so that the same client
-	// can be reused for both bootstrap DMLs and user operations.
 	client, err := spanner.NewClientWithConfig(ctx, opts.DatabasePath(), *opts.clientConfig, slices.Concat(clientOpts, opts.clientOptionsForClient)...)
 	if err != nil {
 		return nil, err
@@ -273,7 +329,7 @@ func bootstrapAndCreateClients(ctx context.Context, emu *Emulator, opts *emulato
 		InstanceID:     opts.instanceID,
 		DatabaseID:     opts.databaseID,
 		clientOpts:     clientOpts,
-		uri:            emu.URI(),
+		uri:            uri,
 		dropDatabase:   opts.shouldDropDatabase(),
 		dropInstance:   opts.shouldDropInstance(),
 	}, nil

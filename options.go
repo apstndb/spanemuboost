@@ -18,9 +18,11 @@ type emulatorOptions struct {
 
 	randomProjectID, randomInstanceID, randomDatabaseID bool
 
-	disableCreateInstance bool
-	disableCreateDatabase bool
-	schemaTeardown        *bool
+	disableCreateInstance    bool
+	disableCreateDatabase    bool
+	disableBackendGuardrails bool
+	reuseExistingDatabase    bool
+	schemaTeardown           *bool
 
 	databaseDialect        databasepb.DatabaseDialect
 	setupDDLs              []string
@@ -121,6 +123,12 @@ func WithoutRandomInstanceID() Option {
 // Empty string resets to default.
 func WithDatabaseID(databaseID string) Option {
 	return func(opts *emulatorOptions) error {
+		currentDatabaseID := cmp.Or(opts.databaseID, DefaultDatabaseID)
+		targetDatabaseID := cmp.Or(databaseID, DefaultDatabaseID)
+		if opts.reuseExistingDatabase && targetDatabaseID != currentDatabaseID {
+			opts.disableCreateDatabase = false
+		}
+		opts.reuseExistingDatabase = false
 		opts.databaseID = databaseID
 		return nil
 	}
@@ -135,6 +143,7 @@ func WithDatabaseID(databaseID string) Option {
 func WithRandomDatabaseID() Option {
 	return func(opts *emulatorOptions) error {
 		opts.randomDatabaseID = true
+		opts.reuseExistingDatabase = false
 		opts.databaseID = ""
 		opts.disableCreateDatabase = false
 		return nil
@@ -157,22 +166,49 @@ func WithDatabaseDialect(dialect databasepb.DatabaseDialect) Option {
 	}
 }
 
-// WithEmulatorImage configures the Spanner Emulator container image.
+// WithContainerImage configures the container image used for the selected backend.
 // Empty string will be ignored.
-func WithEmulatorImage(image string) Option {
+func WithContainerImage(image string) Option {
 	return func(opts *emulatorOptions) error {
-		opts.emulatorImage = image
+		if image != "" {
+			opts.emulatorImage = image
+		}
 		return nil
 	}
 }
 
-// WithClientConfig sets spanner.ClientConfig for NewClients and NewEmulatorWithClients.
+// Deprecated: WithEmulatorImage is a deprecated alias for [WithContainerImage].
+// Empty string will be ignored.
+func WithEmulatorImage(image string) Option {
+	return WithContainerImage(image)
+}
+
+// DisableBackendGuardrails disables backend-specific validation and coercion.
+//
+// By default, spanemuboost rejects known-invalid backend configurations early
+// with human-readable errors. Use this option only when trying a newer backend
+// version whose constraints may have changed.
+func DisableBackendGuardrails() Option {
+	return func(opts *emulatorOptions) error {
+		opts.disableBackendGuardrails = true
+		return nil
+	}
+}
+
+// WithClientConfig sets [spanner.ClientConfig] for managed data clients created by
+// spanemuboost, including [OpenClients], [RunWithClients], and [SetupWithClients].
 //
 // When this option is not used, spanemuboost sets DisableNativeMetrics to true
 // by default, since the Spanner native metrics infrastructure is unnecessary
 // for emulator connections and can add overhead (metadata server lookups,
-// monitoring exporter creation). If you provide a custom [spanner.ClientConfig],
-// consider setting DisableNativeMetrics: true explicitly.
+// monitoring exporter creation).
+//
+// For Omni managed clients with backend guardrails enabled, spanemuboost applies
+// the recommended Omni defaults from [RecommendedOmniClientConfig], including
+// DisableNativeMetrics and IsExperimentalHost, overriding those two fields even
+// when they were set explicitly in the provided config. DisableBackendGuardrails
+// keeps the provided config untouched. [RecommendedOmniClientConfig] remains the
+// recommended base for external Go clients.
 func WithClientConfig(config spanner.ClientConfig) Option {
 	return func(opts *emulatorOptions) error {
 		opts.clientConfig = &config
@@ -219,6 +255,7 @@ func DisableAutoConfig() Option {
 	return func(opts *emulatorOptions) error {
 		opts.disableCreateInstance = true
 		opts.disableCreateDatabase = true
+		opts.reuseExistingDatabase = false
 		return nil
 	}
 }
@@ -228,22 +265,29 @@ func EnableAutoConfig() Option {
 	return func(opts *emulatorOptions) error {
 		opts.disableCreateInstance = false
 		opts.disableCreateDatabase = false
+		opts.reuseExistingDatabase = false
 		return nil
 	}
 }
 
+// EnableInstanceAutoConfigOnly enables only instance auto-creation and keeps
+// database auto-creation disabled.
 func EnableInstanceAutoConfigOnly() Option {
 	return func(opts *emulatorOptions) error {
 		opts.disableCreateInstance = false
 		opts.disableCreateDatabase = true
+		opts.reuseExistingDatabase = false
 		return nil
 	}
 }
 
+// EnableDatabaseAutoConfigOnly enables only database auto-creation and keeps
+// instance auto-creation disabled.
 func EnableDatabaseAutoConfigOnly() Option {
 	return func(opts *emulatorOptions) error {
 		opts.disableCreateInstance = true
 		opts.disableCreateDatabase = false
+		opts.reuseExistingDatabase = false
 		return nil
 	}
 }
