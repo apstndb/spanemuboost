@@ -20,7 +20,9 @@ import (
 	"google.golang.org/api/option"
 	"google.golang.org/api/option/internaloption"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/status"
 )
 
 type createdSchemaResources struct {
@@ -360,17 +362,35 @@ func rollbackCreatedResources(instanceCli *instance.InstanceAdminClient, dbCli *
 	var errs []error
 
 	if resources.instance {
-		// DeleteInstance removes child databases on success. Rollback intentionally
-		// does not follow a failed DeleteInstance with DropDatabase, because the
-		// server-side outcome of the delete attempt may already be in flight and a
-		// second cleanup call would add redundant teardown work against the same
-		// hierarchy.
+		// DeleteInstance removes child databases on success, so only fall back to
+		// DropDatabase when instance cleanup could not run or when a follow-up
+		// GetInstance confirms the instance still exists after the delete error.
+		dropDatabase := false
 		if instanceCli == nil {
 			errs = append(errs, fmt.Errorf("rollback delete instance %s: instance admin client is nil", opts.InstancePath()))
+			dropDatabase = resources.database
 		} else {
 			err := instanceCli.DeleteInstance(ctx, &instancepb.DeleteInstanceRequest{Name: opts.InstancePath()})
 			if err != nil {
 				errs = append(errs, fmt.Errorf("rollback delete instance %s: %w", opts.InstancePath(), err))
+				if resources.database {
+					exists, existsErr := instanceStillExists(ctx, instanceCli, opts.InstancePath())
+					if existsErr != nil {
+						errs = append(errs, fmt.Errorf("rollback get instance %s: %w", opts.InstancePath(), existsErr))
+					} else if exists {
+						dropDatabase = true
+					}
+				}
+			}
+		}
+		if dropDatabase {
+			if dbCli == nil {
+				errs = append(errs, fmt.Errorf("rollback drop database %s: database admin client is nil", opts.DatabasePath()))
+			} else {
+				err := dbCli.DropDatabase(ctx, &databasepb.DropDatabaseRequest{Database: opts.DatabasePath()})
+				if err != nil {
+					errs = append(errs, fmt.Errorf("rollback drop database %s: %w", opts.DatabasePath(), err))
+				}
 			}
 		}
 		return errors.Join(errs...)
@@ -387,6 +407,17 @@ func rollbackCreatedResources(instanceCli *instance.InstanceAdminClient, dbCli *
 		}
 	}
 	return errors.Join(errs...)
+}
+
+func instanceStillExists(ctx context.Context, instanceCli *instance.InstanceAdminClient, instancePath string) (bool, error) {
+	_, err := instanceCli.GetInstance(ctx, &instancepb.GetInstanceRequest{Name: instancePath})
+	if err == nil {
+		return true, nil
+	}
+	if status.Code(err) == codes.NotFound {
+		return false, nil
+	}
+	return false, err
 }
 
 func logCloseError(action string, err error) {
