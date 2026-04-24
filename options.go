@@ -21,6 +21,7 @@ type emulatorOptions struct {
 	disableCreateInstance    bool
 	disableCreateDatabase    bool
 	disableBackendGuardrails bool
+	reuseExistingDatabase    bool
 	schemaTeardown           *bool
 
 	databaseDialect        databasepb.DatabaseDialect
@@ -122,6 +123,10 @@ func WithoutRandomInstanceID() Option {
 // Empty string resets to default.
 func WithDatabaseID(databaseID string) Option {
 	return func(opts *emulatorOptions) error {
+		if opts.reuseExistingDatabase {
+			opts.disableCreateDatabase = false
+		}
+		opts.reuseExistingDatabase = false
 		opts.databaseID = databaseID
 		return nil
 	}
@@ -136,6 +141,7 @@ func WithDatabaseID(databaseID string) Option {
 func WithRandomDatabaseID() Option {
 	return func(opts *emulatorOptions) error {
 		opts.randomDatabaseID = true
+		opts.reuseExistingDatabase = false
 		opts.databaseID = ""
 		opts.disableCreateDatabase = false
 		return nil
@@ -162,12 +168,14 @@ func WithDatabaseDialect(dialect databasepb.DatabaseDialect) Option {
 // Empty string will be ignored.
 func WithContainerImage(image string) Option {
 	return func(opts *emulatorOptions) error {
-		opts.emulatorImage = image
+		if image != "" {
+			opts.emulatorImage = image
+		}
 		return nil
 	}
 }
 
-// WithEmulatorImage is a deprecated alias for [WithContainerImage].
+// Deprecated: WithEmulatorImage is a deprecated alias for [WithContainerImage].
 // Empty string will be ignored.
 func WithEmulatorImage(image string) Option {
 	return WithContainerImage(image)
@@ -242,6 +250,7 @@ func DisableAutoConfig() Option {
 	return func(opts *emulatorOptions) error {
 		opts.disableCreateInstance = true
 		opts.disableCreateDatabase = true
+		opts.reuseExistingDatabase = false
 		return nil
 	}
 }
@@ -251,6 +260,7 @@ func EnableAutoConfig() Option {
 	return func(opts *emulatorOptions) error {
 		opts.disableCreateInstance = false
 		opts.disableCreateDatabase = false
+		opts.reuseExistingDatabase = false
 		return nil
 	}
 }
@@ -261,6 +271,7 @@ func EnableInstanceAutoConfigOnly() Option {
 	return func(opts *emulatorOptions) error {
 		opts.disableCreateInstance = false
 		opts.disableCreateDatabase = true
+		opts.reuseExistingDatabase = false
 		return nil
 	}
 }
@@ -271,6 +282,7 @@ func EnableDatabaseAutoConfigOnly() Option {
 	return func(opts *emulatorOptions) error {
 		opts.disableCreateInstance = true
 		opts.disableCreateDatabase = false
+		opts.reuseExistingDatabase = false
 		return nil
 	}
 }

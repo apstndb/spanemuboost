@@ -132,6 +132,7 @@ func (o *omniRuntime) inheritedOptions(options ...Option) (*emulatorOptions, err
 		disableCreateInstance:    true,
 		disableCreateDatabase:    true,
 		disableBackendGuardrails: o.opts.disableBackendGuardrails,
+		reuseExistingDatabase:    true,
 	}
 	if o.opts.clientConfig != nil {
 		config := *o.opts.clientConfig

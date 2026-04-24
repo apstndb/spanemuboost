@@ -56,6 +56,10 @@ func executeDMLs(ctx context.Context, opts *emulatorOptions, clientOpts ...optio
 	client, err := spanner.NewClientWithConfig(ctx, opts.DatabasePath(),
 		spanner.ClientConfig{
 			DisableNativeMetrics: true,
+			SessionPoolConfig: spanner.SessionPoolConfig{
+				MinOpened: 1,
+				MaxOpened: 1,
+			},
 		},
 		clientOpts...)
 	if err != nil {

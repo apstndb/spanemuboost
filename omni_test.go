@@ -122,6 +122,49 @@ func TestOmniInheritedOptionsReuseExistingDatabase(t *testing.T) {
 	}
 }
 
+func TestOmniInheritedOptionsAllowDatabaseOverride(t *testing.T) {
+	opts, err := applyOmniOptions()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	omni := &omniRuntime{opts: opts}
+	inherited, err := omni.inheritedOptions(WithDatabaseID("override-database"))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if inherited.databaseID != "override-database" {
+		t.Fatalf("databaseID = %q, want override-database", inherited.databaseID)
+	}
+	if inherited.disableCreateDatabase {
+		t.Fatal("disableCreateDatabase = true, want false")
+	}
+}
+
+func TestOmniInheritedOptionsRespectDisableAutoConfigForDatabaseOverride(t *testing.T) {
+	opts, err := applyOmniOptions()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	omni := &omniRuntime{opts: opts}
+	inherited, err := omni.inheritedOptions(
+		DisableAutoConfig(),
+		WithDatabaseID("override-database"),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if inherited.databaseID != "override-database" {
+		t.Fatalf("databaseID = %q, want override-database", inherited.databaseID)
+	}
+	if !inherited.disableCreateDatabase {
+		t.Fatal("disableCreateDatabase = false, want true")
+	}
+}
+
 func TestOmniInheritedOptionsPreserveDisabledGuardrails(t *testing.T) {
 	opts, err := applyOmniOptions(
 		DisableBackendGuardrails(),
@@ -285,6 +328,34 @@ func TestOpenOmniClientsReuseDefaultDatabase(t *testing.T) {
 		}
 		if col != 5 {
 			t.Fatalf("col = %d, want 5", col)
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestOpenOmniClientsAllowDatabaseOverride(t *testing.T) {
+	if os.Getenv("SPANEMUBOOST_ENABLE_OMNI_TESTS") == "" {
+		t.Skip("set SPANEMUBOOST_ENABLE_OMNI_TESTS=1 to run Spanner Omni tests")
+	}
+
+	omni := Setup(t, BackendOmni)
+	clients := SetupClients(t, omni,
+		WithDatabaseID("override-database"),
+		WithSetupDDLs([]string{"CREATE TABLE tbl (pk STRING(MAX), col INT64) PRIMARY KEY (pk)"}),
+		WithSetupRawDMLs([]string{"INSERT INTO tbl (pk, col) VALUES ('override', 6)"}),
+	)
+
+	iter := clients.Client.Single().Query(t.Context(), spanner.NewStatement("SELECT col FROM tbl WHERE pk = 'override'"))
+	err := iter.Do(func(r *spanner.Row) error {
+		var col int64
+		if err := r.Column(0, &col); err != nil {
+			return err
+		}
+		if col != 6 {
+			t.Fatalf("col = %d, want 6", col)
 		}
 		return nil
 	})
