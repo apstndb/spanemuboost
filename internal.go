@@ -357,28 +357,43 @@ func rollbackCreatedResources(instanceCli *instance.InstanceAdminClient, dbCli *
 	// it should remain bounded so OpenClients failure handling cannot hang forever.
 	ctx, cancel := context.WithTimeout(context.Background(), rollbackTimeout)
 	defer cancel()
+	var errs []error
 
 	if resources.instance {
+		// If both resources were created, drop the database first so rollback still
+		// makes progress even when instance deletion later fails.
+		if resources.database {
+			if dbCli == nil {
+				errs = append(errs, fmt.Errorf("rollback drop database %s: database admin client is nil", opts.DatabasePath()))
+			} else {
+				err := dbCli.DropDatabase(ctx, &databasepb.DropDatabaseRequest{Database: opts.DatabasePath()})
+				if err != nil {
+					errs = append(errs, fmt.Errorf("rollback drop database %s: %w", opts.DatabasePath(), err))
+				}
+			}
+		}
 		if instanceCli == nil {
-			return fmt.Errorf("rollback delete instance %s: instance admin client is nil", opts.InstancePath())
+			errs = append(errs, fmt.Errorf("rollback delete instance %s: instance admin client is nil", opts.InstancePath()))
+		} else {
+			err := instanceCli.DeleteInstance(ctx, &instancepb.DeleteInstanceRequest{Name: opts.InstancePath()})
+			if err != nil {
+				errs = append(errs, fmt.Errorf("rollback delete instance %s: %w", opts.InstancePath(), err))
+			}
 		}
-		err := instanceCli.DeleteInstance(ctx, &instancepb.DeleteInstanceRequest{Name: opts.InstancePath()})
-		if err != nil {
-			return fmt.Errorf("rollback delete instance %s: %w", opts.InstancePath(), err)
-		}
-		return nil
+		return errors.Join(errs...)
 	}
 
 	if resources.database {
 		if dbCli == nil {
-			return fmt.Errorf("rollback drop database %s: database admin client is nil", opts.DatabasePath())
+			errs = append(errs, fmt.Errorf("rollback drop database %s: database admin client is nil", opts.DatabasePath()))
+			return errors.Join(errs...)
 		}
 		err := dbCli.DropDatabase(ctx, &databasepb.DropDatabaseRequest{Database: opts.DatabasePath()})
 		if err != nil {
-			return fmt.Errorf("rollback drop database %s: %w", opts.DatabasePath(), err)
+			errs = append(errs, fmt.Errorf("rollback drop database %s: %w", opts.DatabasePath(), err))
 		}
 	}
-	return nil
+	return errors.Join(errs...)
 }
 
 func logCloseError(action string, err error) {

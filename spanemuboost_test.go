@@ -1,6 +1,7 @@
 package spanemuboost
 
 import (
+	"strings"
 	"sync"
 	"testing"
 
@@ -530,6 +531,32 @@ func TestOpenClientsRollbackCreatedResourcesOnFailure(t *testing.T) {
 
 		mustConsumeQuery(t, clients, "SELECT 1")
 	})
+}
+
+func TestRollbackCreatedResourcesBestEffortErrors(t *testing.T) {
+	opts, err := applyOptions(
+		EnableAutoConfig(),
+		WithInstanceID("rollback-instance"),
+		WithDatabaseID("rollback-database"),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = rollbackCreatedResources(nil, nil, opts, createdSchemaResources{
+		instance: true,
+		database: true,
+	})
+	if err == nil {
+		t.Fatal("rollbackCreatedResources() error = nil, want non-nil")
+	}
+
+	if !strings.Contains(err.Error(), "database admin client is nil") {
+		t.Fatalf("rollbackCreatedResources() error = %v, want database admin client failure", err)
+	}
+	if !strings.Contains(err.Error(), "instance admin client is nil") {
+		t.Fatalf("rollbackCreatedResources() error = %v, want instance admin client failure", err)
+	}
 }
 
 func TestEmulatorAccessors(t *testing.T) {
