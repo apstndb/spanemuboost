@@ -83,25 +83,27 @@ func (c *Clients) Close() error {
 		}
 
 		var dropErrs []error
-		ctx, cancel := newCloseContext()
-		defer cancel()
-		if c.dropInstance {
-			// Deleting the instance also removes all databases within it,
-			// so there is no need to drop the database separately.
-			if c.InstanceClient == nil {
-				dropErrs = append(dropErrs, fmt.Errorf("delete instance %s: instance admin client is nil", c.InstancePath()))
-			} else if err := c.InstanceClient.DeleteInstance(ctx, &instancepb.DeleteInstanceRequest{
-				Name: c.InstancePath(),
-			}); err != nil {
-				dropErrs = append(dropErrs, fmt.Errorf("delete instance %s: %w", c.InstancePath(), err))
-			}
-		} else if c.dropDatabase {
-			if c.DatabaseClient == nil {
-				dropErrs = append(dropErrs, fmt.Errorf("drop database %s: database admin client is nil", c.DatabasePath()))
-			} else if err := c.DatabaseClient.DropDatabase(ctx, &databasepb.DropDatabaseRequest{
-				Database: c.DatabasePath(),
-			}); err != nil {
-				dropErrs = append(dropErrs, fmt.Errorf("drop database %s: %w", c.DatabasePath(), err))
+		if c.dropInstance || c.dropDatabase {
+			ctx, cancel := newCloseContext()
+			defer cancel()
+			if c.dropInstance {
+				// Deleting the instance also removes all databases within it,
+				// so there is no need to drop the database separately.
+				if c.InstanceClient == nil {
+					dropErrs = append(dropErrs, fmt.Errorf("delete instance %s: instance admin client is nil", c.InstancePath()))
+				} else if err := c.InstanceClient.DeleteInstance(ctx, &instancepb.DeleteInstanceRequest{
+					Name: c.InstancePath(),
+				}); err != nil {
+					dropErrs = append(dropErrs, fmt.Errorf("delete instance %s: %w", c.InstancePath(), err))
+				}
+			} else if c.dropDatabase {
+				if c.DatabaseClient == nil {
+					dropErrs = append(dropErrs, fmt.Errorf("drop database %s: database admin client is nil", c.DatabasePath()))
+				} else if err := c.DatabaseClient.DropDatabase(ctx, &databasepb.DropDatabaseRequest{
+					Database: c.DatabasePath(),
+				}); err != nil {
+					dropErrs = append(dropErrs, fmt.Errorf("drop database %s: %w", c.DatabasePath(), err))
+				}
 			}
 		}
 
