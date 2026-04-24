@@ -58,7 +58,7 @@ func TestOmni(t *testing.T) {
 |---|---|
 | Experimental runtime | Omni support is newer than the emulator path and should be treated as integration-test-oriented |
 | Primary endpoint | The main Spanner gRPC endpoint is `15000`; the console remains separate |
-| Recommended client config | `RecommendedOmniClientConfig()` enables `IsExperimentalHost` and disables native metrics for external Go clients |
+| Recommended client config | Managed Omni clients use `RecommendedOmniClientConfig()` defaults unless guardrails are disabled; the same helper remains the recommended base for external Go clients |
 | Host and container prerequisites | Review the [Spanner Omni software requirements](https://docs.cloud.google.com/spanner-omni/system-requirements#software-requirements) before enabling Omni in local development or CI |
 | Guardrails | Known-invalid single-server Omni settings fail fast with human-readable errors; use `DisableBackendGuardrails()` only when testing a newer backend whose constraints may have changed |
 

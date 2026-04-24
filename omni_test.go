@@ -55,13 +55,19 @@ func TestRunOmniRejectsUnsupportedInstanceAutoconfig(t *testing.T) {
 	}
 }
 
-func TestRunOmniRejectsIncompatibleClientConfig(t *testing.T) {
-	_, err := applyOmniOptions(WithClientConfig(spanner.ClientConfig{}))
-	if err == nil {
-		t.Fatal("expected error for incompatible client config")
+func TestRunOmniAppliesRecommendedClientConfigForManagedClients(t *testing.T) {
+	opts, err := applyOmniOptions(WithClientConfig(spanner.ClientConfig{}))
+	if err != nil {
+		t.Fatal(err)
 	}
-	if !strings.Contains(err.Error(), "IsExperimentalHost=true") {
-		t.Fatalf("error %q does not mention IsExperimentalHost=true", err)
+	if opts.clientConfig == nil {
+		t.Fatal("clientConfig is nil")
+	}
+	if !opts.clientConfig.DisableNativeMetrics {
+		t.Fatal("DisableNativeMetrics = false, want true")
+	}
+	if !opts.clientConfig.IsExperimentalHost {
+		t.Fatal("IsExperimentalHost = false, want true")
 	}
 }
 
@@ -87,6 +93,9 @@ func TestRunOmniDisableBackendGuardrails(t *testing.T) {
 	}
 	if opts.clientConfig == nil {
 		t.Fatal("clientConfig is nil")
+	}
+	if opts.clientConfig.DisableNativeMetrics {
+		t.Fatal("DisableNativeMetrics = true, want false")
 	}
 	if opts.clientConfig.IsExperimentalHost {
 		t.Fatal("IsExperimentalHost = true, want false")

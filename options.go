@@ -199,11 +199,13 @@ func DisableBackendGuardrails() Option {
 // When this option is not used, spanemuboost sets DisableNativeMetrics to true
 // by default, since the Spanner native metrics infrastructure is unnecessary
 // for emulator connections and can add overhead (metadata server lookups,
-// monitoring exporter creation). If you provide a custom [spanner.ClientConfig],
-// consider setting DisableNativeMetrics: true explicitly.
+// monitoring exporter creation).
 //
-// Spanner Omni managed clients also require [spanner.ClientConfig.IsExperimentalHost]
-// to be true; [RecommendedOmniClientConfig] returns a suitable base config.
+// For Omni managed clients with backend guardrails enabled, spanemuboost applies
+// the recommended Omni defaults from [RecommendedOmniClientConfig], including
+// DisableNativeMetrics and IsExperimentalHost. DisableBackendGuardrails keeps
+// the provided config untouched. [RecommendedOmniClientConfig] remains the
+// recommended base for external Go clients.
 func WithClientConfig(config spanner.ClientConfig) Option {
 	return func(opts *emulatorOptions) error {
 		opts.clientConfig = &config

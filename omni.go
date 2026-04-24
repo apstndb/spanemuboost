@@ -55,6 +55,21 @@ func RecommendedOmniClientConfig() spanner.ClientConfig {
 	}
 }
 
+func finalizeManagedOmniClientConfig(config *spanner.ClientConfig, disableBackendGuardrails bool) *spanner.ClientConfig {
+	if config == nil {
+		cfg := RecommendedOmniClientConfig()
+		return &cfg
+	}
+
+	cfg := *config
+	if !disableBackendGuardrails {
+		recommended := RecommendedOmniClientConfig()
+		cfg.DisableNativeMetrics = recommended.DisableNativeMetrics
+		cfg.IsExperimentalHost = recommended.IsExperimentalHost
+	}
+	return &cfg
+}
+
 // Close terminates the Omni container.
 func (o *omniRuntime) Close() error {
 	return o.container.Terminate(context.Background())
@@ -189,9 +204,6 @@ func finalizeOmniOptions(opts *emulatorOptions) (*emulatorOptions, error) {
 	if !opts.disableCreateInstance && !opts.disableBackendGuardrails {
 		return nil, omniGuardrailError("instance auto-configuration is unsupported for Spanner Omni single-server because the built-in default instance cannot be created, updated, or deleted", "use the default behavior or EnableDatabaseAutoConfigOnly(), or DisableBackendGuardrails() to bypass this validation")
 	}
-	if opts.clientConfig != nil && !opts.clientConfig.IsExperimentalHost && !opts.disableBackendGuardrails {
-		return nil, omniGuardrailError("WithClientConfig requires ClientConfig.IsExperimentalHost=true for Spanner Omni managed clients", "use RecommendedOmniClientConfig() as a base, or DisableBackendGuardrails() to bypass this validation")
-	}
 	if opts.randomDatabaseID && opts.databaseID != "" {
 		return nil, fmt.Errorf("WithRandomDatabaseID() and WithDatabaseID() are mutually exclusive")
 	}
@@ -203,10 +215,7 @@ func finalizeOmniOptions(opts *emulatorOptions) (*emulatorOptions, error) {
 	opts.projectID = cmp.Or(opts.projectID, defaultOmniProjectID)
 	opts.instanceID = cmp.Or(opts.instanceID, defaultOmniInstanceID)
 	opts.databaseID = cmp.Or(opts.databaseID, DefaultDatabaseID)
-	if opts.clientConfig == nil {
-		config := RecommendedOmniClientConfig()
-		opts.clientConfig = &config
-	}
+	opts.clientConfig = finalizeManagedOmniClientConfig(opts.clientConfig, opts.disableBackendGuardrails)
 	return opts, nil
 }
 
