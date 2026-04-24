@@ -20,8 +20,6 @@ func TestLazyEmulatorCloseAfterFailedGet(t *testing.T) {
 }
 
 func TestLazyRuntimeStateGetRepanicsAfterStartPanic(t *testing.T) {
-	t.Helper()
-
 	var state lazyRuntimeState
 	const want = "boom"
 
@@ -42,4 +40,28 @@ func TestLazyRuntimeStateGetRepanicsAfterStartPanic(t *testing.T) {
 
 	assertPanic(1)
 	assertPanic(2)
+}
+
+func TestLazyRuntimeStateGetRepanicsAfterNilPanic(t *testing.T) {
+	var state lazyRuntimeState
+
+	assertPanics := func(call int) {
+		t.Helper()
+
+		panicking := true
+		defer func() {
+			_ = recover()
+			if !panicking {
+				t.Fatalf("call %d: get() returned normally, want panic", call)
+			}
+		}()
+
+		_, _ = state.get(t.Context(), func(context.Context) (runtimeInstance, error) {
+			panic(nil)
+		}, "unused")
+		panicking = false
+	}
+
+	assertPanics(1)
+	assertPanics(2)
 }

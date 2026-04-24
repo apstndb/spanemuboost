@@ -21,14 +21,18 @@ type lazyRuntimeState struct {
 
 func (s *lazyRuntimeState) get(ctx context.Context, start func(context.Context) (runtimeInstance, error), missingMessage string) (runtimeInstance, error) {
 	s.once.Do(func() {
+		panicking := true
 		defer func() {
-			if r := recover(); r != nil {
+			// Track whether start panicked separately so panic(nil) is not
+			// mistaken for a normal return and later translated into missingMessage.
+			if panicking {
 				s.panicked = true
-				s.panicValue = r
-				panic(r)
+				s.panicValue = recover()
+				panic(s.panicValue)
 			}
 		}()
 		s.runtime, s.err = start(ctx)
+		panicking = false
 	})
 	if s.panicked {
 		panic(s.panicValue)
