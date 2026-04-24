@@ -1,8 +1,9 @@
 .PHONY: test lint omni-smoke
 
 # Keep this as an explicit test-name list rather than a compact grouped regex so
-# CI selection stays easy to audit when Omni smoke coverage changes.
-OMNI_SMOKE_TEST_PATTERN = ^(TestRunOmni|TestRunOmniWithClients|TestOpenOmniClients|TestOpenOmniClientsReuseDefaultDatabase|TestOpenOmniClientsAllowDatabaseOverride|TestSetupClientsWithOmni|TestLazyRuntimeWithOmni)$$
+# CI selection stays easy to audit when Omni smoke coverage changes. Match either
+# the top-level test name or one of its subtests.
+OMNI_SMOKE_TEST_PATTERN = ^(TestRunOmni|TestRunOmniWithClients|TestOpenOmniClients|TestOpenOmniClientsReuseDefaultDatabase|TestOpenOmniClientsAllowDatabaseOverride|TestSetupClientsWithOmni|TestLazyRuntimeWithOmni)($$|/)
 
 test:
 	go test -v ./...
