@@ -14,8 +14,7 @@ type Emulator struct {
 	container *tcspanner.Container
 	opts      *emulatorOptions
 
-	closed   bool
-	closeErr error
+	closeState closeState
 }
 
 func (*Emulator) spanemuboostRuntime() {}
@@ -56,14 +55,14 @@ func (e *Emulator) Close() error {
 	if e == nil {
 		return nil
 	}
-	if e.closed {
-		return e.closeErr
-	}
-	e.closed = true
-	if e.container != nil {
-		e.closeErr = e.container.Terminate(context.Background())
-	}
-	return e.closeErr
+	return e.closeState.close(func() error {
+		if e.container == nil {
+			return nil
+		}
+		ctx, cancel := newCloseContext()
+		defer cancel()
+		return e.container.Terminate(ctx)
+	})
 }
 
 // Container returns the underlying [*tcspanner.Container] for direct access.
@@ -153,8 +152,7 @@ type Env struct {
 	*Clients
 	emulator *Emulator
 
-	closed   bool
-	closeErr error
+	closeState closeState
 }
 
 // Emulator returns the underlying [Emulator].
@@ -169,18 +167,14 @@ func (e *Env) Close() error {
 	if e == nil {
 		return nil
 	}
-	if e.closed {
-		return e.closeErr
-	}
-	e.closed = true
-
-	var errs []error
-	if e.Clients != nil {
-		errs = append(errs, e.Clients.Close())
-	}
-	if e.emulator != nil {
-		errs = append(errs, e.emulator.Close())
-	}
-	e.closeErr = errors.Join(errs...)
-	return e.closeErr
+	return e.closeState.close(func() error {
+		var errs []error
+		if e.Clients != nil {
+			errs = append(errs, e.Clients.Close())
+		}
+		if e.emulator != nil {
+			errs = append(errs, e.emulator.Close())
+		}
+		return errors.Join(errs...)
+	})
 }

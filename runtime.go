@@ -126,8 +126,7 @@ type RuntimeEnv struct {
 	*Clients
 	runtime Runtime
 
-	closed   bool
-	closeErr error
+	closeState closeState
 }
 
 // Runtime returns the started runtime behind this environment.
@@ -142,20 +141,16 @@ func (e *RuntimeEnv) Close() error {
 	if e == nil {
 		return nil
 	}
-	if e.closed {
-		return e.closeErr
-	}
-	e.closed = true
-
-	var errs []error
-	if e.Clients != nil {
-		errs = append(errs, e.Clients.Close())
-	}
-	if e.runtime != nil {
-		errs = append(errs, e.runtime.Close())
-	}
-	e.closeErr = errors.Join(errs...)
-	return e.closeErr
+	return e.closeState.close(func() error {
+		var errs []error
+		if e.Clients != nil {
+			errs = append(errs, e.Clients.Close())
+		}
+		if e.runtime != nil {
+			errs = append(errs, e.runtime.Close())
+		}
+		return errors.Join(errs...)
+	})
 }
 
 // Run starts the selected backend and returns it as a backend-neutral runtime.

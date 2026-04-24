@@ -31,8 +31,7 @@ type omniRuntime struct {
 	opts      *emulatorOptions
 	uri       string
 
-	closed   bool
-	closeErr error
+	closeState closeState
 }
 
 func (*omniRuntime) spanemuboostRuntime() {}
@@ -83,14 +82,14 @@ func (o *omniRuntime) Close() error {
 	if o == nil {
 		return nil
 	}
-	if o.closed {
-		return o.closeErr
-	}
-	o.closed = true
-	if o.container != nil {
-		o.closeErr = o.container.Terminate(context.Background())
-	}
-	return o.closeErr
+	return o.closeState.close(func() error {
+		if o.container == nil {
+			return nil
+		}
+		ctx, cancel := newCloseContext()
+		defer cancel()
+		return o.container.Terminate(ctx)
+	})
 }
 
 // ProjectID returns the fixed project ID used by the single-server Omni deployment.
