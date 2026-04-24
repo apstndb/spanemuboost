@@ -439,6 +439,40 @@ func TestSetupClientsWithOmni(t *testing.T) {
 	}
 }
 
+func TestLazyRuntimeWithOmni(t *testing.T) {
+	if os.Getenv("SPANEMUBOOST_ENABLE_OMNI_TESTS") == "" {
+		t.Skip("set SPANEMUBOOST_ENABLE_OMNI_TESTS=1 to run Spanner Omni tests")
+	}
+
+	lazy := NewLazyRuntime(BackendOmni)
+	defer func() {
+		if err := lazy.Close(); err != nil {
+			t.Errorf("failed to close lazy runtime: %v", err)
+		}
+	}()
+
+	clients := SetupClients(t, lazy,
+		WithRandomDatabaseID(),
+		WithSetupDDLs([]string{"CREATE TABLE tbl (pk STRING(MAX), col INT64) PRIMARY KEY (pk)"}),
+		WithSetupRawDMLs([]string{"INSERT INTO tbl (pk, col) VALUES ('lazy', 7)"}),
+	)
+
+	iter := clients.Client.Single().Query(t.Context(), spanner.NewStatement("SELECT col FROM tbl WHERE pk = 'lazy'"))
+	err := iter.Do(func(r *spanner.Row) error {
+		var col int64
+		if err := r.Column(0, &col); err != nil {
+			return err
+		}
+		if col != 7 {
+			t.Fatalf("col = %d, want 7", col)
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
 func TestRunInvalidBackend(t *testing.T) {
 	_, err := Run(context.Background(), Backend("invalid"))
 	if err == nil {

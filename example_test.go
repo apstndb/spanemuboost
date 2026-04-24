@@ -115,6 +115,43 @@ func ExampleLazyEmulator() {
 	// Output: {fields: [type:{code:INT64}], values: [string_value:"1"]}
 }
 
+func ExampleLazyRuntime() {
+	ctx := context.Background()
+
+	lazy := spanemuboost.NewLazyRuntime(
+		spanemuboost.BackendEmulator,
+		spanemuboost.EnableInstanceAutoConfigOnly(),
+	)
+	defer func() {
+		if err := lazy.Close(); err != nil {
+			log.Printf("failed to close lazy runtime: %v", err)
+		}
+	}()
+
+	// OpenClients accepts a *LazyRuntime directly and starts it on first use.
+	clients, err := spanemuboost.OpenClients(ctx, lazy,
+		spanemuboost.WithRandomDatabaseID(),
+	)
+	if err != nil {
+		log.Fatalln(err)
+		return
+	}
+	defer func() {
+		if err := clients.Close(); err != nil {
+			log.Printf("failed to close clients: %v", err)
+		}
+	}()
+
+	err = clients.Client.Single().Query(ctx, spanner.NewStatement("SELECT 1")).Do(func(r *spanner.Row) error {
+		fmt.Println(r)
+		return nil
+	})
+	if err != nil {
+		log.Fatalln(err)
+	}
+	// Output: {fields: [type:{code:INT64}], values: [string_value:"1"]}
+}
+
 // Deprecated examples kept for backward compatibility testing.
 
 func ExampleNewEmulatorWithClients() {

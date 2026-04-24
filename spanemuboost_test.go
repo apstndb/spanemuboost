@@ -373,6 +373,12 @@ func TestOpenClientsRejectsNilRuntime(t *testing.T) {
 		t.Fatal("OpenClients(nil *Emulator) error = nil, want non-nil")
 	}
 
+	var nilLazyRuntime *LazyRuntime
+	_, err = OpenClients(t.Context(), nilLazyRuntime)
+	if err == nil {
+		t.Fatal("OpenClients(nil *LazyRuntime) error = nil, want non-nil")
+	}
+
 	var nilLazy *LazyEmulator
 	_, err = OpenClients(t.Context(), nilLazy)
 	if err == nil {
@@ -647,6 +653,159 @@ func TestLazyEmulatorCloseWithoutStart(t *testing.T) {
 
 func TestLazyEmulatorGetAfterClose(t *testing.T) {
 	lazy := NewLazyEmulator(EnableInstanceAutoConfigOnly())
+	if err := lazy.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	_, err := lazy.Get(t.Context())
+	if err == nil {
+		t.Fatal("Get() after Close() should return an error")
+	}
+}
+
+func TestLazyRuntimeEmulatorWithSetupClients(t *testing.T) {
+	ddls := []string{"CREATE TABLE tbl (pk STRING(MAX)) PRIMARY KEY (pk)"}
+
+	lazy := NewLazyRuntime(BackendEmulator, EnableInstanceAutoConfigOnly())
+	defer func() {
+		if err := lazy.Close(); err != nil {
+			t.Errorf("failed to close lazy runtime: %v", err)
+		}
+	}()
+
+	t.Run("first call starts runtime", func(t *testing.T) {
+		clients := SetupClients(t, lazy,
+			WithRandomDatabaseID(),
+			WithSetupDDLs(ddls),
+		)
+		mustConsumeQuery(t, clients, "SELECT 1")
+	})
+
+	t.Run("second call reuses runtime", func(t *testing.T) {
+		clients := SetupClients(t, lazy,
+			WithRandomDatabaseID(),
+			WithSetupDDLs(ddls),
+		)
+		mustConsumeQuery(t, clients, "SELECT 1")
+	})
+}
+
+func TestLazyRuntimeEmulatorWithOpenClients(t *testing.T) {
+	lazy := NewLazyRuntime(BackendEmulator, EnableInstanceAutoConfigOnly())
+	defer func() {
+		if err := lazy.Close(); err != nil {
+			t.Errorf("failed to close lazy runtime: %v", err)
+		}
+	}()
+
+	clients, err := OpenClients(t.Context(), lazy,
+		WithRandomDatabaseID(),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() {
+		if err := clients.Close(); err != nil {
+			t.Errorf("failed to close clients: %v", err)
+		}
+	}()
+
+	mustConsumeQuery(t, clients, "SELECT 1")
+}
+
+func TestLazyRuntimeEmulatorCanReplaceDirectEmulatorUseCases(t *testing.T) {
+	lazy := NewLazyRuntime(BackendEmulator, EnableInstanceAutoConfigOnly())
+	defer func() {
+		if err := lazy.Close(); err != nil {
+			t.Errorf("failed to close lazy runtime: %v", err)
+		}
+	}()
+
+	runtime := lazy.Setup(t)
+	if runtime.URI() == "" {
+		t.Fatal("URI() is empty")
+	}
+	if opts := runtime.ClientOptions(); len(opts) != 4 {
+		t.Fatalf("ClientOptions() returned %d options, want 4", len(opts))
+	}
+
+	emu, ok := runtime.(*Emulator)
+	if !ok {
+		t.Fatalf("Setup() returned %T, want *Emulator for BackendEmulator", runtime)
+	}
+	if emu.Container() == nil {
+		t.Fatal("Container() is nil")
+	}
+
+	clients := SetupClients(t, runtime,
+		WithRandomDatabaseID(),
+	)
+	mustConsumeQuery(t, clients, "SELECT 1")
+}
+
+func TestLazyRuntimeConcurrentGet(t *testing.T) {
+	lazy := NewLazyRuntime(BackendEmulator, EnableInstanceAutoConfigOnly())
+	defer func() {
+		if err := lazy.Close(); err != nil {
+			t.Errorf("failed to close lazy runtime: %v", err)
+		}
+	}()
+
+	const goroutines = 10
+	runtimes := make([]Runtime, goroutines)
+	errs := make([]error, goroutines)
+
+	var wg sync.WaitGroup
+	wg.Add(goroutines)
+	for i := range goroutines {
+		go func(i int) {
+			defer wg.Done()
+			runtimes[i], errs[i] = lazy.Get(t.Context())
+		}(i)
+	}
+	wg.Wait()
+
+	for i := range goroutines {
+		if errs[i] != nil {
+			t.Fatalf("goroutine %d: Get() failed: %v", i, errs[i])
+		}
+		if runtimes[i] != runtimes[0] {
+			t.Errorf("goroutine %d: Get() returned different instance", i)
+		}
+	}
+}
+
+func TestLazyRuntimeGetReturnsSameInstance(t *testing.T) {
+	lazy := NewLazyRuntime(BackendEmulator, EnableInstanceAutoConfigOnly())
+	defer func() {
+		if err := lazy.Close(); err != nil {
+			t.Errorf("failed to close lazy runtime: %v", err)
+		}
+	}()
+
+	ctx := t.Context()
+	runtime1, err := lazy.Get(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	runtime2, err := lazy.Get(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if runtime1 != runtime2 {
+		t.Error("Get() returned different instances")
+	}
+}
+
+func TestLazyRuntimeCloseWithoutStart(t *testing.T) {
+	lazy := NewLazyRuntime(BackendEmulator, EnableInstanceAutoConfigOnly())
+	if err := lazy.Close(); err != nil {
+		t.Fatalf("Close() on unused LazyRuntime should be no-op, got: %v", err)
+	}
+}
+
+func TestLazyRuntimeGetAfterClose(t *testing.T) {
+	lazy := NewLazyRuntime(BackendEmulator, EnableInstanceAutoConfigOnly())
 	if err := lazy.Close(); err != nil {
 		t.Fatal(err)
 	}

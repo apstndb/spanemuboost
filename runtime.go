@@ -70,11 +70,12 @@ func disableSchemaTeardownUnlessForced(opts *emulatorOptions, clients *Clients) 
 	}
 }
 
-// OpenClients and SetupClients intentionally accept either a started Runtime or
-// a *LazyEmulator without adding another startup method to the public Runtime API.
+// OpenClients and SetupClients intentionally accept either a started Runtime,
+// a *LazyRuntime, or a *LazyEmulator without adding another startup method to
+// the public Runtime API.
 func resolveRuntime(ctx context.Context, runtime abstractRuntime) (runtimeInstance, error) {
 	if runtime == nil {
-		return nil, errors.New("spanemuboost: runtime is nil; use *Emulator, *LazyEmulator, or a Runtime returned by Run or Setup")
+		return nil, errors.New("spanemuboost: runtime is nil; use *Emulator, *LazyRuntime, *LazyEmulator, or a Runtime returned by Run or Setup")
 	}
 
 	switch r := runtime.(type) {
@@ -83,6 +84,11 @@ func resolveRuntime(ctx context.Context, runtime abstractRuntime) (runtimeInstan
 			return nil, errors.New("spanemuboost: runtime is a nil *Emulator")
 		}
 		return r, nil
+	case *LazyRuntime:
+		if r == nil {
+			return nil, errors.New("spanemuboost: runtime is a nil *LazyRuntime")
+		}
+		return r.get(ctx)
 	case *LazyEmulator:
 		if r == nil {
 			return nil, errors.New("spanemuboost: runtime is a nil *LazyEmulator")
@@ -98,10 +104,10 @@ func resolveRuntime(ctx context.Context, runtime abstractRuntime) (runtimeInstan
 		case *omniRuntime:
 			return instance, nil
 		default:
-			return nil, fmt.Errorf("spanemuboost: unsupported runtime type %T; use *Emulator, *LazyEmulator, or a Runtime returned by Run or Setup", runtime)
+			return nil, fmt.Errorf("spanemuboost: unsupported runtime type %T; use *Emulator, *LazyRuntime, *LazyEmulator, or a Runtime returned by Run or Setup", runtime)
 		}
 	default:
-		return nil, fmt.Errorf("spanemuboost: unsupported runtime type %T; use *Emulator, *LazyEmulator, or a Runtime returned by Run or Setup", runtime)
+		return nil, fmt.Errorf("spanemuboost: unsupported runtime type %T; use *Emulator, *LazyRuntime, *LazyEmulator, or a Runtime returned by Run or Setup", runtime)
 	}
 }
 

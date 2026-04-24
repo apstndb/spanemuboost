@@ -40,6 +40,26 @@ func (e *Emulator) TestMain(m *testing.M) {
 	runTestMain(m, e.Close)
 }
 
+// TestMain runs m.Run(), closes the lazy runtime, and calls os.Exit with the
+// appropriate code. A close failure is logged and causes a non-zero exit code.
+// If the runtime was never started, Close is a no-op.
+//
+// Because TestMain calls os.Exit, it must be the last statement in your
+// TestMain function. If you need additional cleanup, refer to the
+// source of this method and write the logic manually.
+//
+// Usage in TestMain:
+//
+//	var lazy = spanemuboost.NewLazyRuntime(
+//	    spanemuboost.BackendEmulator,
+//	    spanemuboost.EnableInstanceAutoConfigOnly(),
+//	)
+//
+//	func TestMain(m *testing.M) { lazy.TestMain(m) }
+func (lr *LazyRuntime) TestMain(m *testing.M) {
+	runTestMain(m, lr.Close)
+}
+
 // TestMain runs m.Run(), closes the lazy emulator, and calls os.Exit with the
 // appropriate code. A close failure is logged and causes a non-zero exit code.
 // If the emulator was never started, Close is a no-op.
@@ -57,18 +77,31 @@ func (le *LazyEmulator) TestMain(m *testing.M) {
 	runTestMain(m, le.Close)
 }
 
+func setupLazy[T any](tb testing.TB, get func(context.Context) (T, error)) T {
+	tb.Helper()
+	value, err := get(tb.Context())
+	if err != nil {
+		tb.Fatal(err)
+	}
+	return value
+}
+
+// Setup starts the selected backend on first call (thread-safe via [sync.Once])
+// and returns the cached [Runtime] on subsequent calls.
+// It calls [testing.TB.Fatal] if startup fails.
+// For use with [SetupClients] or [OpenClients], you can pass [*LazyRuntime] directly
+// without calling Setup.
+func (lr *LazyRuntime) Setup(tb testing.TB) Runtime {
+	return setupLazy(tb, lr.Get)
+}
+
 // Setup starts the emulator on first call (thread-safe via [sync.Once]) and
 // returns the cached [*Emulator] on subsequent calls.
 // It calls [testing.TB.Fatal] if startup fails.
 // For use with [SetupClients] or [OpenClients], you can pass [*LazyEmulator] directly
 // without calling Setup.
 func (le *LazyEmulator) Setup(tb testing.TB) *Emulator {
-	tb.Helper()
-	emu, err := le.Get(tb.Context())
-	if err != nil {
-		tb.Fatal(err)
-	}
-	return emu
+	return setupLazy(tb, le.Get)
 }
 
 func setupWithCleanup[T interface{ Close() error }](tb testing.TB, start func(context.Context) (T, error), closeTarget string) T {
@@ -121,12 +154,12 @@ func SetupEmulatorWithClients(tb testing.TB, options ...Option) *Env {
 
 // SetupClients opens Spanner clients against an existing runtime and registers
 // cleanup via [testing.TB.Cleanup]. It calls [testing.TB.Fatal] on setup error.
-// The runtime parameter accepts [*Emulator], [*LazyEmulator], and the [Runtime]
-// returned by [Run] or [Setup].
-// When a [*LazyEmulator] is passed, the emulator is started automatically on first use.
+// The runtime parameter accepts [*Emulator], [*LazyRuntime], [*LazyEmulator],
+// and the [Runtime] returned by [Run] or [Setup].
+// When a lazy runtime is passed, it is started automatically on first use.
 // The parameter type is intentionally limited to package-provided runtime values
-// so callers can use [*LazyEmulator] without adding another startup method to
-// the public [Runtime] interface.
+// so callers can use lazy runtime handles without adding another startup method
+// to the public [Runtime] interface.
 // Options inherit the runtime's projectID, instanceID, and databaseID.
 // Use [OpenClients] if you need a [context.Context] or are not in a test.
 func SetupClients(tb testing.TB, runtime abstractRuntime, options ...Option) *Clients {

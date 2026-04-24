@@ -3,7 +3,6 @@ package spanemuboost
 import (
 	"context"
 	"errors"
-	"sync"
 
 	tcspanner "github.com/testcontainers/testcontainers-go/modules/gcloud/spanner"
 	"google.golang.org/api/option"
@@ -88,13 +87,8 @@ func (e *Emulator) inheritedOptions(options ...Option) (*emulatorOptions, error)
 // or [OpenClients]. Call [LazyEmulator.Setup] or [LazyEmulator.Get] for standalone access.
 // [LazyEmulator.Close] is safe to call even if the emulator was never started (no-op).
 type LazyEmulator struct {
-	once sync.Once
-	emu  *Emulator
-	err  error
-	opts []Option
-
-	closeOnce sync.Once
-	closeErr  error
+	state lazyRuntimeState
+	opts  []Option
 }
 
 func (*LazyEmulator) spanemuboostRuntime() {}
@@ -108,13 +102,9 @@ func NewLazyEmulator(options ...Option) *LazyEmulator {
 }
 
 func (le *LazyEmulator) get(ctx context.Context) (runtimeInstance, error) {
-	le.once.Do(func() {
-		le.emu, le.err = RunEmulator(ctx, le.opts...)
-	})
-	if le.emu == nil && le.err == nil {
-		return nil, errors.New("spanemuboost: lazy emulator used after Close was called before initialization")
-	}
-	return le.emu, le.err
+	return le.state.get(ctx, func(ctx context.Context) (runtimeInstance, error) {
+		return RunEmulator(ctx, le.opts...)
+	}, "spanemuboost: lazy emulator used after Close was called before initialization")
 }
 
 // Get starts the emulator on first call (thread-safe via [sync.Once]) and
@@ -136,13 +126,7 @@ func (le *LazyEmulator) Get(ctx context.Context) (*Emulator, error) {
 // Close waits for any in-progress initialization to complete before checking.
 // If Close is called before any Get or Setup, the emulator will never be started.
 func (le *LazyEmulator) Close() error {
-	le.once.Do(func() {})
-	le.closeOnce.Do(func() {
-		if le.emu != nil {
-			le.closeErr = le.emu.Close()
-		}
-	})
-	return le.closeErr
+	return le.state.close()
 }
 
 // Env combines an [Emulator] with [Clients] for the single-call use case.
