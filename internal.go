@@ -55,6 +55,10 @@ func newEmulator(ctx context.Context, opts *emulatorOptions) (container *tcspann
 func executeDMLs(ctx context.Context, opts *emulatorOptions, clientOpts ...option.ClientOption) error {
 	client, err := spanner.NewClientWithConfig(ctx, opts.DatabasePath(),
 		minimalBootstrapClientConfig(spanner.ClientConfig{
+			// This deprecated bootstrap path creates its own throwaway client and
+			// bypasses the managed-client config finalization used elsewhere.
+			// Keep native metrics disabled here explicitly rather than assuming
+			// minimalBootstrapClientConfig will do it for us.
 			DisableNativeMetrics: true,
 		}),
 		clientOpts...)

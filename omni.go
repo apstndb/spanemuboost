@@ -217,6 +217,8 @@ func startOmni(ctx context.Context, opts *emulatorOptions) (*omniRuntime, error)
 
 	uri, err := container.PortEndpoint(ctx, omniGRPCPort, "")
 	if err != nil {
+		// Cleanup must still run if setup failed because ctx was canceled or
+		// timed out, so don't reuse the possibly-dead setup context here.
 		logCloseError("terminate omni container after endpoint lookup failure", container.Terminate(context.Background()))
 		return nil, err
 	}
