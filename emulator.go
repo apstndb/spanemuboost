@@ -16,6 +16,8 @@ type Emulator struct {
 	opts      *emulatorOptions
 }
 
+func (*Emulator) spanemuboostRuntime() {}
+
 // URI returns the gRPC endpoint (host:port) of the emulator,
 // suitable for use as SPANNER_EMULATOR_HOST.
 //
@@ -94,6 +96,8 @@ type LazyEmulator struct {
 	closeOnce sync.Once
 	closeErr  error
 }
+
+func (*LazyEmulator) spanemuboostRuntime() {}
 
 // NewLazyEmulator creates a [LazyEmulator] that will start an emulator with the
 // given options on first use. The emulator is not started until it is passed to

@@ -32,6 +32,8 @@ type omniRuntime struct {
 	uri       string
 }
 
+func (*omniRuntime) spanemuboostRuntime() {}
+
 // URI returns the gRPC endpoint (host:port) of the Omni server.
 func (o *omniRuntime) URI() string {
 	return o.uri

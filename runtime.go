@@ -21,8 +21,14 @@ const (
 	BackendOmni Backend = "omni"
 )
 
+type abstractRuntime interface {
+	spanemuboostRuntime()
+}
+
 // Runtime is a started Spanner-compatible test runtime.
+// Implementations are provided by this package.
 type Runtime interface {
+	abstractRuntime
 	URI() string
 	ClientOptions() []option.ClientOption
 	Close() error
@@ -66,7 +72,7 @@ func disableSchemaTeardownUnlessForced(opts *emulatorOptions, clients *Clients) 
 
 // OpenClients and SetupClients intentionally accept either a started Runtime or
 // a *LazyEmulator without adding another startup method to the public Runtime API.
-func resolveRuntime(ctx context.Context, runtime any) (runtimeInstance, error) {
+func resolveRuntime(ctx context.Context, runtime abstractRuntime) (runtimeInstance, error) {
 	if runtime == nil {
 		return nil, errors.New("spanemuboost: runtime is nil; use *Emulator, *LazyEmulator, or a Runtime returned by Run or Setup")
 	}

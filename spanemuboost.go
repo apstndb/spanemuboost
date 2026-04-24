@@ -154,8 +154,9 @@ func RunEmulatorWithClients(ctx context.Context, options ...Option) (*Env, error
 // The runtime parameter accepts [*Emulator], [*LazyEmulator], and the [Runtime]
 // returned by [Run] or [Setup].
 // When a [*LazyEmulator] is passed, the emulator is started automatically on first use.
-// The parameter type is intentionally broad so callers can use [*LazyEmulator]
-// without adding another startup method to the public [Runtime] interface.
+// The parameter type is intentionally limited to package-provided runtime values
+// so callers can use [*LazyEmulator] without adding another startup method to
+// the public [Runtime] interface.
 // Options inherit the runtime's projectID, instanceID, and databaseID. When
 // reopening against an existing runtime, automatic create and teardown behavior
 // is disabled by default, so clients target the existing instance and database
@@ -163,7 +164,7 @@ func RunEmulatorWithClients(ctx context.Context, options ...Option) (*Env, error
 // [EnableAutoConfig]).
 // Call [Clients.Close] to close the clients when done.
 // In tests, prefer [SetupClients] which handles cleanup automatically.
-func OpenClients(ctx context.Context, runtime any, options ...Option) (*Clients, error) {
+func OpenClients(ctx context.Context, runtime abstractRuntime, options ...Option) (*Clients, error) {
 	r, err := resolveRuntime(ctx, runtime)
 	if err != nil {
 		return nil, err
