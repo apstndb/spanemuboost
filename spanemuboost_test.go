@@ -349,6 +349,26 @@ func TestMinimalBootstrapClientConfig(t *testing.T) {
 	}
 }
 
+func TestOpenClientsRejectsNilRuntime(t *testing.T) {
+	var nilEmulator *Emulator
+	_, err := OpenClients(t.Context(), nilEmulator)
+	if err == nil {
+		t.Fatal("OpenClients(nil *Emulator) error = nil, want non-nil")
+	}
+
+	var nilLazy *LazyEmulator
+	_, err = OpenClients(t.Context(), nilLazy)
+	if err == nil {
+		t.Fatal("OpenClients(nil *LazyEmulator) error = nil, want non-nil")
+	}
+
+	var nilRuntime Runtime = (*Emulator)(nil)
+	_, err = OpenClients(t.Context(), nilRuntime)
+	if err == nil {
+		t.Fatal("OpenClients(nil Runtime) error = nil, want non-nil")
+	}
+}
+
 func TestSchemaTeardown(t *testing.T) {
 	ddls := []string{"CREATE TABLE tbl (pk STRING(MAX)) PRIMARY KEY (pk)"}
 

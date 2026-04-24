@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"reflect"
 	"testing"
 
 	"google.golang.org/api/option"
@@ -62,20 +63,48 @@ func disableSchemaTeardownUnlessForced(opts *emulatorOptions, clients *Clients) 
 	}
 }
 
+// OpenClients and SetupClients intentionally accept either a started Runtime or
+// a *LazyEmulator without adding another startup method to the public Runtime API.
 func resolveRuntime(ctx context.Context, runtime any) (runtimeInstance, error) {
+	if runtime == nil {
+		return nil, errors.New("spanemuboost: runtime is nil; use *Emulator, *LazyEmulator, or a Runtime returned by Run or Setup")
+	}
+
 	switch r := runtime.(type) {
 	case *Emulator:
+		if r == nil {
+			return nil, errors.New("spanemuboost: runtime is a nil *Emulator")
+		}
 		return r, nil
 	case *LazyEmulator:
+		if r == nil {
+			return nil, errors.New("spanemuboost: runtime is a nil *LazyEmulator")
+		}
 		return r.get(ctx)
 	case Runtime:
-		instance, ok := r.(runtimeInstance)
-		if !ok {
+		if isNilRuntimeValue(r) {
+			return nil, fmt.Errorf("spanemuboost: runtime is a nil %T", r)
+		}
+		switch instance := r.(type) {
+		case *Emulator:
+			return instance, nil
+		case *omniRuntime:
+			return instance, nil
+		default:
 			return nil, fmt.Errorf("spanemuboost: unsupported runtime type %T; use *Emulator, *LazyEmulator, or a Runtime returned by Run or Setup", runtime)
 		}
-		return instance, nil
 	default:
 		return nil, fmt.Errorf("spanemuboost: unsupported runtime type %T; use *Emulator, *LazyEmulator, or a Runtime returned by Run or Setup", runtime)
+	}
+}
+
+func isNilRuntimeValue(runtime Runtime) bool {
+	value := reflect.ValueOf(runtime)
+	switch value.Kind() {
+	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Pointer, reflect.Slice:
+		return value.IsNil()
+	default:
+		return false
 	}
 }
 

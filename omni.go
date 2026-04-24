@@ -250,7 +250,7 @@ func newOmni(ctx context.Context, opts *emulatorOptions) (testcontainers.Contain
 			Cmd:          []string{"start-single-server"},
 			WaitingFor: wait.ForAll(
 				wait.ForLog("Spanner is ready"),
-				wait.ForListeningPort(omniGRPCPort),
+				wait.ForExposedPort(),
 			).WithDeadline(5 * time.Minute),
 		},
 		Started: true,
