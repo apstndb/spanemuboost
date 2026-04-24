@@ -76,10 +76,6 @@ func (e *Emulator) DatabasePath() string {
 	return databasePath(e.opts.projectID, e.opts.instanceID, e.opts.databaseID)
 }
 
-func (e *Emulator) get(_ context.Context) (runtimeInstance, error) {
-	return e, nil
-}
-
 func (e *Emulator) inheritedOptions(options ...Option) (*emulatorOptions, error) {
 	base := inheritedRuntimeOptions(e.opts)
 	return applyOptionsWithBase(base, options...)

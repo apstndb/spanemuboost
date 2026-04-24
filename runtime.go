@@ -38,10 +38,6 @@ type runtimeInstance interface {
 	inheritedOptions(...Option) (*emulatorOptions, error)
 }
 
-type abstractRuntime interface {
-	get(context.Context) (runtimeInstance, error)
-}
-
 func inheritedRuntimeOptions(opts *emulatorOptions) *emulatorOptions {
 	base := &emulatorOptions{
 		projectID:             opts.projectID,
@@ -67,11 +63,20 @@ func disableSchemaTeardownUnlessForced(opts *emulatorOptions, clients *Clients) 
 }
 
 func resolveRuntime(ctx context.Context, runtime any) (runtimeInstance, error) {
-	r, ok := runtime.(abstractRuntime)
-	if !ok {
+	switch r := runtime.(type) {
+	case *Emulator:
+		return r, nil
+	case *LazyEmulator:
+		return r.get(ctx)
+	case Runtime:
+		instance, ok := r.(runtimeInstance)
+		if !ok {
+			return nil, fmt.Errorf("spanemuboost: unsupported runtime type %T; use *Emulator, *LazyEmulator, or a Runtime returned by Run or Setup", runtime)
+		}
+		return instance, nil
+	default:
 		return nil, fmt.Errorf("spanemuboost: unsupported runtime type %T; use *Emulator, *LazyEmulator, or a Runtime returned by Run or Setup", runtime)
 	}
-	return r.get(ctx)
 }
 
 // RuntimeEnv combines a [Runtime] with [Clients] for backend-neutral startup.

@@ -205,8 +205,9 @@ func DisableBackendGuardrails() Option {
 //
 // For Omni managed clients with backend guardrails enabled, spanemuboost applies
 // the recommended Omni defaults from [RecommendedOmniClientConfig], including
-// DisableNativeMetrics and IsExperimentalHost. DisableBackendGuardrails keeps
-// the provided config untouched. [RecommendedOmniClientConfig] remains the
+// DisableNativeMetrics and IsExperimentalHost, overriding those two fields even
+// when they were set explicitly in the provided config. DisableBackendGuardrails
+// keeps the provided config untouched. [RecommendedOmniClientConfig] remains the
 // recommended base for external Go clients.
 func WithClientConfig(config spanner.ClientConfig) Option {
 	return func(opts *emulatorOptions) error {

@@ -64,6 +64,8 @@ func finalizeManagedOmniClientConfig(config *spanner.ClientConfig, disableBacken
 
 	cfg := *config
 	if !disableBackendGuardrails {
+		// Guardrailed Omni managed clients must force the recommended transport
+		// settings even when the caller supplied a custom ClientConfig.
 		recommended := RecommendedOmniClientConfig()
 		cfg.DisableNativeMetrics = recommended.DisableNativeMetrics
 		cfg.IsExperimentalHost = recommended.IsExperimentalHost
@@ -130,10 +132,6 @@ func runOmniWithClients(ctx context.Context, options ...Option) (*RuntimeEnv, er
 	disableSchemaTeardownUnlessForced(opts, clients)
 
 	return &RuntimeEnv{Clients: clients, runtime: omni}, nil
-}
-
-func (o *omniRuntime) get(_ context.Context) (runtimeInstance, error) {
-	return o, nil
 }
 
 func (o *omniRuntime) inheritedOptions(options ...Option) (*emulatorOptions, error) {
@@ -250,7 +248,10 @@ func newOmni(ctx context.Context, opts *emulatorOptions) (testcontainers.Contain
 			Image:        opts.emulatorImage,
 			ExposedPorts: []string{string(omniGRPCPort)},
 			Cmd:          []string{"start-single-server"},
-			WaitingFor:   wait.ForLog("Spanner is ready").WithStartupTimeout(5 * time.Minute),
+			WaitingFor: wait.ForAll(
+				wait.ForLog("Spanner is ready"),
+				wait.ForListeningPort(omniGRPCPort),
+			).WithDeadline(5 * time.Minute),
 		},
 		Started: true,
 	}
