@@ -79,7 +79,7 @@ func TestSharedHelpers(t *testing.T) {
 }
 ```
 
-`Run`, `RunWithClients`, `Setup`, `SetupWithClients`, `OpenClients`, and `SetupClients` work across emulator and Omni. `BackendOmni` is the backend selector; Omni does not add separate exported startup or client-opening helpers.
+`Run`, `RunWithClients`, `Setup`, `SetupWithClients`, `OpenClients`, `SetupClients`, and `NewLazyRuntime` work across emulator and Omni. `BackendOmni` is the backend selector; Omni does not add separate exported startup or client-opening helpers.
 
 ### Shared emulator patterns
 
@@ -90,21 +90,24 @@ As [recommended by the Cloud Spanner Emulator FAQ](https://github.com/GoogleClou
 
 | Pattern | Emulator lifetime | Best for |
 |---|---|---|
-| **Lazy** (`NewLazyEmulator` + `SetupClients`) | First `SetupClients` call &rarr; `TestMain` cleanup | Packages mixing emulator and non-emulator tests; skips startup when unused |
+| **Lazy** (`NewLazyRuntime(BackendEmulator, ...)` + `SetupClients`) | First `SetupClients` call &rarr; `TestMain` cleanup | Packages mixing emulator and non-emulator tests; skips startup when unused |
 | **Eager** (`RunEmulator` + `SetupClients`) | `TestMain` start &rarr; `TestMain` cleanup | All tests need the emulator; fail fast on startup errors |
 | **Subtests** (`SetupEmulator` + `SetupClients`) | Parent test &rarr; `t.Cleanup` | Related tests grouped under one function; supports `t.Parallel()` in subtests |
 
 #### Lazy shared emulator (recommended)
 
-The emulator starts only when the first test calls `SetupClients` with the `LazyEmulator`. If `go test -run TestUnit` matches only tests that never use it, the container is never started.
+The emulator starts only when the first test calls `SetupClients` with the `LazyRuntime`. If `go test -run TestUnit` matches only tests that never use it, the container is never started.
 
 ```go
-var lazyEmu = spanemuboost.NewLazyEmulator(spanemuboost.EnableInstanceAutoConfigOnly())
+var lazyRuntime = spanemuboost.NewLazyRuntime(
+    spanemuboost.BackendEmulator,
+    spanemuboost.EnableInstanceAutoConfigOnly(),
+)
 
-func TestMain(m *testing.M) { lazyEmu.TestMain(m) }
+func TestMain(m *testing.M) { lazyRuntime.TestMain(m) }
 
 func TestCreate(t *testing.T) {
-    clients := spanemuboost.SetupClients(t, lazyEmu,
+    clients := spanemuboost.SetupClients(t, lazyRuntime,
         spanemuboost.WithRandomDatabaseID(),
         spanemuboost.WithSetupDDLs(ddls),
     )
@@ -112,9 +115,17 @@ func TestCreate(t *testing.T) {
 }
 
 func TestUnit(t *testing.T) {
-    // Does NOT use lazyEmu — emulator never starts
+    // Does NOT use lazyRuntime — emulator never starts
 }
 ```
+
+`NewLazyEmulator` remains available as a backward-compatible wrapper around the
+emulator backend, but `NewLazyRuntime(BackendEmulator, ...)` can cover the same
+shared-runtime patterns while also extending naturally to Omni.
+
+When you need emulator-specific helpers such as `Container()`, call
+`runtime := lazyRuntime.Setup(t)` (or `Get(ctx)`) and type assert the result back
+to `*spanemuboost.Emulator` for the `BackendEmulator` case.
 
 #### Eager shared emulator
 
@@ -147,11 +158,16 @@ When tests are naturally related and don't need `TestMain`, you can share an emu
 
 ```go
 func TestSuite(t *testing.T) {
-    emu := spanemuboost.SetupEmulator(t, spanemuboost.EnableInstanceAutoConfigOnly())
+    lazy := spanemuboost.NewLazyRuntime(
+        spanemuboost.BackendEmulator,
+        spanemuboost.EnableInstanceAutoConfigOnly(),
+    )
+    t.Cleanup(func() { _ = lazy.Close() })
+    runtime := lazy.Setup(t)
 
     t.Run("test1", func(t *testing.T) {
         t.Parallel()
-        clients := spanemuboost.SetupClients(t, emu,
+        clients := spanemuboost.SetupClients(t, runtime,
             spanemuboost.WithRandomDatabaseID(),
             spanemuboost.WithSetupDDLs(ddls),
         )
@@ -166,8 +182,13 @@ For serial tests with code that reads `SPANNER_EMULATOR_HOST` directly:
 
 ```go
 func TestWithEnvVar(t *testing.T) {
-    emu := spanemuboost.SetupEmulator(t, spanemuboost.EnableInstanceAutoConfigOnly())
-    t.Setenv("SPANNER_EMULATOR_HOST", emu.URI())
+    lazy := spanemuboost.NewLazyRuntime(
+        spanemuboost.BackendEmulator,
+        spanemuboost.EnableInstanceAutoConfigOnly(),
+    )
+    t.Cleanup(func() { _ = lazy.Close() })
+    runtime := lazy.Setup(t)
+    t.Setenv("SPANNER_EMULATOR_HOST", runtime.URI())
     // Code under test that reads SPANNER_EMULATOR_HOST directly
 }
 ```
@@ -176,4 +197,4 @@ func TestWithEnvVar(t *testing.T) {
 |---|---|
 | No `t.Parallel()` | `t.Setenv` panics if the test or an ancestor called `t.Parallel()` |
 | Process-global | The env var doesn't scale to concurrent tests |
-| Prefer `ClientOptions()` | Pass `emu.ClientOptions()` or clients directly when possible |
+| Prefer `ClientOptions()` | Pass `runtime.ClientOptions()` or clients directly when possible |
