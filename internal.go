@@ -167,32 +167,36 @@ func bootstrap(ctx context.Context, opts *emulatorOptions, clientOpts ...option.
 }
 
 func bootstrapWithManagedClientConfig(ctx context.Context, opts *emulatorOptions, clientOpts []option.ClientOption) error {
-	instanceCli, err := instance.NewInstanceAdminClient(ctx, clientOpts...)
-	if err != nil {
-		return err
-	}
-	defer func() {
-		if err := instanceCli.Close(); err != nil {
-			log.Printf("failed to close instance admin client: %v", err)
+	if !opts.disableCreateInstance {
+		instanceCli, err := instance.NewInstanceAdminClient(ctx, clientOpts...)
+		if err != nil {
+			return err
 		}
-	}()
+		defer func() {
+			if err := instanceCli.Close(); err != nil {
+				log.Printf("failed to close instance admin client: %v", err)
+			}
+		}()
 
-	if err := bootstrapInstance(ctx, opts, instanceCli); err != nil {
-		return err
-	}
-
-	dbCli, err := database.NewDatabaseAdminClient(ctx, clientOpts...)
-	if err != nil {
-		return err
-	}
-	defer func() {
-		if err := dbCli.Close(); err != nil {
-			log.Printf("failed to close database admin client: %v", err)
+		if err := bootstrapInstance(ctx, opts, instanceCli); err != nil {
+			return err
 		}
-	}()
+	}
 
-	if err := bootstrapDatabase(ctx, opts, dbCli); err != nil {
-		return err
+	if !opts.disableCreateDatabase || len(opts.setupDDLs) > 0 {
+		dbCli, err := database.NewDatabaseAdminClient(ctx, clientOpts...)
+		if err != nil {
+			return err
+		}
+		defer func() {
+			if err := dbCli.Close(); err != nil {
+				log.Printf("failed to close database admin client: %v", err)
+			}
+		}()
+
+		if err := bootstrapDatabase(ctx, opts, dbCli); err != nil {
+			return err
+		}
 	}
 	if len(opts.setupDMLs) == 0 {
 		return nil

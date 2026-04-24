@@ -56,10 +56,18 @@ func (e *RuntimeEnv) Runtime() Runtime {
 
 // Close closes the clients and then terminates the runtime.
 func (e *RuntimeEnv) Close() error {
-	return errors.Join(
-		e.Clients.Close(),
-		e.runtime.Close(),
-	)
+	if e == nil {
+		return nil
+	}
+
+	var errs []error
+	if e.Clients != nil {
+		errs = append(errs, e.Clients.Close())
+	}
+	if e.runtime != nil {
+		errs = append(errs, e.runtime.Close())
+	}
+	return errors.Join(errs...)
 }
 
 // Run starts the selected backend and returns it as a backend-neutral runtime.

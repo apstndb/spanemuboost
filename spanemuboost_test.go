@@ -289,6 +289,18 @@ func TestEmulatorInheritedOptionsReuseExistingDatabase(t *testing.T) {
 	}
 }
 
+func TestRuntimeEnvCloseZeroValue(t *testing.T) {
+	var env RuntimeEnv
+	if err := env.Close(); err != nil {
+		t.Fatalf("Close() error = %v, want nil", err)
+	}
+
+	var nilEnv *RuntimeEnv
+	if err := nilEnv.Close(); err != nil {
+		t.Fatalf("nil Close() error = %v, want nil", err)
+	}
+}
+
 func TestSchemaTeardown(t *testing.T) {
 	ddls := []string{"CREATE TABLE tbl (pk STRING(MAX)) PRIMARY KEY (pk)"}
 

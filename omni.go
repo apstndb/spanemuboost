@@ -4,6 +4,7 @@ import (
 	"cmp"
 	"context"
 	"fmt"
+	"log"
 	"time"
 
 	"cloud.google.com/go/spanner"
@@ -104,7 +105,7 @@ func runOmni(ctx context.Context, options ...Option) (Runtime, error) {
 		return nil, err
 	}
 	if err := bootstrapOmni(ctx, omni, opts); err != nil {
-		_ = omni.Close()
+		logCloseError("close omni after bootstrap failure", omni.Close())
 		return nil, wrapOmniBootstrapError(err)
 	}
 	return omni, nil
@@ -122,7 +123,7 @@ func runOmniWithClients(ctx context.Context, options ...Option) (*RuntimeEnv, er
 	}
 	clients, err := bootstrapAndCreateClientsWithOptions(ctx, omni.URI(), opts, omni.ClientOptions())
 	if err != nil {
-		_ = omni.Close()
+		logCloseError("close omni after client creation failure", omni.Close())
 		return nil, wrapOmniBootstrapError(err)
 	}
 
@@ -231,7 +232,7 @@ func startOmni(ctx context.Context, opts *emulatorOptions) (*omniRuntime, error)
 
 	uri, err := container.PortEndpoint(ctx, omniGRPCPort, "")
 	if err != nil {
-		_ = container.Terminate(context.Background())
+		logCloseError("terminate omni container after endpoint lookup failure", container.Terminate(context.Background()))
 		return nil, err
 	}
 
@@ -240,6 +241,12 @@ func startOmni(ctx context.Context, opts *emulatorOptions) (*omniRuntime, error)
 		opts:      opts,
 		uri:       uri,
 	}, nil
+}
+
+func logCloseError(action string, err error) {
+	if err != nil {
+		log.Printf("spanemuboost: failed to %s: %v", action, err)
+	}
 }
 
 func wrapOmniBootstrapError(err error) error {
