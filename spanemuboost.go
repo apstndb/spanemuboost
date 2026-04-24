@@ -154,31 +154,26 @@ func RunEmulatorWithClients(ctx context.Context, options ...Option) (*Env, error
 	return &Env{Clients: clients, emulator: emu}, nil
 }
 
-// OpenClients connects to an existing emulator and opens Spanner clients.
-// The emu parameter accepts both [*Emulator] and [*LazyEmulator].
+// OpenClients connects to an existing runtime and opens Spanner clients.
+// The runtime parameter accepts [*Emulator], [*LazyEmulator], and the [Runtime]
+// returned by [Run] or [Setup] with [BackendOmni].
 // When a [*LazyEmulator] is passed, the emulator is started automatically on first use.
-// Options inherit the emulator's projectID and instanceID; instance creation
-// is disabled by default (use [EnableAutoConfig] to override).
+// Options inherit the runtime's projectID and instanceID; instance creation
+// is disabled by default (use [EnableAutoConfig] to override where supported).
 // Call [Clients.Close] to close the clients when done.
 // In tests, prefer [SetupClients] which handles cleanup automatically.
-func OpenClients(ctx context.Context, emu abstractEmulator, options ...Option) (*Clients, error) {
-	e, err := emu.get(ctx)
+func OpenClients(ctx context.Context, runtime abstractRuntime, options ...Option) (*Clients, error) {
+	r, err := runtime.get(ctx)
 	if err != nil {
 		return nil, err
 	}
 
-	base := &emulatorOptions{
-		projectID:             e.opts.projectID,
-		instanceID:            e.opts.instanceID,
-		disableCreateInstance: true,
-	}
-
-	opts, err := applyOptionsWithBase(base, options...)
+	opts, err := r.inheritedOptions(options...)
 	if err != nil {
 		return nil, err
 	}
 
-	return bootstrapAndCreateClients(ctx, e, opts)
+	return bootstrapAndCreateClientsWithOptions(ctx, r.URI(), opts, r.ClientOptions())
 }
 
 // Deprecated: Use [SetupEmulator] (for tests) or [RunEmulator] instead.

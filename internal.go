@@ -55,7 +55,6 @@ func newEmulator(ctx context.Context, opts *emulatorOptions) (container *tcspann
 func executeDMLs(ctx context.Context, opts *emulatorOptions, clientOpts ...option.ClientOption) error {
 	client, err := spanner.NewClientWithConfig(ctx, opts.DatabasePath(),
 		spanner.ClientConfig{
-			SessionPoolConfig:    spanner.SessionPoolConfig{MinOpened: 1, MaxOpened: 1},
 			DisableNativeMetrics: true,
 		},
 		clientOpts...)
@@ -213,8 +212,10 @@ func createInstance(ctx context.Context, opts *emulatorOptions, instanceCli *ins
 // and returns all clients as [Clients]. This avoids creating admin clients twice
 // (once for bootstrap, once for the caller).
 func bootstrapAndCreateClients(ctx context.Context, emu *Emulator, opts *emulatorOptions) (_ *Clients, retErr error) {
-	clientOpts := emu.ClientOptions()
+	return bootstrapAndCreateClientsWithOptions(ctx, emu.URI(), opts, emu.ClientOptions())
+}
 
+func bootstrapAndCreateClientsWithOptions(ctx context.Context, uri string, opts *emulatorOptions, clientOpts []option.ClientOption) (_ *Clients, retErr error) {
 	instanceCli, err := instance.NewInstanceAdminClient(ctx, clientOpts...)
 	if err != nil {
 		return nil, err
@@ -247,8 +248,6 @@ func bootstrapAndCreateClients(ctx context.Context, emu *Emulator, opts *emulato
 		return nil, err
 	}
 
-	// Create the data client before DML execution so that the same client
-	// can be reused for both bootstrap DMLs and user operations.
 	client, err := spanner.NewClientWithConfig(ctx, opts.DatabasePath(), *opts.clientConfig, slices.Concat(clientOpts, opts.clientOptionsForClient)...)
 	if err != nil {
 		return nil, err
@@ -273,7 +272,7 @@ func bootstrapAndCreateClients(ctx context.Context, emu *Emulator, opts *emulato
 		InstanceID:     opts.instanceID,
 		DatabaseID:     opts.databaseID,
 		clientOpts:     clientOpts,
-		uri:            emu.URI(),
+		uri:            uri,
 		dropDatabase:   opts.shouldDropDatabase(),
 		dropInstance:   opts.shouldDropInstance(),
 	}, nil

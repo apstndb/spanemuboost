@@ -91,6 +91,40 @@ func SetupEmulator(tb testing.TB, options ...Option) *Emulator {
 	return emu
 }
 
+func setupOmni(tb testing.TB, options ...Option) Runtime {
+	tb.Helper()
+
+	runtime, err := runOmni(tb.Context(), options...)
+	if err != nil {
+		tb.Fatal(err)
+	}
+
+	tb.Cleanup(func() {
+		if err := runtime.Close(); err != nil {
+			tb.Errorf("spanemuboost: failed to close omni: %v", err)
+		}
+	})
+
+	return runtime
+}
+
+func setupOmniWithClients(tb testing.TB, options ...Option) *RuntimeEnv {
+	tb.Helper()
+
+	env, err := runOmniWithClients(tb.Context(), options...)
+	if err != nil {
+		tb.Fatal(err)
+	}
+
+	tb.Cleanup(func() {
+		if err := env.Close(); err != nil {
+			tb.Errorf("spanemuboost: failed to close omni env: %v", err)
+		}
+	})
+
+	return env
+}
+
 // SetupEmulatorWithClients starts a Cloud Spanner Emulator with clients and registers
 // cleanup via [testing.TB.Cleanup]. It calls [testing.TB.Fatal] on setup error.
 // Use [RunEmulatorWithClients] if you need a [context.Context] or are not in a test.
@@ -111,15 +145,16 @@ func SetupEmulatorWithClients(tb testing.TB, options ...Option) *Env {
 	return env
 }
 
-// SetupClients opens Spanner clients against an existing emulator and registers
+// SetupClients opens Spanner clients against an existing runtime and registers
 // cleanup via [testing.TB.Cleanup]. It calls [testing.TB.Fatal] on setup error.
-// The emu parameter accepts both [*Emulator] and [*LazyEmulator].
+// The runtime parameter accepts [*Emulator], [*LazyEmulator], and the [Runtime]
+// returned by [Run] or [Setup] with [BackendOmni].
 // When a [*LazyEmulator] is passed, the emulator is started automatically on first use.
 // Use [OpenClients] if you need a [context.Context] or are not in a test.
-func SetupClients(tb testing.TB, emu abstractEmulator, options ...Option) *Clients {
+func SetupClients(tb testing.TB, runtime abstractRuntime, options ...Option) *Clients {
 	tb.Helper()
 
-	clients, err := OpenClients(tb.Context(), emu, options...)
+	clients, err := OpenClients(tb.Context(), runtime, options...)
 	if err != nil {
 		tb.Fatal(err)
 	}

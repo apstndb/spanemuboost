@@ -18,9 +18,10 @@ type emulatorOptions struct {
 
 	randomProjectID, randomInstanceID, randomDatabaseID bool
 
-	disableCreateInstance bool
-	disableCreateDatabase bool
-	schemaTeardown        *bool
+	disableCreateInstance    bool
+	disableCreateDatabase    bool
+	disableBackendGuardrails bool
+	schemaTeardown           *bool
 
 	databaseDialect        databasepb.DatabaseDialect
 	setupDDLs              []string
@@ -157,11 +158,29 @@ func WithDatabaseDialect(dialect databasepb.DatabaseDialect) Option {
 	}
 }
 
-// WithEmulatorImage configures the Spanner Emulator container image.
+// WithContainerImage configures the container image used for the selected backend.
 // Empty string will be ignored.
-func WithEmulatorImage(image string) Option {
+func WithContainerImage(image string) Option {
 	return func(opts *emulatorOptions) error {
 		opts.emulatorImage = image
+		return nil
+	}
+}
+
+// WithEmulatorImage configures the Cloud Spanner Emulator container image.
+// Empty string will be ignored.
+func WithEmulatorImage(image string) Option {
+	return WithContainerImage(image)
+}
+
+// DisableBackendGuardrails disables backend-specific validation and coercion.
+//
+// By default, spanemuboost rejects known-invalid backend configurations early
+// with human-readable errors. Use this option only when trying a newer backend
+// version whose constraints may have changed.
+func DisableBackendGuardrails() Option {
+	return func(opts *emulatorOptions) error {
+		opts.disableBackendGuardrails = true
 		return nil
 	}
 }
