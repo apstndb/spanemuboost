@@ -267,7 +267,7 @@ func TestWithRandomIDImpliesCreation(t *testing.T) {
 }
 
 func TestEmulatorInheritedOptionsReuseExistingDatabase(t *testing.T) {
-	opts, err := applyOptions()
+	opts, err := applyOptions(WithDatabaseID("existing-database"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -284,8 +284,8 @@ func TestEmulatorInheritedOptionsReuseExistingDatabase(t *testing.T) {
 	if !inherited.disableCreateDatabase {
 		t.Fatal("disableCreateDatabase = false, want true")
 	}
-	if inherited.databaseID != DefaultDatabaseID {
-		t.Fatalf("databaseID = %q, want %q", inherited.databaseID, DefaultDatabaseID)
+	if inherited.databaseID != "existing-database" {
+		t.Fatalf("databaseID = %q, want existing-database", inherited.databaseID)
 	}
 }
 

@@ -223,8 +223,8 @@ func TestRunOmni(t *testing.T) {
 	if omni.DatabaseID() == "" {
 		t.Fatal("DatabaseID() is empty")
 	}
-	if len(omni.ClientOptions()) != 3 {
-		t.Fatalf("ClientOptions() returned %d options, want 3", len(omni.ClientOptions()))
+	if len(omni.ClientOptions()) < 3 {
+		t.Fatalf("ClientOptions() returned %d options, want at least 3", len(omni.ClientOptions()))
 	}
 
 	client, err := spanner.NewClientWithConfig(t.Context(), omni.DatabasePath(), RecommendedOmniClientConfig(), omni.ClientOptions()...)

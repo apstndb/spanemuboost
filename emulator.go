@@ -84,6 +84,7 @@ func (e *Emulator) inheritedOptions(options ...Option) (*emulatorOptions, error)
 	base := &emulatorOptions{
 		projectID:             e.opts.projectID,
 		instanceID:            e.opts.instanceID,
+		databaseID:            e.opts.databaseID,
 		disableCreateInstance: true,
 		disableCreateDatabase: true,
 		reuseExistingDatabase: true,

@@ -158,8 +158,11 @@ func RunEmulatorWithClients(ctx context.Context, options ...Option) (*Env, error
 // The runtime parameter accepts [*Emulator], [*LazyEmulator], and the [Runtime]
 // returned by [Run] or [Setup].
 // When a [*LazyEmulator] is passed, the emulator is started automatically on first use.
-// Options inherit the runtime's projectID and instanceID; instance creation
-// is disabled by default (use [EnableAutoConfig] to override where supported).
+// Options inherit the runtime's projectID, instanceID, and databaseID. When
+// reopening against an existing runtime, automatic create and teardown behavior
+// is disabled by default, so clients target the existing instance and database
+// unless explicitly overridden where supported (for example via
+// [EnableAutoConfig]).
 // Call [Clients.Close] to close the clients when done.
 // In tests, prefer [SetupClients] which handles cleanup automatically.
 func OpenClients(ctx context.Context, runtime abstractRuntime, options ...Option) (*Clients, error) {
