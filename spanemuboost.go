@@ -145,11 +145,7 @@ func RunEmulatorWithClients(ctx context.Context, options ...Option) (*Env, error
 
 	// Env owns the emulator lifecycle — resources are cleaned up when the
 	// container terminates, so disable schema teardown unless explicitly forced.
-	forceTeardown := opts.schemaTeardown != nil && *opts.schemaTeardown
-	if !forceTeardown {
-		clients.dropDatabase = false
-		clients.dropInstance = false
-	}
+	disableSchemaTeardownUnlessForced(opts, clients)
 
 	return &Env{Clients: clients, emulator: emu}, nil
 }

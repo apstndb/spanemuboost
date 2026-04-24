@@ -127,11 +127,7 @@ func runOmniWithClients(ctx context.Context, options ...Option) (*RuntimeEnv, er
 		return nil, wrapOmniBootstrapError(err)
 	}
 
-	forceTeardown := opts.schemaTeardown != nil && *opts.schemaTeardown
-	if !forceTeardown {
-		clients.dropDatabase = false
-		clients.dropInstance = false
-	}
+	disableSchemaTeardownUnlessForced(opts, clients)
 
 	return &RuntimeEnv{Clients: clients, runtime: omni}, nil
 }
@@ -141,19 +137,8 @@ func (o *omniRuntime) get(_ context.Context) (runtimeInstance, error) {
 }
 
 func (o *omniRuntime) inheritedOptions(options ...Option) (*emulatorOptions, error) {
-	base := &emulatorOptions{
-		projectID:                o.opts.projectID,
-		instanceID:               o.opts.instanceID,
-		databaseID:               o.opts.databaseID,
-		disableCreateInstance:    true,
-		disableCreateDatabase:    true,
-		disableBackendGuardrails: o.opts.disableBackendGuardrails,
-		reuseExistingDatabase:    true,
-	}
-	if o.opts.clientConfig != nil {
-		config := *o.opts.clientConfig
-		base.clientConfig = &config
-	}
+	base := inheritedRuntimeOptions(o.opts)
+	base.disableBackendGuardrails = o.opts.disableBackendGuardrails
 	return applyOmniOptionsWithBase(base, options...)
 }
 

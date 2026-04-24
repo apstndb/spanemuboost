@@ -81,18 +81,7 @@ func (e *Emulator) get(_ context.Context) (runtimeInstance, error) {
 }
 
 func (e *Emulator) inheritedOptions(options ...Option) (*emulatorOptions, error) {
-	base := &emulatorOptions{
-		projectID:             e.opts.projectID,
-		instanceID:            e.opts.instanceID,
-		databaseID:            e.opts.databaseID,
-		disableCreateInstance: true,
-		disableCreateDatabase: true,
-		reuseExistingDatabase: true,
-	}
-	if e.opts.clientConfig != nil {
-		config := *e.opts.clientConfig
-		base.clientConfig = &config
-	}
+	base := inheritedRuntimeOptions(e.opts)
 	return applyOptionsWithBase(base, options...)
 }
 

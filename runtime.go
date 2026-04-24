@@ -42,6 +42,30 @@ type abstractRuntime interface {
 	get(context.Context) (runtimeInstance, error)
 }
 
+func inheritedRuntimeOptions(opts *emulatorOptions) *emulatorOptions {
+	base := &emulatorOptions{
+		projectID:             opts.projectID,
+		instanceID:            opts.instanceID,
+		databaseID:            opts.databaseID,
+		disableCreateInstance: true,
+		disableCreateDatabase: true,
+		reuseExistingDatabase: true,
+	}
+	if opts.clientConfig != nil {
+		config := *opts.clientConfig
+		base.clientConfig = &config
+	}
+	return base
+}
+
+func disableSchemaTeardownUnlessForced(opts *emulatorOptions, clients *Clients) {
+	forceTeardown := opts.schemaTeardown != nil && *opts.schemaTeardown
+	if !forceTeardown {
+		clients.dropDatabase = false
+		clients.dropInstance = false
+	}
+}
+
 func resolveRuntime(ctx context.Context, runtime any) (runtimeInstance, error) {
 	r, ok := runtime.(abstractRuntime)
 	if !ok {
