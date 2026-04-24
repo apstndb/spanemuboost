@@ -20,6 +20,21 @@ func TestRecommendedOmniClientConfig(t *testing.T) {
 	}
 }
 
+func TestOmniRuntimeCloseZeroValue(t *testing.T) {
+	var nilRuntime *omniRuntime
+	if err := nilRuntime.Close(); err != nil {
+		t.Fatalf("nil Close() error = %v, want nil", err)
+	}
+
+	runtime := &omniRuntime{}
+	if err := runtime.Close(); err != nil {
+		t.Fatalf("first Close() error = %v, want nil", err)
+	}
+	if err := runtime.Close(); err != nil {
+		t.Fatalf("second Close() error = %v, want nil", err)
+	}
+}
+
 func TestRunOmniRejectsUnsupportedProjectOptions(t *testing.T) {
 	t.Run("custom project", func(t *testing.T) {
 		_, err := Run(context.Background(), BackendOmni, WithProjectID("custom"))

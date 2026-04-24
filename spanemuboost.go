@@ -43,6 +43,9 @@ type Clients struct {
 
 	dropDatabase bool
 	dropInstance bool
+
+	closed   bool
+	closeErr error
 }
 
 func (c *Clients) ProjectPath() string  { return projectPath(c.ProjectID) }
@@ -68,31 +71,53 @@ func (c *Clients) URI() string {
 // the clients are closed. See [ForceSchemaTeardown] and [SkipSchemaTeardown].
 // [spanner.Client.Close] does not return an error, so only admin client and
 // resource cleanup errors are returned.
+// Close is nil-safe and idempotent. After the first call, subsequent calls
+// return the result of that first call.
 func (c *Clients) Close() error {
-	c.Client.Close()
+	if c == nil {
+		return nil
+	}
+	if c.closed {
+		return c.closeErr
+	}
+	c.closed = true
+
+	if c.Client != nil {
+		c.Client.Close()
+	}
 
 	var dropErrs []error
 	ctx := context.Background()
 	if c.dropInstance {
 		// Deleting the instance also removes all databases within it,
 		// so there is no need to drop the database separately.
-		if err := c.InstanceClient.DeleteInstance(ctx, &instancepb.DeleteInstanceRequest{
+		if c.InstanceClient == nil {
+			dropErrs = append(dropErrs, fmt.Errorf("delete instance %s: instance admin client is nil", c.InstancePath()))
+		} else if err := c.InstanceClient.DeleteInstance(ctx, &instancepb.DeleteInstanceRequest{
 			Name: c.InstancePath(),
 		}); err != nil {
 			dropErrs = append(dropErrs, fmt.Errorf("delete instance %s: %w", c.InstancePath(), err))
 		}
 	} else if c.dropDatabase {
-		if err := c.DatabaseClient.DropDatabase(ctx, &databasepb.DropDatabaseRequest{
+		if c.DatabaseClient == nil {
+			dropErrs = append(dropErrs, fmt.Errorf("drop database %s: database admin client is nil", c.DatabasePath()))
+		} else if err := c.DatabaseClient.DropDatabase(ctx, &databasepb.DropDatabaseRequest{
 			Database: c.DatabasePath(),
 		}); err != nil {
 			dropErrs = append(dropErrs, fmt.Errorf("drop database %s: %w", c.DatabasePath(), err))
 		}
 	}
 
-	return errors.Join(append(dropErrs,
-		c.DatabaseClient.Close(),
-		c.InstanceClient.Close(),
-	)...)
+	var errs []error
+	errs = append(errs, dropErrs...)
+	if c.DatabaseClient != nil {
+		errs = append(errs, c.DatabaseClient.Close())
+	}
+	if c.InstanceClient != nil {
+		errs = append(errs, c.InstanceClient.Close())
+	}
+	c.closeErr = errors.Join(errs...)
+	return c.closeErr
 }
 
 // RunEmulator starts a Cloud Spanner Emulator container and performs any

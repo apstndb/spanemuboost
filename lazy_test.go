@@ -19,6 +19,18 @@ func TestLazyEmulatorCloseAfterFailedGet(t *testing.T) {
 	}
 }
 
+func TestLazyCloseNilReceivers(t *testing.T) {
+	var lazyRuntime *LazyRuntime
+	if err := lazyRuntime.Close(); err != nil {
+		t.Fatalf("(*LazyRuntime)(nil).Close() error = %v, want nil", err)
+	}
+
+	var lazyEmulator *LazyEmulator
+	if err := lazyEmulator.Close(); err != nil {
+		t.Fatalf("(*LazyEmulator)(nil).Close() error = %v, want nil", err)
+	}
+}
+
 func TestLazyRuntimeStateGetRepanicsAfterStartPanic(t *testing.T) {
 	var state lazyRuntimeState
 	const want = "boom"

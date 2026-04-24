@@ -104,9 +104,12 @@ func (lr *LazyRuntime) Get(ctx context.Context) (Runtime, error) {
 }
 
 // Close terminates the runtime if it was started. No-op otherwise.
-// Close is idempotent — subsequent calls return the result of the first call.
+// Close is nil-safe and idempotent — subsequent calls return the result of the first call.
 // Close waits for any in-progress initialization to complete before checking.
 // If Close is called before any Get or Setup, the runtime will never be started.
 func (lr *LazyRuntime) Close() error {
+	if lr == nil {
+		return nil
+	}
 	return lr.state.close()
 }

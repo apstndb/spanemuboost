@@ -13,6 +13,9 @@ import (
 type Emulator struct {
 	container *tcspanner.Container
 	opts      *emulatorOptions
+
+	closed   bool
+	closeErr error
 }
 
 func (*Emulator) spanemuboostRuntime() {}
@@ -47,8 +50,20 @@ func (e *Emulator) ClientOptions() []option.ClientOption {
 }
 
 // Close terminates the emulator container.
+// Close is nil-safe and idempotent. After the first call, subsequent calls
+// return the result of that first call.
 func (e *Emulator) Close() error {
-	return e.container.Terminate(context.Background())
+	if e == nil {
+		return nil
+	}
+	if e.closed {
+		return e.closeErr
+	}
+	e.closed = true
+	if e.container != nil {
+		e.closeErr = e.container.Terminate(context.Background())
+	}
+	return e.closeErr
 }
 
 // Container returns the underlying [*tcspanner.Container] for direct access.
@@ -122,10 +137,13 @@ func (le *LazyEmulator) Get(ctx context.Context) (*Emulator, error) {
 }
 
 // Close terminates the emulator if it was started. No-op otherwise.
-// Close is idempotent — subsequent calls return the result of the first call.
+// Close is nil-safe and idempotent — subsequent calls return the result of the first call.
 // Close waits for any in-progress initialization to complete before checking.
 // If Close is called before any Get or Setup, the emulator will never be started.
 func (le *LazyEmulator) Close() error {
+	if le == nil {
+		return nil
+	}
 	return le.state.close()
 }
 
@@ -134,6 +152,9 @@ func (le *LazyEmulator) Close() error {
 type Env struct {
 	*Clients
 	emulator *Emulator
+
+	closed   bool
+	closeErr error
 }
 
 // Emulator returns the underlying [Emulator].
@@ -142,9 +163,24 @@ func (e *Env) Emulator() *Emulator {
 }
 
 // Close closes the clients and then terminates the emulator.
+// Close is nil-safe and idempotent. After the first call, subsequent calls
+// return the result of that first call.
 func (e *Env) Close() error {
-	return errors.Join(
-		e.Clients.Close(),
-		e.emulator.Close(),
-	)
+	if e == nil {
+		return nil
+	}
+	if e.closed {
+		return e.closeErr
+	}
+	e.closed = true
+
+	var errs []error
+	if e.Clients != nil {
+		errs = append(errs, e.Clients.Close())
+	}
+	if e.emulator != nil {
+		errs = append(errs, e.emulator.Close())
+	}
+	e.closeErr = errors.Join(errs...)
+	return e.closeErr
 }
