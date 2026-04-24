@@ -360,8 +360,10 @@ func rollbackCreatedResources(instanceCli *instance.InstanceAdminClient, dbCli *
 	var errs []error
 
 	if resources.instance {
-		// If both resources were created, drop the database first so rollback still
-		// makes progress even when instance deletion later fails.
+		// DeleteInstance would also remove the database, but rollback is best-effort:
+		// dropping the database first still cleans up part of the leaked state if
+		// instance deletion later fails, while a successful instance delete still
+		// removes any remaining child resources.
 		if resources.database {
 			if dbCli == nil {
 				errs = append(errs, fmt.Errorf("rollback drop database %s: database admin client is nil", opts.DatabasePath()))
