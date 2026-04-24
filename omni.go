@@ -4,7 +4,6 @@ import (
 	"cmp"
 	"context"
 	"fmt"
-	"log"
 	"time"
 
 	"cloud.google.com/go/spanner"
@@ -228,12 +227,6 @@ func startOmni(ctx context.Context, opts *emulatorOptions) (*omniRuntime, error)
 		opts:      opts,
 		uri:       uri,
 	}, nil
-}
-
-func logCloseError(action string, err error) {
-	if err != nil {
-		log.Printf("spanemuboost: failed to %s: %v", action, err)
-	}
 }
 
 func wrapOmniBootstrapError(err error) error {

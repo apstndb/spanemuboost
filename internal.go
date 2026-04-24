@@ -7,6 +7,7 @@ import (
 	"log"
 	"slices"
 	"strings"
+	"time"
 
 	"cloud.google.com/go/spanner"
 	"cloud.google.com/go/spanner/admin/database/apiv1"
@@ -26,6 +27,8 @@ type createdSchemaResources struct {
 	instance bool
 	database bool
 }
+
+const rollbackTimeout = 30 * time.Second
 
 func newEmulator(ctx context.Context, opts *emulatorOptions) (container *tcspanner.Container, teardown func(), err error) {
 	containerCustomizers := []testcontainers.ContainerCustomizer{
@@ -296,11 +299,11 @@ func bootstrapAndCreateClientsWithOptions(ctx context.Context, uri string, opts 
 	)
 	defer func() {
 		if retErr != nil {
-			if err := rollbackCreatedResources(instanceCli, dbCli, opts, createdResources); err != nil {
-				retErr = errors.Join(retErr, err)
-			}
 			if client != nil {
 				client.Close()
+			}
+			if err := rollbackCreatedResources(instanceCli, dbCli, opts, createdResources); err != nil {
+				retErr = errors.Join(retErr, err)
 			}
 			if dbCli != nil {
 				logCloseError("close database admin client", dbCli.Close())
@@ -350,9 +353,15 @@ func bootstrapAndCreateClientsWithOptions(ctx context.Context, uri string, opts 
 }
 
 func rollbackCreatedResources(instanceCli *instance.InstanceAdminClient, dbCli *database.DatabaseAdminClient, opts *emulatorOptions, resources createdSchemaResources) error {
-	ctx := context.Background()
+	// Rollback must still run if the setup context timed out or was canceled, but
+	// it should remain bounded so OpenClients failure handling cannot hang forever.
+	ctx, cancel := context.WithTimeout(context.Background(), rollbackTimeout)
+	defer cancel()
 
 	if resources.instance {
+		if instanceCli == nil {
+			return fmt.Errorf("rollback delete instance %s: instance admin client is nil", opts.InstancePath())
+		}
 		err := instanceCli.DeleteInstance(ctx, &instancepb.DeleteInstanceRequest{Name: opts.InstancePath()})
 		if err != nil {
 			return fmt.Errorf("rollback delete instance %s: %w", opts.InstancePath(), err)
@@ -361,12 +370,21 @@ func rollbackCreatedResources(instanceCli *instance.InstanceAdminClient, dbCli *
 	}
 
 	if resources.database {
+		if dbCli == nil {
+			return fmt.Errorf("rollback drop database %s: database admin client is nil", opts.DatabasePath())
+		}
 		err := dbCli.DropDatabase(ctx, &databasepb.DropDatabaseRequest{Database: opts.DatabasePath()})
 		if err != nil {
 			return fmt.Errorf("rollback drop database %s: %w", opts.DatabasePath(), err)
 		}
 	}
 	return nil
+}
+
+func logCloseError(action string, err error) {
+	if err != nil {
+		log.Printf("spanemuboost: failed to %s: %v", action, err)
+	}
 }
 
 func newClients(ctx context.Context, emulator *tcspanner.Container, opts *emulatorOptions) (clients *Clients, teardown func(), err error) {
