@@ -321,6 +321,34 @@ func TestRuntimeEnvCloseZeroValue(t *testing.T) {
 	}
 }
 
+func TestMinimalBootstrapClientConfig(t *testing.T) {
+	original := spanner.ClientConfig{
+		DisableNativeMetrics: true,
+		SessionPoolConfig: spanner.SessionPoolConfig{
+			MinOpened: 5,
+			MaxOpened: 7,
+		},
+	}
+
+	got := minimalBootstrapClientConfig(original)
+
+	if got.MinOpened != 1 {
+		t.Fatalf("MinOpened = %d, want 1", got.MinOpened)
+	}
+	if got.MaxOpened != 1 {
+		t.Fatalf("MaxOpened = %d, want 1", got.MaxOpened)
+	}
+	if !got.DisableNativeMetrics {
+		t.Fatal("DisableNativeMetrics = false, want true")
+	}
+	if original.MinOpened != 5 {
+		t.Fatalf("original MinOpened = %d, want 5", original.MinOpened)
+	}
+	if original.MaxOpened != 7 {
+		t.Fatalf("original MaxOpened = %d, want 7", original.MaxOpened)
+	}
+}
+
 func TestSchemaTeardown(t *testing.T) {
 	ddls := []string{"CREATE TABLE tbl (pk STRING(MAX)) PRIMARY KEY (pk)"}
 

@@ -54,13 +54,9 @@ func newEmulator(ctx context.Context, opts *emulatorOptions) (container *tcspann
 // executeDMLsWithClient is used instead with the user-facing client.
 func executeDMLs(ctx context.Context, opts *emulatorOptions, clientOpts ...option.ClientOption) error {
 	client, err := spanner.NewClientWithConfig(ctx, opts.DatabasePath(),
-		spanner.ClientConfig{
+		minimalBootstrapClientConfig(spanner.ClientConfig{
 			DisableNativeMetrics: true,
-			SessionPoolConfig: spanner.SessionPoolConfig{
-				MinOpened: 1,
-				MaxOpened: 1,
-			},
-		},
+		}),
 		clientOpts...)
 	if err != nil {
 		return err
@@ -88,6 +84,13 @@ func executeDMLsWithClient(ctx context.Context, opts *emulatorOptions, client *s
 		return fmt.Errorf("failed to apply DML: %w", err)
 	}
 	return nil
+}
+
+func minimalBootstrapClientConfig(config spanner.ClientConfig) spanner.ClientConfig {
+	cfg := config
+	cfg.MinOpened = 1
+	cfg.MaxOpened = 1
+	return cfg
 }
 
 func updateDDLs(ctx context.Context, opts *emulatorOptions, dbCli *database.DatabaseAdminClient) error {
@@ -202,7 +205,8 @@ func bootstrapWithManagedClientConfig(ctx context.Context, opts *emulatorOptions
 		return nil
 	}
 
-	client, err := spanner.NewClientWithConfig(ctx, opts.DatabasePath(), *opts.clientConfig, slices.Concat(clientOpts, opts.clientOptionsForClient)...)
+	clientConfig := minimalBootstrapClientConfig(*opts.clientConfig)
+	client, err := spanner.NewClientWithConfig(ctx, opts.DatabasePath(), clientConfig, slices.Concat(clientOpts, opts.clientOptionsForClient)...)
 	if err != nil {
 		return err
 	}
