@@ -309,6 +309,23 @@ func TestEmulatorInheritedOptionsKeepReuseWhenDatabaseIsUnchanged(t *testing.T) 
 	}
 }
 
+func TestEmulatorInheritedOptionsPreserveDatabaseDialect(t *testing.T) {
+	opts, err := applyOptions(WithDatabaseDialect(databasepb.DatabaseDialect_POSTGRESQL))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	emu := &Emulator{opts: opts}
+	inherited, err := emu.inheritedOptions(WithRandomDatabaseID())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if inherited.databaseDialect != databasepb.DatabaseDialect_POSTGRESQL {
+		t.Fatalf("databaseDialect = %v, want %v", inherited.databaseDialect, databasepb.DatabaseDialect_POSTGRESQL)
+	}
+}
+
 func TestRuntimeEnvCloseZeroValue(t *testing.T) {
 	var env RuntimeEnv
 	if err := env.Close(); err != nil {

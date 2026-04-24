@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"cloud.google.com/go/spanner"
+	"cloud.google.com/go/spanner/admin/database/apiv1/databasepb"
 )
 
 func TestRecommendedOmniClientConfig(t *testing.T) {
@@ -168,6 +169,23 @@ func TestOmniInheritedOptionsKeepReuseWhenDatabaseIsUnchanged(t *testing.T) {
 	}
 	if !inherited.disableCreateDatabase {
 		t.Fatal("disableCreateDatabase = false, want true")
+	}
+}
+
+func TestOmniInheritedOptionsPreserveDatabaseDialect(t *testing.T) {
+	opts, err := applyOmniOptions(WithDatabaseDialect(databasepb.DatabaseDialect_POSTGRESQL))
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	omni := &omniRuntime{opts: opts}
+	inherited, err := omni.inheritedOptions(WithRandomDatabaseID())
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if inherited.databaseDialect != databasepb.DatabaseDialect_POSTGRESQL {
+		t.Fatalf("databaseDialect = %v, want %v", inherited.databaseDialect, databasepb.DatabaseDialect_POSTGRESQL)
 	}
 }
 

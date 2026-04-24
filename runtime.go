@@ -44,6 +44,7 @@ func inheritedRuntimeOptions(opts *emulatorOptions) *emulatorOptions {
 		projectID:             opts.projectID,
 		instanceID:            opts.instanceID,
 		databaseID:            opts.databaseID,
+		databaseDialect:       opts.databaseDialect,
 		disableCreateInstance: true,
 		disableCreateDatabase: true,
 		reuseExistingDatabase: true,
