@@ -40,4 +40,5 @@ jobs:
       - name: Run Omni smoke test
         env:
           SPANEMUBOOST_ENABLE_OMNI_TESTS: "1"
-        run: go test -v -race -count=1 -shuffle=on -run '^TestOpenOmniClientsReuseDefaultDatabase$' ./...
+        # Limit the smoke job to the env-gated Omni integration coverage in omni_test.go.
+        run: go test -v -race -count=1 -shuffle=on -run '^Test(RunOmni(WithClients)?|OpenOmniClients(ReuseDefaultDatabase|AllowDatabaseOverride)?|SetupClientsWithOmni|LazyRuntimeWithOmni)$' ./...
