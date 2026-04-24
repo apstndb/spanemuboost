@@ -533,7 +533,7 @@ func TestOpenClientsRollbackCreatedResourcesOnFailure(t *testing.T) {
 	})
 }
 
-func TestRollbackCreatedResourcesBestEffortErrors(t *testing.T) {
+func TestRollbackCreatedResourcesInstanceSkipsDatabaseDrop(t *testing.T) {
 	opts, err := applyOptions(
 		EnableAutoConfig(),
 		WithInstanceID("rollback-instance"),
@@ -551,11 +551,11 @@ func TestRollbackCreatedResourcesBestEffortErrors(t *testing.T) {
 		t.Fatal("rollbackCreatedResources() error = nil, want non-nil")
 	}
 
-	if !strings.Contains(err.Error(), "database admin client is nil") {
-		t.Fatalf("rollbackCreatedResources() error = %v, want database admin client failure", err)
-	}
 	if !strings.Contains(err.Error(), "instance admin client is nil") {
 		t.Fatalf("rollbackCreatedResources() error = %v, want instance admin client failure", err)
+	}
+	if strings.Contains(err.Error(), "database admin client is nil") {
+		t.Fatalf("rollbackCreatedResources() error = %v, want instance-only rollback failure", err)
 	}
 }
 

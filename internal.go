@@ -293,9 +293,9 @@ func bootstrapAndCreateClientsWithOptions(ctx context.Context, uri string, opts 
 		return nil, err
 	}
 	var (
-		dbCli             *database.DatabaseAdminClient
-		client            *spanner.Client
-		createdResources  createdSchemaResources
+		dbCli            *database.DatabaseAdminClient
+		client           *spanner.Client
+		createdResources createdSchemaResources
 	)
 	defer func() {
 		if retErr != nil {
@@ -360,20 +360,8 @@ func rollbackCreatedResources(instanceCli *instance.InstanceAdminClient, dbCli *
 	var errs []error
 
 	if resources.instance {
-		// DeleteInstance would also remove the database, but rollback is best-effort:
-		// dropping the database first still cleans up part of the leaked state if
-		// instance deletion later fails, while a successful instance delete still
-		// removes any remaining child resources.
-		if resources.database {
-			if dbCli == nil {
-				errs = append(errs, fmt.Errorf("rollback drop database %s: database admin client is nil", opts.DatabasePath()))
-			} else {
-				err := dbCli.DropDatabase(ctx, &databasepb.DropDatabaseRequest{Database: opts.DatabasePath()})
-				if err != nil {
-					errs = append(errs, fmt.Errorf("rollback drop database %s: %w", opts.DatabasePath(), err))
-				}
-			}
-		}
+		// DeleteInstance removes child databases as well, so rollback avoids an
+		// extra DropDatabase call when the whole instance is being removed.
 		if instanceCli == nil {
 			errs = append(errs, fmt.Errorf("rollback delete instance %s: instance admin client is nil", opts.InstancePath()))
 		} else {
