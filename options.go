@@ -167,7 +167,7 @@ func WithContainerImage(image string) Option {
 	}
 }
 
-// WithEmulatorImage configures the Cloud Spanner Emulator container image.
+// WithEmulatorImage is a deprecated alias for [WithContainerImage].
 // Empty string will be ignored.
 func WithEmulatorImage(image string) Option {
 	return WithContainerImage(image)
@@ -185,13 +185,17 @@ func DisableBackendGuardrails() Option {
 	}
 }
 
-// WithClientConfig sets spanner.ClientConfig for NewClients and NewEmulatorWithClients.
+// WithClientConfig sets [spanner.ClientConfig] for managed data clients created by
+// spanemuboost, including [OpenClients], [RunWithClients], and [SetupWithClients].
 //
 // When this option is not used, spanemuboost sets DisableNativeMetrics to true
 // by default, since the Spanner native metrics infrastructure is unnecessary
 // for emulator connections and can add overhead (metadata server lookups,
 // monitoring exporter creation). If you provide a custom [spanner.ClientConfig],
 // consider setting DisableNativeMetrics: true explicitly.
+//
+// Spanner Omni managed clients also require [spanner.ClientConfig.IsExperimentalHost]
+// to be true; [RecommendedOmniClientConfig] returns a suitable base config.
 func WithClientConfig(config spanner.ClientConfig) Option {
 	return func(opts *emulatorOptions) error {
 		opts.clientConfig = &config
@@ -251,6 +255,8 @@ func EnableAutoConfig() Option {
 	}
 }
 
+// EnableInstanceAutoConfigOnly enables only instance auto-creation and keeps
+// database auto-creation disabled.
 func EnableInstanceAutoConfigOnly() Option {
 	return func(opts *emulatorOptions) error {
 		opts.disableCreateInstance = false
@@ -259,6 +265,8 @@ func EnableInstanceAutoConfigOnly() Option {
 	}
 }
 
+// EnableDatabaseAutoConfigOnly enables only database auto-creation and keeps
+// instance auto-creation disabled.
 func EnableDatabaseAutoConfigOnly() Option {
 	return func(opts *emulatorOptions) error {
 		opts.disableCreateInstance = true

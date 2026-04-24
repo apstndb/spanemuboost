@@ -13,8 +13,11 @@ import (
 type Backend string
 
 const (
+	// BackendEmulator starts the Cloud Spanner Emulator backend.
 	BackendEmulator Backend = "emulator"
-	BackendOmni     Backend = "omni"
+	// BackendOmni starts the experimental Spanner Omni backend.
+	// Use [RecommendedOmniClientConfig] for external Go clients.
+	BackendOmni Backend = "omni"
 )
 
 // Runtime is a started Spanner-compatible test runtime.
@@ -117,32 +120,4 @@ func SetupWithClients(tb testing.TB, backend Backend, options ...Option) *Runtim
 		tb.Fatalf("unsupported backend %q", backend)
 		return nil
 	}
-}
-
-// RunRuntime is kept for compatibility.
-//
-// Deprecated: use [Run].
-func RunRuntime(ctx context.Context, backend Backend, options ...Option) (Runtime, error) {
-	return Run(ctx, backend, options...)
-}
-
-// RunRuntimeWithClients is kept for compatibility.
-//
-// Deprecated: use [RunWithClients].
-func RunRuntimeWithClients(ctx context.Context, backend Backend, options ...Option) (*RuntimeEnv, error) {
-	return RunWithClients(ctx, backend, options...)
-}
-
-// SetupRuntime is kept for compatibility.
-//
-// Deprecated: use [Setup].
-func SetupRuntime(tb testing.TB, backend Backend, options ...Option) Runtime {
-	return Setup(tb, backend, options...)
-}
-
-// SetupRuntimeWithClients is kept for compatibility.
-//
-// Deprecated: use [SetupWithClients].
-func SetupRuntimeWithClients(tb testing.TB, backend Backend, options ...Option) *RuntimeEnv {
-	return SetupWithClients(tb, backend, options...)
 }

@@ -12,7 +12,9 @@ import (
 	"github.com/testcontainers/testcontainers-go/wait"
 	"google.golang.org/api/option"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
+	"google.golang.org/grpc/status"
 )
 
 const (
@@ -82,25 +84,13 @@ func runOmni(ctx context.Context, options ...Option) (Runtime, error) {
 		return nil, err
 	}
 
-	container, err := newOmni(ctx, opts)
+	omni, err := startOmni(ctx, opts)
 	if err != nil {
 		return nil, err
-	}
-
-	uri, err := container.PortEndpoint(ctx, omniGRPCPort, "")
-	if err != nil {
-		_ = container.Terminate(context.Background())
-		return nil, err
-	}
-
-	omni := &omniRuntime{
-		container: container,
-		opts:      opts,
-		uri:       uri,
 	}
 	if err := bootstrapOmni(ctx, omni, opts); err != nil {
 		_ = omni.Close()
-		return nil, err
+		return nil, wrapOmniBootstrapError(err)
 	}
 	return omni, nil
 }
@@ -111,26 +101,14 @@ func runOmniWithClients(ctx context.Context, options ...Option) (*RuntimeEnv, er
 		return nil, err
 	}
 
-	container, err := newOmni(ctx, opts)
+	omni, err := startOmni(ctx, opts)
 	if err != nil {
 		return nil, err
-	}
-
-	uri, err := container.PortEndpoint(ctx, omniGRPCPort, "")
-	if err != nil {
-		_ = container.Terminate(context.Background())
-		return nil, err
-	}
-
-	omni := &omniRuntime{
-		container: container,
-		opts:      opts,
-		uri:       uri,
 	}
 	clients, err := bootstrapAndCreateClientsWithOptions(ctx, omni.URI(), opts, omni.ClientOptions())
 	if err != nil {
 		_ = omni.Close()
-		return nil, err
+		return nil, wrapOmniBootstrapError(err)
 	}
 
 	forceTeardown := opts.schemaTeardown != nil && *opts.schemaTeardown
@@ -148,9 +126,12 @@ func (o *omniRuntime) get(_ context.Context) (runtimeInstance, error) {
 
 func (o *omniRuntime) inheritedOptions(options ...Option) (*emulatorOptions, error) {
 	base := &emulatorOptions{
-		projectID:             o.opts.projectID,
-		instanceID:            o.opts.instanceID,
-		disableCreateInstance: true,
+		projectID:                o.opts.projectID,
+		instanceID:               o.opts.instanceID,
+		databaseID:               o.opts.databaseID,
+		disableCreateInstance:    true,
+		disableCreateDatabase:    true,
+		disableBackendGuardrails: o.opts.disableBackendGuardrails,
 	}
 	if o.opts.clientConfig != nil {
 		config := *o.opts.clientConfig
@@ -221,11 +202,6 @@ func finalizeOmniOptions(opts *emulatorOptions) (*emulatorOptions, error) {
 	opts.projectID = cmp.Or(opts.projectID, defaultOmniProjectID)
 	opts.instanceID = cmp.Or(opts.instanceID, defaultOmniInstanceID)
 	opts.databaseID = cmp.Or(opts.databaseID, DefaultDatabaseID)
-	if !opts.disableBackendGuardrails {
-		opts.projectID = defaultOmniProjectID
-		opts.instanceID = defaultOmniInstanceID
-		opts.disableCreateInstance = true
-	}
 	if opts.clientConfig == nil {
 		config := RecommendedOmniClientConfig()
 		opts.clientConfig = &config
@@ -235,6 +211,35 @@ func finalizeOmniOptions(opts *emulatorOptions) (*emulatorOptions, error) {
 
 func omniGuardrailError(problem, suggestion string) error {
 	return fmt.Errorf("spanemuboost: %s; %s", problem, suggestion)
+}
+
+func startOmni(ctx context.Context, opts *emulatorOptions) (*omniRuntime, error) {
+	container, err := newOmni(ctx, opts)
+	if err != nil {
+		return nil, err
+	}
+
+	uri, err := container.PortEndpoint(ctx, omniGRPCPort, "")
+	if err != nil {
+		_ = container.Terminate(context.Background())
+		return nil, err
+	}
+
+	return &omniRuntime{
+		container: container,
+		opts:      opts,
+		uri:       uri,
+	}, nil
+}
+
+func wrapOmniBootstrapError(err error) error {
+	message := "spanemuboost: bootstrap omni backend: %w"
+	switch status.Code(err) {
+	case codes.DeadlineExceeded, codes.Unavailable:
+		return fmt.Errorf(message+"; verify that the environment satisfies the Spanner Omni software requirements: https://docs.cloud.google.com/spanner-omni/system-requirements#software-requirements", err)
+	default:
+		return fmt.Errorf(message, err)
+	}
 }
 
 func newOmni(ctx context.Context, opts *emulatorOptions) (testcontainers.Container, error) {
@@ -256,11 +261,5 @@ func newOmni(ctx context.Context, opts *emulatorOptions) (testcontainers.Contain
 }
 
 func bootstrapOmni(ctx context.Context, omni *omniRuntime, opts *emulatorOptions) error {
-	clients, err := bootstrapAndCreateClientsWithOptions(ctx, omni.URI(), opts, omni.ClientOptions())
-	if err != nil {
-		return err
-	}
-	clients.dropDatabase = false
-	clients.dropInstance = false
-	return clients.Close()
+	return bootstrapWithManagedClientConfig(ctx, opts, omni.ClientOptions())
 }

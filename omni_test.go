@@ -68,19 +68,19 @@ func TestRunOmniRejectsIncompatibleClientConfig(t *testing.T) {
 func TestRunOmniDisableBackendGuardrails(t *testing.T) {
 	opts, err := applyOmniOptions(
 		DisableBackendGuardrails(),
-		WithProjectID("custom-project"),
-		WithInstanceID("custom-instance"),
+		WithRandomProjectID(),
+		WithRandomInstanceID(),
 		EnableAutoConfig(),
 		WithClientConfig(spanner.ClientConfig{}),
 	)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if opts.projectID != "custom-project" {
-		t.Fatalf("projectID = %q, want custom-project", opts.projectID)
+	if opts.projectID == "" || opts.projectID == defaultOmniProjectID {
+		t.Fatalf("projectID = %q, want non-default random ID", opts.projectID)
 	}
-	if opts.instanceID != "custom-instance" {
-		t.Fatalf("instanceID = %q, want custom-instance", opts.instanceID)
+	if opts.instanceID == "" || opts.instanceID == defaultOmniInstanceID {
+		t.Fatalf("instanceID = %q, want non-default random ID", opts.instanceID)
 	}
 	if opts.disableCreateInstance {
 		t.Fatal("disableCreateInstance = true, want false")
@@ -89,6 +89,73 @@ func TestRunOmniDisableBackendGuardrails(t *testing.T) {
 		t.Fatal("clientConfig is nil")
 	}
 	if opts.clientConfig.IsExperimentalHost {
+		t.Fatal("IsExperimentalHost = true, want false")
+	}
+}
+
+func TestOmniInheritedOptionsReuseExistingDatabase(t *testing.T) {
+	opts, err := applyOmniOptions()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	omni := &omniRuntime{opts: opts}
+	inherited, err := omni.inheritedOptions()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if inherited.projectID != opts.projectID {
+		t.Fatalf("projectID = %q, want %q", inherited.projectID, opts.projectID)
+	}
+	if inherited.instanceID != opts.instanceID {
+		t.Fatalf("instanceID = %q, want %q", inherited.instanceID, opts.instanceID)
+	}
+	if inherited.databaseID != opts.databaseID {
+		t.Fatalf("databaseID = %q, want %q", inherited.databaseID, opts.databaseID)
+	}
+	if !inherited.disableCreateInstance {
+		t.Fatal("disableCreateInstance = false, want true")
+	}
+	if !inherited.disableCreateDatabase {
+		t.Fatal("disableCreateDatabase = false, want true")
+	}
+}
+
+func TestOmniInheritedOptionsPreserveDisabledGuardrails(t *testing.T) {
+	opts, err := applyOmniOptions(
+		DisableBackendGuardrails(),
+		WithProjectID("custom-project"),
+		WithInstanceID("custom-instance"),
+		WithDatabaseID("custom-database"),
+		WithClientConfig(spanner.ClientConfig{}),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	omni := &omniRuntime{opts: opts}
+	inherited, err := omni.inheritedOptions()
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if !inherited.disableBackendGuardrails {
+		t.Fatal("disableBackendGuardrails = false, want true")
+	}
+	if inherited.projectID != "custom-project" {
+		t.Fatalf("projectID = %q, want custom-project", inherited.projectID)
+	}
+	if inherited.instanceID != "custom-instance" {
+		t.Fatalf("instanceID = %q, want custom-instance", inherited.instanceID)
+	}
+	if inherited.databaseID != "custom-database" {
+		t.Fatalf("databaseID = %q, want custom-database", inherited.databaseID)
+	}
+	if inherited.clientConfig == nil {
+		t.Fatal("clientConfig is nil")
+	}
+	if inherited.clientConfig.IsExperimentalHost {
 		t.Fatal("IsExperimentalHost = true, want false")
 	}
 }
@@ -191,6 +258,33 @@ func TestOpenOmniClients(t *testing.T) {
 		}
 		if col != 3 {
 			t.Fatalf("col = %d, want 3", col)
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestOpenOmniClientsReuseDefaultDatabase(t *testing.T) {
+	if os.Getenv("SPANEMUBOOST_ENABLE_OMNI_TESTS") == "" {
+		t.Skip("set SPANEMUBOOST_ENABLE_OMNI_TESTS=1 to run Spanner Omni tests")
+	}
+
+	omni := Setup(t, BackendOmni,
+		WithSetupDDLs([]string{"CREATE TABLE tbl (pk STRING(MAX), col INT64) PRIMARY KEY (pk)"}),
+		WithSetupRawDMLs([]string{"INSERT INTO tbl (pk, col) VALUES ('default', 5)"}),
+	)
+
+	clients := SetupClients(t, omni)
+	iter := clients.Client.Single().Query(t.Context(), spanner.NewStatement("SELECT col FROM tbl WHERE pk = 'default'"))
+	err := iter.Do(func(r *spanner.Row) error {
+		var col int64
+		if err := r.Column(0, &col); err != nil {
+			return err
+		}
+		if col != 5 {
+			t.Fatalf("col = %d, want 5", col)
 		}
 		return nil
 	})

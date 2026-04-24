@@ -1,6 +1,3 @@
-# This workflow will build a golang project
-# For more information see: https://docs.github.com/en/actions/automating-builds-and-tests/building-and-testing-go
-
 name: Go
 
 on:
@@ -9,20 +6,38 @@ on:
   pull_request:
     branches: [ "main" ]
 
-jobs:
+permissions:
+  contents: read
 
-  build:
+jobs:
+  build-and-test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
 
       - name: Set up Go
-        uses: actions/setup-go@v4
+        uses: actions/setup-go@v6
         with:
-          go-version: '1.24'
+          go-version-file: go.mod
 
       - name: Build
         run: go build -v ./...
 
       - name: Test
         run: go test -v -race ./...
+
+  omni-smoke:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+
+      - name: Run Omni smoke test
+        env:
+          SPANEMUBOOST_ENABLE_OMNI_TESTS: "1"
+        run: go test -v -race -count=1 -shuffle=on -run '^TestOpenOmniClientsReuseDefaultDatabase$' ./...
