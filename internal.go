@@ -360,14 +360,28 @@ func rollbackCreatedResources(instanceCli *instance.InstanceAdminClient, dbCli *
 	var errs []error
 
 	if resources.instance {
-		// DeleteInstance removes child databases as well, so rollback avoids an
-		// extra DropDatabase call when the whole instance is being removed.
+		// DeleteInstance removes child databases on success, so rollback avoids an
+		// extra DropDatabase call in the common case. If instance cleanup itself
+		// fails, still try DropDatabase so partial rollback can make progress.
+		instanceCleanupFailed := false
 		if instanceCli == nil {
 			errs = append(errs, fmt.Errorf("rollback delete instance %s: instance admin client is nil", opts.InstancePath()))
+			instanceCleanupFailed = true
 		} else {
 			err := instanceCli.DeleteInstance(ctx, &instancepb.DeleteInstanceRequest{Name: opts.InstancePath()})
 			if err != nil {
 				errs = append(errs, fmt.Errorf("rollback delete instance %s: %w", opts.InstancePath(), err))
+				instanceCleanupFailed = true
+			}
+		}
+		if instanceCleanupFailed && resources.database {
+			if dbCli == nil {
+				errs = append(errs, fmt.Errorf("rollback drop database %s: database admin client is nil", opts.DatabasePath()))
+			} else {
+				err := dbCli.DropDatabase(ctx, &databasepb.DropDatabaseRequest{Database: opts.DatabasePath()})
+				if err != nil {
+					errs = append(errs, fmt.Errorf("rollback drop database %s: %w", opts.DatabasePath(), err))
+				}
 			}
 		}
 		return errors.Join(errs...)
