@@ -118,7 +118,10 @@ When updating docs:
 For code changes, the usual local checks are:
 
 ```sh
-TESTCONTAINERS_RYUK_DISABLED=true go test -race ./...
+go test -race ./...
 golangci-lint run
 git diff --check
 ```
+
+If your local Docker setup requires Ryuk to be disabled, prefix the test
+command with `TESTCONTAINERS_RYUK_DISABLED=true`.
