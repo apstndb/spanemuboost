@@ -34,7 +34,8 @@ backend-neutral surface as the stable API layer; treat Omni-specific behavior
 as experimental.
 
 `OpenClients` and `SetupClients` intentionally accept package-provided runtime
-values only: started runtimes, `*LazyRuntime`, and `*LazyEmulator`.
+values only: started runtimes, `*Emulator`, `*LazyRuntime`, and
+`*LazyEmulator`.
 
 ### Emulator compatibility layer
 
