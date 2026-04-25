@@ -47,7 +47,6 @@ because `NewLazyRuntime(BackendEmulator, ...)` exists.
 Omni does **not** add separate exported startup helpers. It plugs into the
 backend-neutral surface instead:
 
-- `Run(..., BackendOmni, ...)`
 - `Run(ctx, BackendOmni, ...)`
 - `RunWithClients(ctx, BackendOmni, ...)`
 - `Setup(tb, BackendOmni, ...)`
