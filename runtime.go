@@ -11,24 +11,38 @@ import (
 )
 
 // Backend identifies the runtime implementation to start.
+// Callers should use the exported Backend* constants; other values are rejected.
 type Backend string
 
 const (
 	// BackendEmulator starts the Cloud Spanner Emulator backend.
 	BackendEmulator Backend = "emulator"
 	// BackendOmni starts the experimental Spanner Omni backend.
+	// Backend-specific behavior for Omni may change before v1.
 	// Use [RecommendedOmniClientConfig] for external Go clients.
 	BackendOmni Backend = "omni"
 )
 
-type abstractRuntime interface {
+// RuntimeHandle is a package-provided runtime value accepted by [OpenClients]
+// and [SetupClients].
+//
+// Supported handles are started [Runtime] values returned by [Run] or [Setup],
+// as well as [*LazyRuntime] and [*LazyEmulator]. External implementations are
+// not supported.
+type RuntimeHandle interface {
 	spanemuboostRuntime()
 }
 
-// Runtime is a started Spanner-compatible test runtime.
+// Runtime is a started backend-neutral Spanner-compatible test runtime returned
+// by [Run] or [Setup].
+//
+// This backend-neutral API surface is intended to remain the primary public
+// entry point. Backend-specific behavior may evolve independently, especially
+// for the experimental [BackendOmni] backend.
+//
 // Implementations are provided by this package.
 type Runtime interface {
-	abstractRuntime
+	RuntimeHandle
 	URI() string
 	ClientOptions() []option.ClientOption
 	Close() error
@@ -73,7 +87,7 @@ func disableSchemaTeardownUnlessForced(opts *emulatorOptions, clients *Clients) 
 // OpenClients and SetupClients intentionally accept either a started Runtime,
 // a *LazyRuntime, or a *LazyEmulator without adding another startup method to
 // the public Runtime API.
-func resolveRuntime(ctx context.Context, runtime abstractRuntime) (runtimeInstance, error) {
+func resolveRuntime(ctx context.Context, runtime RuntimeHandle) (runtimeInstance, error) {
 	if runtime == nil {
 		return nil, errors.New("spanemuboost: runtime is nil; use *Emulator, *LazyRuntime, *LazyEmulator, or a Runtime returned by Run or Setup")
 	}
@@ -122,6 +136,8 @@ func isNilRuntimeValue(runtime Runtime) bool {
 }
 
 // RuntimeEnv combines a [Runtime] with [Clients] for backend-neutral startup.
+// When created with [BackendOmni], backend-specific behavior remains
+// experimental.
 type RuntimeEnv struct {
 	*Clients
 	runtime Runtime
@@ -155,6 +171,7 @@ func (e *RuntimeEnv) Close() error {
 }
 
 // Run starts the selected backend and returns it as a backend-neutral runtime.
+// When backend is [BackendOmni], backend-specific behavior remains experimental.
 func Run(ctx context.Context, backend Backend, options ...Option) (Runtime, error) {
 	switch backend {
 	case BackendEmulator:
@@ -167,6 +184,7 @@ func Run(ctx context.Context, backend Backend, options ...Option) (Runtime, erro
 }
 
 // RunWithClients starts the selected backend and returns managed clients.
+// When backend is [BackendOmni], backend-specific behavior remains experimental.
 func RunWithClients(ctx context.Context, backend Backend, options ...Option) (*RuntimeEnv, error) {
 	switch backend {
 	case BackendEmulator:
@@ -182,7 +200,9 @@ func RunWithClients(ctx context.Context, backend Backend, options ...Option) (*R
 	}
 }
 
-// Setup starts the selected backend and registers cleanup with [testing.TB.Cleanup].
+// Setup starts the selected backend and registers cleanup with
+// [testing.TB.Cleanup].
+// When backend is [BackendOmni], backend-specific behavior remains experimental.
 func Setup(tb testing.TB, backend Backend, options ...Option) Runtime {
 	tb.Helper()
 
@@ -199,6 +219,7 @@ func Setup(tb testing.TB, backend Backend, options ...Option) Runtime {
 
 // SetupWithClients starts the selected backend with managed clients and
 // registers cleanup with [testing.TB.Cleanup].
+// When backend is [BackendOmni], backend-specific behavior remains experimental.
 func SetupWithClients(tb testing.TB, backend Backend, options ...Option) *RuntimeEnv {
 	tb.Helper()
 

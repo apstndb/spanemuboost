@@ -18,14 +18,20 @@ shared runtime/client abstractions underneath.
 These are the preferred architecture entry points:
 
 - `BackendEmulator`, `BackendOmni`
+- `RuntimeHandle`
 - `Runtime`, `RuntimeEnv`
 - `Run`, `RunWithClients`
 - `Setup`, `SetupWithClients`
 - `OpenClients`, `SetupClients`
 - `NewLazyRuntime`
 
+`RuntimeHandle` is the sealed public handle type accepted by `OpenClients` and
+`SetupClients`.
+
 `Runtime` is a started backend instance with connection metadata (`URI`,
-`ClientOptions`, resource paths) and lifecycle (`Close`).
+`ClientOptions`, resource paths) and lifecycle (`Close`). Treat this backend-
+neutral surface as the stable API layer; treat Omni-specific behavior as
+experimental.
 
 `OpenClients` and `SetupClients` intentionally accept package-provided runtime
 values only: started runtimes, `*LazyRuntime`, and `*LazyEmulator`.

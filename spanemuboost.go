@@ -174,9 +174,9 @@ func RunEmulatorWithClients(ctx context.Context, options ...Option) (*Env, error
 	return &Env{Clients: clients, emulator: emu}, nil
 }
 
-// OpenClients connects to an existing runtime and opens Spanner clients.
-// The runtime parameter accepts [*Emulator], [*LazyRuntime], [*LazyEmulator],
-// and the [Runtime] returned by [Run] or [Setup].
+// OpenClients connects to an existing [RuntimeHandle] and opens Spanner clients.
+// Supported handles are [*Emulator], [*LazyRuntime], [*LazyEmulator], and the
+// [Runtime] returned by [Run] or [Setup].
 // When a lazy runtime is passed, it is started automatically on first use.
 // The parameter type is intentionally limited to package-provided runtime values
 // so callers can use lazy runtime handles without adding another startup method
@@ -188,7 +188,7 @@ func RunEmulatorWithClients(ctx context.Context, options ...Option) (*Env, error
 // [EnableAutoConfig]).
 // Call [Clients.Close] to close the clients when done.
 // In tests, prefer [SetupClients] which handles cleanup automatically.
-func OpenClients(ctx context.Context, runtime abstractRuntime, options ...Option) (*Clients, error) {
+func OpenClients(ctx context.Context, runtime RuntimeHandle, options ...Option) (*Clients, error) {
 	r, err := resolveRuntime(ctx, runtime)
 	if err != nil {
 		return nil, err
