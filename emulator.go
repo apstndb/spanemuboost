@@ -14,6 +14,7 @@ type Emulator struct {
 	container *tcspanner.Container
 	opts      *emulatorOptions
 
+	// Pointer-backed to keep exported Emulator comparable as a value.
 	closeState *closeState
 }
 
@@ -152,6 +153,7 @@ type Env struct {
 	*Clients
 	emulator *Emulator
 
+	// Pointer-backed to keep exported Env comparable as a value.
 	closeState *closeState
 }
 

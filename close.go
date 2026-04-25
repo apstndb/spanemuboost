@@ -22,6 +22,9 @@ func (s *closeState) close(fn func() error) error {
 	return s.err
 }
 
+// Exported value types keep *closeState rather than embedding sync.Once
+// directly so they preserve their previous comparability semantics and do not
+// expose a copylock field as part of the public struct layout.
 func ensureCloseState(slot **closeState) *closeState {
 	closeStateInitMu.Lock()
 	defer closeStateInitMu.Unlock()

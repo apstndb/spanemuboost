@@ -126,6 +126,7 @@ type RuntimeEnv struct {
 	*Clients
 	runtime Runtime
 
+	// Pointer-backed to keep exported RuntimeEnv comparable as a value.
 	closeState *closeState
 }
 
