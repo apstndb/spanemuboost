@@ -1,6 +1,7 @@
 package spanemuboost
 
 import (
+	"errors"
 	"strings"
 	"sync"
 	"testing"
@@ -8,7 +9,27 @@ import (
 	"cloud.google.com/go/spanner"
 	"cloud.google.com/go/spanner/admin/database/apiv1/databasepb"
 	"github.com/google/go-cmp/cmp"
+	"google.golang.org/api/option"
 )
+
+type closeCountingRuntime struct {
+	closeCalls int
+	closeErr   error
+}
+
+func (*closeCountingRuntime) spanemuboostRuntime()                 {}
+func (*closeCountingRuntime) URI() string                          { return "" }
+func (*closeCountingRuntime) ClientOptions() []option.ClientOption { return nil }
+func (r *closeCountingRuntime) Close() error {
+	r.closeCalls++
+	return r.closeErr
+}
+func (*closeCountingRuntime) ProjectID() string    { return "" }
+func (*closeCountingRuntime) InstanceID() string   { return "" }
+func (*closeCountingRuntime) DatabaseID() string   { return "" }
+func (*closeCountingRuntime) ProjectPath() string  { return "" }
+func (*closeCountingRuntime) InstancePath() string { return "" }
+func (*closeCountingRuntime) DatabasePath() string { return "" }
 
 func TestNewEmulatorWithClients(t *testing.T) {
 	type row struct {
@@ -332,10 +353,154 @@ func TestRuntimeEnvCloseZeroValue(t *testing.T) {
 	if err := env.Close(); err != nil {
 		t.Fatalf("Close() error = %v, want nil", err)
 	}
+	if err := env.Close(); err != nil {
+		t.Fatalf("second Close() error = %v, want nil", err)
+	}
 
 	var nilEnv *RuntimeEnv
 	if err := nilEnv.Close(); err != nil {
 		t.Fatalf("nil Close() error = %v, want nil", err)
+	}
+}
+
+func TestClientsCloseNilSafeAndIdempotent(t *testing.T) {
+	t.Run("nil receiver", func(t *testing.T) {
+		var clients *Clients
+		if err := clients.Close(); err != nil {
+			t.Fatalf("nil Close() error = %v, want nil", err)
+		}
+	})
+
+	t.Run("zero value", func(t *testing.T) {
+		clients := &Clients{}
+		if err := clients.Close(); err != nil {
+			t.Fatalf("first Close() error = %v, want nil", err)
+		}
+		if err := clients.Close(); err != nil {
+			t.Fatalf("second Close() error = %v, want nil", err)
+		}
+	})
+
+	t.Run("missing admin client caches first error", func(t *testing.T) {
+		clients := &Clients{
+			ProjectID:    "project",
+			InstanceID:   "instance",
+			dropInstance: true,
+		}
+
+		err1 := clients.Close()
+		if err1 == nil {
+			t.Fatal("first Close() error = nil, want non-nil")
+		}
+		if !strings.Contains(err1.Error(), "instance admin client is nil") {
+			t.Fatalf("first Close() error = %q, want missing instance admin client", err1)
+		}
+
+		err2 := clients.Close()
+		if err2 == nil {
+			t.Fatal("second Close() error = nil, want cached non-nil")
+		}
+		if err2.Error() != err1.Error() {
+			t.Fatalf("second Close() error = %q, want %q", err2, err1)
+		}
+	})
+}
+
+func TestEnvCloseNilSafeAndIdempotent(t *testing.T) {
+	t.Run("nil receiver", func(t *testing.T) {
+		var env *Env
+		if err := env.Close(); err != nil {
+			t.Fatalf("nil Close() error = %v, want nil", err)
+		}
+	})
+
+	t.Run("zero value", func(t *testing.T) {
+		env := &Env{}
+		if err := env.Close(); err != nil {
+			t.Fatalf("first Close() error = %v, want nil", err)
+		}
+		if err := env.Close(); err != nil {
+			t.Fatalf("second Close() error = %v, want nil", err)
+		}
+	})
+
+	t.Run("caches first error", func(t *testing.T) {
+		env := &Env{
+			Clients: &Clients{
+				ProjectID:    "project",
+				InstanceID:   "instance",
+				dropInstance: true,
+			},
+		}
+
+		err1 := env.Close()
+		if err1 == nil {
+			t.Fatal("first Close() error = nil, want non-nil")
+		}
+		if !strings.Contains(err1.Error(), "instance admin client is nil") {
+			t.Fatalf("first Close() error = %q, want missing instance admin client", err1)
+		}
+
+		err2 := env.Close()
+		if err2 == nil {
+			t.Fatal("second Close() error = nil, want cached non-nil")
+		}
+		if err2.Error() != err1.Error() {
+			t.Fatalf("second Close() error = %q, want %q", err2, err1)
+		}
+	})
+}
+
+func TestEmulatorCloseNilSafeAndIdempotent(t *testing.T) {
+	var nilEmulator *Emulator
+	if err := nilEmulator.Close(); err != nil {
+		t.Fatalf("nil Close() error = %v, want nil", err)
+	}
+
+	emulator := &Emulator{}
+	if err := emulator.Close(); err != nil {
+		t.Fatalf("first Close() error = %v, want nil", err)
+	}
+	if err := emulator.Close(); err != nil {
+		t.Fatalf("second Close() error = %v, want nil", err)
+	}
+}
+
+func TestRuntimeEnvCloseCachesFirstResult(t *testing.T) {
+	runtimeErr := errors.New("runtime close failed")
+	runtime := &closeCountingRuntime{closeErr: runtimeErr}
+	env := &RuntimeEnv{
+		Clients: &Clients{
+			ProjectID:    "project",
+			InstanceID:   "instance",
+			dropInstance: true,
+		},
+		runtime: runtime,
+	}
+
+	err1 := env.Close()
+	if err1 == nil {
+		t.Fatal("first Close() error = nil, want non-nil")
+	}
+	if runtime.closeCalls != 1 {
+		t.Fatalf("runtime Close() calls after first Close = %d, want 1", runtime.closeCalls)
+	}
+	if !strings.Contains(err1.Error(), "instance admin client is nil") {
+		t.Fatalf("first Close() error = %q, want missing instance admin client", err1)
+	}
+	if !errors.Is(err1, runtimeErr) {
+		t.Fatalf("first Close() error = %v, want wrapped runtime error %v", err1, runtimeErr)
+	}
+
+	err2 := env.Close()
+	if err2 == nil {
+		t.Fatal("second Close() error = nil, want cached non-nil")
+	}
+	if runtime.closeCalls != 1 {
+		t.Fatalf("runtime Close() calls after second Close = %d, want 1", runtime.closeCalls)
+	}
+	if err2.Error() != err1.Error() {
+		t.Fatalf("second Close() error = %q, want %q", err2, err1)
 	}
 }
 

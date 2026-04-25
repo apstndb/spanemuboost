@@ -43,6 +43,10 @@ type Clients struct {
 
 	dropDatabase bool
 	dropInstance bool
+
+	// Pointer-backed to avoid embedding a sync.Once copylock in the exported
+	// Clients struct layout.
+	closeState *closeState
 }
 
 func (c *Clients) ProjectPath() string  { return projectPath(c.ProjectID) }
@@ -64,35 +68,55 @@ func (c *Clients) URI() string {
 }
 
 // Close closes all Spanner clients.
-// By default, auto-created resources with fixed IDs are dropped before
-// the clients are closed. See [ForceSchemaTeardown] and [SkipSchemaTeardown].
+// By default, auto-created resources with fixed IDs are dropped during Close
+// after the data client is closed and before the admin clients are closed.
+// See [ForceSchemaTeardown] and [SkipSchemaTeardown].
 // [spanner.Client.Close] does not return an error, so only admin client and
 // resource cleanup errors are returned.
+// Close is nil-safe and idempotent. After the first call, subsequent calls
+// return the result of that first call.
 func (c *Clients) Close() error {
-	c.Client.Close()
-
-	var dropErrs []error
-	ctx := context.Background()
-	if c.dropInstance {
-		// Deleting the instance also removes all databases within it,
-		// so there is no need to drop the database separately.
-		if err := c.InstanceClient.DeleteInstance(ctx, &instancepb.DeleteInstanceRequest{
-			Name: c.InstancePath(),
-		}); err != nil {
-			dropErrs = append(dropErrs, fmt.Errorf("delete instance %s: %w", c.InstancePath(), err))
-		}
-	} else if c.dropDatabase {
-		if err := c.DatabaseClient.DropDatabase(ctx, &databasepb.DropDatabaseRequest{
-			Database: c.DatabasePath(),
-		}); err != nil {
-			dropErrs = append(dropErrs, fmt.Errorf("drop database %s: %w", c.DatabasePath(), err))
-		}
+	if c == nil {
+		return nil
 	}
+	return ensureCloseState(&c.closeState).close(func() error {
+		var errs []error
+		if c.Client != nil {
+			c.Client.Close()
+		}
 
-	return errors.Join(append(dropErrs,
-		c.DatabaseClient.Close(),
-		c.InstanceClient.Close(),
-	)...)
+		if c.dropInstance || c.dropDatabase {
+			ctx, cancel := newCloseContext()
+			defer cancel()
+			if c.dropInstance {
+				// Deleting the instance also removes all databases within it,
+				// so there is no need to drop the database separately.
+				if c.InstanceClient == nil {
+					errs = append(errs, fmt.Errorf("delete instance %s: instance admin client is nil", c.InstancePath()))
+				} else if err := c.InstanceClient.DeleteInstance(ctx, &instancepb.DeleteInstanceRequest{
+					Name: c.InstancePath(),
+				}); err != nil {
+					errs = append(errs, fmt.Errorf("delete instance %s: %w", c.InstancePath(), err))
+				}
+			} else if c.dropDatabase {
+				if c.DatabaseClient == nil {
+					errs = append(errs, fmt.Errorf("drop database %s: database admin client is nil", c.DatabasePath()))
+				} else if err := c.DatabaseClient.DropDatabase(ctx, &databasepb.DropDatabaseRequest{
+					Database: c.DatabasePath(),
+				}); err != nil {
+					errs = append(errs, fmt.Errorf("drop database %s: %w", c.DatabasePath(), err))
+				}
+			}
+		}
+
+		if c.DatabaseClient != nil {
+			errs = append(errs, c.DatabaseClient.Close())
+		}
+		if c.InstanceClient != nil {
+			errs = append(errs, c.InstanceClient.Close())
+		}
+		return errors.Join(errs...)
+	})
 }
 
 // RunEmulator starts a Cloud Spanner Emulator container and performs any

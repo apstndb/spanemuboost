@@ -29,6 +29,8 @@ type omniRuntime struct {
 	container testcontainers.Container
 	opts      *emulatorOptions
 	uri       string
+
+	closeState closeState
 }
 
 func (*omniRuntime) spanemuboostRuntime() {}
@@ -76,7 +78,17 @@ func finalizeManagedOmniClientConfig(config *spanner.ClientConfig, disableBacken
 
 // Close terminates the Omni container.
 func (o *omniRuntime) Close() error {
-	return o.container.Terminate(context.Background())
+	if o == nil {
+		return nil
+	}
+	return o.closeState.close(func() error {
+		if o.container == nil {
+			return nil
+		}
+		ctx, cancel := newCloseContext()
+		defer cancel()
+		return o.container.Terminate(ctx)
+	})
 }
 
 // ProjectID returns the fixed project ID used by the single-server Omni deployment.

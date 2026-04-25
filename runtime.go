@@ -125,6 +125,9 @@ func isNilRuntimeValue(runtime Runtime) bool {
 type RuntimeEnv struct {
 	*Clients
 	runtime Runtime
+
+	// Pointer-backed to keep exported RuntimeEnv comparable as a value.
+	closeState *closeState
 }
 
 // Runtime returns the started runtime behind this environment.
@@ -133,19 +136,22 @@ func (e *RuntimeEnv) Runtime() Runtime {
 }
 
 // Close closes the clients and then terminates the runtime.
+// Close is nil-safe and idempotent. After the first call, subsequent calls
+// return the result of that first call.
 func (e *RuntimeEnv) Close() error {
 	if e == nil {
 		return nil
 	}
-
-	var errs []error
-	if e.Clients != nil {
-		errs = append(errs, e.Clients.Close())
-	}
-	if e.runtime != nil {
-		errs = append(errs, e.runtime.Close())
-	}
-	return errors.Join(errs...)
+	return ensureCloseState(&e.closeState).close(func() error {
+		var errs []error
+		if e.Clients != nil {
+			errs = append(errs, e.Clients.Close())
+		}
+		if e.runtime != nil {
+			errs = append(errs, e.runtime.Close())
+		}
+		return errors.Join(errs...)
+	})
 }
 
 // Run starts the selected backend and returns it as a backend-neutral runtime.

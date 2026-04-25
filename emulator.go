@@ -13,6 +13,9 @@ import (
 type Emulator struct {
 	container *tcspanner.Container
 	opts      *emulatorOptions
+
+	// Pointer-backed to keep exported Emulator comparable as a value.
+	closeState *closeState
 }
 
 func (*Emulator) spanemuboostRuntime() {}
@@ -47,8 +50,20 @@ func (e *Emulator) ClientOptions() []option.ClientOption {
 }
 
 // Close terminates the emulator container.
+// Close is nil-safe and idempotent. After the first call, subsequent calls
+// return the result of that first call.
 func (e *Emulator) Close() error {
-	return e.container.Terminate(context.Background())
+	if e == nil {
+		return nil
+	}
+	return ensureCloseState(&e.closeState).close(func() error {
+		if e.container == nil {
+			return nil
+		}
+		ctx, cancel := newCloseContext()
+		defer cancel()
+		return e.container.Terminate(ctx)
+	})
 }
 
 // Container returns the underlying [*tcspanner.Container] for direct access.
@@ -122,10 +137,13 @@ func (le *LazyEmulator) Get(ctx context.Context) (*Emulator, error) {
 }
 
 // Close terminates the emulator if it was started. No-op otherwise.
-// Close is idempotent — subsequent calls return the result of the first call.
+// Close is nil-safe and idempotent — subsequent calls return the result of the first call.
 // Close waits for any in-progress initialization to complete before checking.
 // If Close is called before any Get or Setup, the emulator will never be started.
 func (le *LazyEmulator) Close() error {
+	if le == nil {
+		return nil
+	}
 	return le.state.close()
 }
 
@@ -134,6 +152,9 @@ func (le *LazyEmulator) Close() error {
 type Env struct {
 	*Clients
 	emulator *Emulator
+
+	// Pointer-backed to keep exported Env comparable as a value.
+	closeState *closeState
 }
 
 // Emulator returns the underlying [Emulator].
@@ -142,9 +163,20 @@ func (e *Env) Emulator() *Emulator {
 }
 
 // Close closes the clients and then terminates the emulator.
+// Close is nil-safe and idempotent. After the first call, subsequent calls
+// return the result of that first call.
 func (e *Env) Close() error {
-	return errors.Join(
-		e.Clients.Close(),
-		e.emulator.Close(),
-	)
+	if e == nil {
+		return nil
+	}
+	return ensureCloseState(&e.closeState).close(func() error {
+		var errs []error
+		if e.Clients != nil {
+			errs = append(errs, e.Clients.Close())
+		}
+		if e.emulator != nil {
+			errs = append(errs, e.emulator.Close())
+		}
+		return errors.Join(errs...)
+	})
 }
