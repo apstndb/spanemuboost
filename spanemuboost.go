@@ -44,7 +44,8 @@ type Clients struct {
 	dropDatabase bool
 	dropInstance bool
 
-	// Pointer-backed to keep exported Clients comparable as a value.
+	// Pointer-backed to avoid embedding a sync.Once copylock in the exported
+	// Clients struct layout.
 	closeState *closeState
 }
 
