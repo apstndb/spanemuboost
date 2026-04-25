@@ -27,8 +27,8 @@ const (
 // and [SetupClients].
 //
 // Supported handles are started [Runtime] values returned by [Run] or [Setup],
-// as well as [*LazyRuntime] and [*LazyEmulator]. External implementations are
-// not supported.
+// as well as [*Emulator], [*LazyRuntime], and [*LazyEmulator]. External
+// implementations are not supported.
 type RuntimeHandle interface {
 	spanemuboostRuntime()
 }
