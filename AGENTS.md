@@ -18,7 +18,7 @@ shared runtime/client abstractions underneath.
 These are the preferred architecture entry points:
 
 - `BackendEmulator`, `BackendOmni`
-- `Runtime`
+- `Runtime`, `RuntimeEnv`
 - `Run`, `RunWithClients`
 - `Setup`, `SetupWithClients`
 - `OpenClients`, `SetupClients`
@@ -98,7 +98,7 @@ Preserve these behaviors:
 ## Key files
 
 - `runtime.go`: backend-neutral runtime API and runtime resolution
-- `spanemuboost.go`: clients, emulator-facing compatibility API
+- `spanemuboost.go`: `Clients`, `OpenClients`, and emulator-facing compatibility API
 - `testing.go`: `Setup*` and `TestMain` helpers
 - `lazy.go`: lazy runtime and lazy emulator behavior
 - `omni.go`: Omni runtime, client config, guardrails
