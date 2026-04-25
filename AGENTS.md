@@ -25,8 +25,8 @@ These are the preferred architecture entry points:
 - `OpenClients`, `SetupClients`
 - `NewLazyRuntime`
 
-`RuntimeHandle` is the sealed public handle type accepted by `OpenClients` and
-`SetupClients`.
+`RuntimeHandle` is the package-owned public handle type accepted by
+`OpenClients` and `SetupClients`.
 
 `Runtime` is a started backend instance with connection metadata (`URI`,
 `ClientOptions`, resource paths) and lifecycle (`Close`). Treat this
