@@ -52,8 +52,8 @@ func (o *omniRuntime) ClientOptions() []option.ClientOption {
 
 // RecommendedOmniClientConfig returns the recommended [spanner.ClientConfig]
 // for a Go Spanner data client connecting to the experimental Omni backend.
-// The helper remains part of the backend-neutral API surface, but its Omni-
-// specific recommendations may evolve before v1.
+// The helper remains part of the backend-neutral API surface, but its
+// Omni-specific recommendations may evolve before v1.
 func RecommendedOmniClientConfig() spanner.ClientConfig {
 	return spanner.ClientConfig{
 		DisableNativeMetrics: true,
