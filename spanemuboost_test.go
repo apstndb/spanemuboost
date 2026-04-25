@@ -1,6 +1,7 @@
 package spanemuboost
 
 import (
+	"strings"
 	"sync"
 	"testing"
 
@@ -463,6 +464,99 @@ func TestSchemaTeardown(t *testing.T) {
 			t.Errorf("failed to close reconnect clients: %v", err)
 		}
 	})
+}
+
+func TestOpenClientsRollbackCreatedResourcesOnFailure(t *testing.T) {
+	t.Run("created database is rolled back after setup failure", func(t *testing.T) {
+		emu := SetupEmulator(t, EnableInstanceAutoConfigOnly())
+		const dbID = "rollback-dml-failure"
+
+		_, err := OpenClients(t.Context(), emu,
+			WithDatabaseID(dbID),
+			WithSetupDMLs([]spanner.Statement{
+				spanner.NewStatement("INSERT INTO missing_table (pk) VALUES ('x')"),
+			}),
+		)
+		if err == nil {
+			t.Fatal("first OpenClients() error = nil, want non-nil")
+		}
+
+		clients, err := OpenClients(t.Context(), emu,
+			WithDatabaseID(dbID),
+		)
+		if err != nil {
+			t.Fatalf("second OpenClients() error = %v, want nil", err)
+		}
+		defer func() {
+			if err := clients.Close(); err != nil {
+				t.Errorf("failed to close clients: %v", err)
+			}
+		}()
+
+		mustConsumeQuery(t, clients, "SELECT 1")
+	})
+
+	t.Run("created instance is rolled back after setup failure", func(t *testing.T) {
+		emu := SetupEmulator(t)
+		const (
+			instanceID = "rollback-instance-failure"
+			databaseID = "rollback-instance-db"
+		)
+
+		_, err := OpenClients(t.Context(), emu,
+			EnableAutoConfig(),
+			WithInstanceID(instanceID),
+			WithDatabaseID(databaseID),
+			WithSetupDMLs([]spanner.Statement{
+				spanner.NewStatement("INSERT INTO missing_table (pk) VALUES ('x')"),
+			}),
+		)
+		if err == nil {
+			t.Fatal("first OpenClients() error = nil, want non-nil")
+		}
+
+		clients, err := OpenClients(t.Context(), emu,
+			EnableAutoConfig(),
+			WithInstanceID(instanceID),
+			WithDatabaseID(databaseID),
+		)
+		if err != nil {
+			t.Fatalf("second OpenClients() error = %v, want nil", err)
+		}
+		defer func() {
+			if err := clients.Close(); err != nil {
+				t.Errorf("failed to close clients: %v", err)
+			}
+		}()
+
+		mustConsumeQuery(t, clients, "SELECT 1")
+	})
+}
+
+func TestRollbackCreatedResourcesFallsBackToDatabaseDropWhenInstanceDeleteCannotRun(t *testing.T) {
+	opts, err := applyOptions(
+		EnableAutoConfig(),
+		WithInstanceID("rollback-instance"),
+		WithDatabaseID("rollback-database"),
+	)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	err = rollbackCreatedResources(nil, nil, opts, createdSchemaResources{
+		instance: true,
+		database: true,
+	})
+	if err == nil {
+		t.Fatal("rollbackCreatedResources() error = nil, want non-nil")
+	}
+
+	if !strings.Contains(err.Error(), "instance admin client is nil") {
+		t.Fatalf("rollbackCreatedResources() error = %v, want instance admin client failure", err)
+	}
+	if !strings.Contains(err.Error(), "database admin client is nil") {
+		t.Fatalf("rollbackCreatedResources() error = %v, want fallback database rollback failure", err)
+	}
 }
 
 func TestEmulatorAccessors(t *testing.T) {
