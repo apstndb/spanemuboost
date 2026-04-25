@@ -62,7 +62,7 @@ Important Omni constraints:
 ## Lifecycle and teardown rules
 
 - `Close()` paths are expected to be **nil-safe** and **idempotent**
-- `Setup*` helpers own cleanup via `t.Cleanup`
+- `Setup*` helpers own cleanup via `tb.Cleanup`
 - `TestMain` helpers own cleanup via `os.Exit` wrappers
 - fixed IDs default to schema teardown on client close
 - random IDs do not default to teardown
