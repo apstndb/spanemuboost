@@ -70,8 +70,10 @@ Important Omni constraints:
   Omni runtime envs) disable schema teardown unless explicitly forced
 
 Current close semantics use a shared internal `closeState` helper. For exported
-types, it is kept pointer-backed to avoid exposing `sync.Once` copylock fields
-in the public struct layout.
+types that use that helper, it is kept pointer-backed to avoid exposing
+`sync.Once` copylock fields in the public struct layout. `LazyRuntime` uses a
+separate internal `lazyRuntimeState` by value because its `sync.Once` fields are
+part of the lazy-start state, not the exported close-state helper.
 
 ## Bootstrap and rollback rules
 
