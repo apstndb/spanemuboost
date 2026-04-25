@@ -71,11 +71,12 @@ Important Omni constraints:
 
 Current close semantics use a shared internal `closeState` helper. For exported
 types that use that helper, it is kept pointer-backed to avoid exposing
-`sync.Once` copylock fields in the public struct layout. `LazyRuntime` uses a
-separate internal `lazyRuntimeState` by value because its `sync.Once` fields are
-part of the lazy-start state, not the exported close-state helper. Treat
-`LazyRuntime` as a pointer-owned handle: create it with `NewLazyRuntime(...)`
-and pass the returned `*LazyRuntime` around rather than copying it by value.
+`sync.Once` copylock fields in the public struct layout. `LazyRuntime` and
+`LazyEmulator` use a separate internal `lazyRuntimeState` by value because
+their `sync.Once` fields are part of the lazy-start state, not the exported
+close-state helper. Treat them as pointer-owned handles: create them with
+`NewLazyRuntime(...)` or `NewLazyEmulator(...)` and pass the returned pointers
+around rather than copying them by value.
 
 ## Bootstrap and rollback rules
 
@@ -101,7 +102,7 @@ Preserve these behaviors:
 
 - `runtime.go`: backend-neutral runtime API and runtime resolution
 - `spanemuboost.go`: `Clients`, `OpenClients`, and emulator-facing compatibility API
-- `emulator.go`: `Emulator`, `Env`, `LazyEmulator`, and emulator-specific options
+- `emulator.go`: `Emulator`, `Env`, `LazyEmulator`, and emulator-specific runtime logic
 - `options.go`: `Option` and `With*` helpers for backend configuration
 - `testing.go`: `Setup*` and `TestMain` helpers
 - `lazy.go`: lazy runtime behavior
