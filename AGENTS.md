@@ -48,9 +48,10 @@ Omni does **not** add separate exported startup helpers. It plugs into the
 backend-neutral surface instead:
 
 - `Run(..., BackendOmni, ...)`
-- `RunWithClients(..., BackendOmni, ...)`
-- `Setup(..., BackendOmni, ...)`
-- `SetupWithClients(..., BackendOmni, ...)`
+- `Run(ctx, BackendOmni, ...)`
+- `RunWithClients(ctx, BackendOmni, ...)`
+- `Setup(tb, BackendOmni, ...)`
+- `SetupWithClients(tb, BackendOmni, ...)`
 
 Important Omni constraints:
 
