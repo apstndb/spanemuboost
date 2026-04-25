@@ -29,9 +29,9 @@ These are the preferred architecture entry points:
 `SetupClients`.
 
 `Runtime` is a started backend instance with connection metadata (`URI`,
-`ClientOptions`, resource paths) and lifecycle (`Close`). Treat this backend-
-neutral surface as the stable API layer; treat Omni-specific behavior as
-experimental.
+`ClientOptions`, resource paths) and lifecycle (`Close`). Treat this
+backend-neutral surface as the stable API layer; treat Omni-specific behavior
+as experimental.
 
 `OpenClients` and `SetupClients` intentionally accept package-provided runtime
 values only: started runtimes, `*LazyRuntime`, and `*LazyEmulator`.
