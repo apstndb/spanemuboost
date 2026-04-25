@@ -73,7 +73,9 @@ Current close semantics use a shared internal `closeState` helper. For exported
 types that use that helper, it is kept pointer-backed to avoid exposing
 `sync.Once` copylock fields in the public struct layout. `LazyRuntime` uses a
 separate internal `lazyRuntimeState` by value because its `sync.Once` fields are
-part of the lazy-start state, not the exported close-state helper.
+part of the lazy-start state, not the exported close-state helper. Treat
+`LazyRuntime` as a pointer-owned handle: create it with `NewLazyRuntime(...)`
+and pass the returned `*LazyRuntime` around rather than copying it by value.
 
 ## Bootstrap and rollback rules
 
