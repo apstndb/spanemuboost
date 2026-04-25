@@ -99,8 +99,10 @@ Preserve these behaviors:
 
 - `runtime.go`: backend-neutral runtime API and runtime resolution
 - `spanemuboost.go`: `Clients`, `OpenClients`, and emulator-facing compatibility API
+- `emulator.go`: `Emulator`, `Env`, `LazyEmulator`, and emulator-specific options
+- `options.go`: `Option` and `With*` helpers for backend configuration
 - `testing.go`: `Setup*` and `TestMain` helpers
-- `lazy.go`: lazy runtime and lazy emulator behavior
+- `lazy.go`: lazy runtime behavior
 - `omni.go`: Omni runtime, client config, guardrails
 - `internal.go`: shared bootstrap, rollback, client construction
 - `close.go`: shared close-state helper
