@@ -155,6 +155,10 @@ func (o *omniRuntime) inheritedOptions(options ...Option) (*emulatorOptions, err
 	return applyOmniOptionsWithBase(base, options...)
 }
 
+func (o *omniRuntime) runtimePlatform(ctx context.Context) (string, error) {
+	return containerPlatform(ctx, o.container)
+}
+
 func applyOmniOptions(options ...Option) (*emulatorOptions, error) {
 	opts := &emulatorOptions{disableCreateInstance: true}
 	for _, opt := range options {

@@ -15,6 +15,7 @@ import (
 	"cloud.google.com/go/spanner/admin/instance/apiv1"
 	"cloud.google.com/go/spanner/admin/instance/apiv1/instancepb"
 	dcontainer "github.com/docker/docker/api/types/container"
+	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/testcontainers/testcontainers-go"
 	tcspanner "github.com/testcontainers/testcontainers-go/modules/gcloud/spanner"
 	"google.golang.org/api/option"
@@ -56,6 +57,47 @@ func newEmulator(ctx context.Context, opts *emulatorOptions) (container *tcspann
 	}
 
 	return container, teardown, nil
+}
+
+func containerPlatform(ctx context.Context, container testcontainers.Container) (string, error) {
+	if container == nil {
+		return "", errors.New("spanemuboost: container is nil")
+	}
+	info, err := container.Inspect(ctx)
+	if err != nil {
+		return "", fmt.Errorf("spanemuboost: inspect container platform: %w", err)
+	}
+	return inspectContainerPlatform(info)
+}
+
+func inspectContainerPlatform(info *dcontainer.InspectResponse) (string, error) {
+	if info == nil {
+		return "", errors.New("spanemuboost: container inspect response is nil")
+	}
+	if platform := descriptorPlatformString(info.ImageManifestDescriptor); platform != "" {
+		return platform, nil
+	}
+	if info.ContainerJSONBase != nil && info.Platform != "" {
+		return info.Platform, nil
+	}
+	return "", errors.New("spanemuboost: container platform metadata unavailable")
+}
+
+func descriptorPlatformString(desc *ocispec.Descriptor) string {
+	if desc == nil || desc.Platform == nil {
+		return ""
+	}
+	return ociPlatformString(desc.Platform)
+}
+
+func ociPlatformString(platform *ocispec.Platform) string {
+	if platform == nil || platform.OS == "" || platform.Architecture == "" {
+		return ""
+	}
+	if platform.Variant == "" {
+		return platform.OS + "/" + platform.Architecture
+	}
+	return platform.OS + "/" + platform.Architecture + "/" + platform.Variant
 }
 
 // executeDMLs creates a short-lived internal client solely for bootstrap DML

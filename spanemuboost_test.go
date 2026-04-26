@@ -8,7 +8,9 @@ import (
 
 	"cloud.google.com/go/spanner"
 	"cloud.google.com/go/spanner/admin/database/apiv1/databasepb"
+	dcontainer "github.com/docker/docker/api/types/container"
 	"github.com/google/go-cmp/cmp"
+	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"google.golang.org/api/option"
 )
 
@@ -770,6 +772,82 @@ func TestClientsAccessors(t *testing.T) {
 		t.Error("URI() is empty")
 	} else if uri != emu.URI() {
 		t.Errorf("URI() = %q, want %q (from emulator)", uri, emu.URI())
+	}
+}
+
+func TestRuntimePlatformNilHandle(t *testing.T) {
+	_, err := RuntimePlatform(t.Context(), nil)
+	if err == nil {
+		t.Fatal("RuntimePlatform() error = nil, want non-nil")
+	}
+}
+
+func TestInspectContainerPlatform(t *testing.T) {
+	t.Run("prefers manifest platform", func(t *testing.T) {
+		got, err := inspectContainerPlatform(&dcontainer.InspectResponse{
+			ContainerJSONBase: &dcontainer.ContainerJSONBase{Platform: "linux/amd64"},
+			ImageManifestDescriptor: &ocispec.Descriptor{
+				Platform: &ocispec.Platform{
+					OS:           "linux",
+					Architecture: "arm64",
+					Variant:      "v8",
+				},
+			},
+		})
+		if err != nil {
+			t.Fatalf("inspectContainerPlatform() error = %v, want nil", err)
+		}
+		if got != "linux/arm64/v8" {
+			t.Fatalf("inspectContainerPlatform() = %q, want %q", got, "linux/arm64/v8")
+		}
+	})
+
+	t.Run("falls back to inspect platform string", func(t *testing.T) {
+		got, err := inspectContainerPlatform(&dcontainer.InspectResponse{
+			ContainerJSONBase: &dcontainer.ContainerJSONBase{Platform: "linux/amd64"},
+		})
+		if err != nil {
+			t.Fatalf("inspectContainerPlatform() error = %v, want nil", err)
+		}
+		if got != "linux/amd64" {
+			t.Fatalf("inspectContainerPlatform() = %q, want %q", got, "linux/amd64")
+		}
+	})
+
+	t.Run("errors when unavailable", func(t *testing.T) {
+		_, err := inspectContainerPlatform(&dcontainer.InspectResponse{})
+		if err == nil {
+			t.Fatal("inspectContainerPlatform() error = nil, want non-nil")
+		}
+	})
+}
+
+func TestRuntimePlatformWithStartedRuntime(t *testing.T) {
+	runtime := Setup(t, BackendEmulator, EnableInstanceAutoConfigOnly())
+
+	got, err := RuntimePlatform(t.Context(), runtime)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got == "" {
+		t.Fatal("RuntimePlatform() returned empty platform")
+	}
+}
+
+func TestRuntimePlatformWithLazyRuntime(t *testing.T) {
+	lazy := NewLazyRuntime(BackendEmulator, EnableInstanceAutoConfigOnly())
+	defer func() {
+		if err := lazy.Close(); err != nil {
+			t.Errorf("failed to close lazy runtime: %v", err)
+		}
+	}()
+
+	got, err := RuntimePlatform(t.Context(), lazy)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got == "" {
+		t.Fatal("RuntimePlatform() returned empty platform")
 	}
 }
 

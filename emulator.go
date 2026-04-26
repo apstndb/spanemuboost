@@ -97,6 +97,10 @@ func (e *Emulator) inheritedOptions(options ...Option) (*emulatorOptions, error)
 	return applyOptionsWithBase(base, options...)
 }
 
+func (e *Emulator) runtimePlatform(ctx context.Context) (string, error) {
+	return containerPlatform(ctx, e.container)
+}
+
 // LazyEmulator defers emulator startup until first use.
 // Use [NewLazyEmulator] in a package-level var, then pass directly to [SetupClients]
 // or [OpenClients]. Call [LazyEmulator.Setup] or [LazyEmulator.Get] for standalone access.
