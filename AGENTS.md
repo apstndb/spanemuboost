@@ -23,6 +23,7 @@ These are the preferred architecture entry points:
 - `Run`, `RunWithClients`
 - `Setup`, `SetupWithClients`
 - `OpenClients`, `SetupClients`
+- `RuntimePlatform`
 - `NewLazyRuntime`
 
 `RuntimeHandle` is the package-owned public handle type accepted by

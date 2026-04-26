@@ -288,6 +288,11 @@ func TestRunOmni(t *testing.T) {
 	if len(omni.ClientOptions()) < 3 {
 		t.Fatalf("ClientOptions() returned %d options, want at least 3", len(omni.ClientOptions()))
 	}
+	if platform, err := RuntimePlatform(t.Context(), omni); err != nil {
+		t.Fatalf("RuntimePlatform() error = %v, want nil", err)
+	} else if platform == "" {
+		t.Fatal("RuntimePlatform() returned empty platform")
+	}
 
 	client, err := spanner.NewClientWithConfig(t.Context(), omni.DatabasePath(), RecommendedOmniClientConfig(), omni.ClientOptions()...)
 	if err != nil {
@@ -465,6 +470,12 @@ func TestLazyRuntimeWithOmni(t *testing.T) {
 			t.Errorf("failed to close lazy runtime: %v", err)
 		}
 	}()
+
+	if platform, err := RuntimePlatform(t.Context(), lazy); err != nil {
+		t.Fatalf("RuntimePlatform() error = %v, want nil", err)
+	} else if platform == "" {
+		t.Fatal("RuntimePlatform() returned empty platform")
+	}
 
 	clients := SetupClients(t, lazy,
 		WithRandomDatabaseID(),

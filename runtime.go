@@ -57,6 +57,21 @@ type Runtime interface {
 type runtimeInstance interface {
 	Runtime
 	inheritedOptions(...Option) (*emulatorOptions, error)
+	runtimePlatform(context.Context) (string, error)
+}
+
+// RuntimePlatform returns the actual resolved container platform (for example,
+// "linux/amd64", "linux/arm64", or, when available, a variant-qualified value
+// such as "linux/arm64/v8") for a package-provided runtime handle.
+//
+// It accepts the same started and lazy handles as [OpenClients] and
+// [SetupClients], and resolves lazy handles by starting them on first use.
+func RuntimePlatform(ctx context.Context, runtime RuntimeHandle) (string, error) {
+	resolved, err := resolveRuntime(ctx, runtime)
+	if err != nil {
+		return "", err
+	}
+	return resolved.runtimePlatform(ctx)
 }
 
 func inheritedRuntimeOptions(opts *emulatorOptions) *emulatorOptions {
