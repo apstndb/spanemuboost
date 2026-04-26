@@ -79,7 +79,7 @@ func TestSharedHelpers(t *testing.T) {
 }
 ```
 
-`Run`, `RunWithClients`, `Setup`, `SetupWithClients`, `OpenClients`, `SetupClients`, and `NewLazyRuntime` work across emulator and Omni. `BackendOmni` is the backend selector; Omni does not add separate exported startup or client-opening helpers.
+`Run`, `RunWithClients`, `Setup`, `SetupWithClients`, `OpenClients`, `SetupClients`, and `NewLazyRuntime` work across emulator and Omni. This backend-neutral API surface is the primary stable entry point; only the `BackendOmni` backend and its specific behaviors are considered experimental. Omni does not add separate exported startup or client-opening helpers.
 
 ### Shared emulator patterns
 

@@ -32,6 +32,9 @@ type emulatorOptions struct {
 	clientOptionsForClient []option.ClientOption
 }
 
+// Option configures spanemuboost runtime bootstrap behavior.
+// Use the package-provided With*, Without*, Enable*, Disable*, Force*, and
+// Skip* helpers; external Option implementations are not supported.
 type Option func(*emulatorOptions) error
 
 // WithContainerCustomizers sets any testcontainers.ContainerCustomizer

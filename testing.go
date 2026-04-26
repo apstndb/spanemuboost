@@ -152,17 +152,17 @@ func SetupEmulatorWithClients(tb testing.TB, options ...Option) *Env {
 	}, "env")
 }
 
-// SetupClients opens Spanner clients against an existing runtime and registers
-// cleanup via [testing.TB.Cleanup]. It calls [testing.TB.Fatal] on setup error.
-// The runtime parameter accepts [*Emulator], [*LazyRuntime], [*LazyEmulator],
-// and the [Runtime] returned by [Run] or [Setup].
+// SetupClients opens Spanner clients against an existing [RuntimeHandle] and
+// registers cleanup via [testing.TB.Cleanup]. It calls [testing.TB.Fatal] on
+// setup error. Supported handles are [*Emulator], [*LazyRuntime],
+// [*LazyEmulator], and the [Runtime] returned by [Run] or [Setup].
 // When a lazy runtime is passed, it is started automatically on first use.
 // The parameter type is intentionally limited to package-provided runtime values
 // so callers can use lazy runtime handles without adding another startup method
 // to the public [Runtime] interface.
 // Options inherit the runtime's projectID, instanceID, and databaseID.
 // Use [OpenClients] if you need a [context.Context] or are not in a test.
-func SetupClients(tb testing.TB, runtime abstractRuntime, options ...Option) *Clients {
+func SetupClients(tb testing.TB, runtime RuntimeHandle, options ...Option) *Clients {
 	tb.Helper()
 
 	clients, err := OpenClients(tb.Context(), runtime, options...)
