@@ -814,6 +814,18 @@ func TestInspectContainerPlatform(t *testing.T) {
 		}
 	})
 
+	t.Run("allows os-only inspect platform string", func(t *testing.T) {
+		got, err := inspectContainerPlatform(&dcontainer.InspectResponse{
+			ContainerJSONBase: &dcontainer.ContainerJSONBase{Platform: "linux"},
+		})
+		if err != nil {
+			t.Fatalf("inspectContainerPlatform() error = %v, want nil", err)
+		}
+		if got != "linux" {
+			t.Fatalf("inspectContainerPlatform() = %q, want %q", got, "linux")
+		}
+	})
+
 	t.Run("errors when unavailable", func(t *testing.T) {
 		_, err := inspectContainerPlatform(&dcontainer.InspectResponse{})
 		if err == nil {

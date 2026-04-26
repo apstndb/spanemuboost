@@ -81,7 +81,7 @@ func TestSharedHelpers(t *testing.T) {
 
 `Run`, `RunWithClients`, `Setup`, `SetupWithClients`, `OpenClients`, `SetupClients`, `RuntimePlatform`, and `NewLazyRuntime` work across emulator and Omni. This backend-neutral API surface is the primary stable entry point; only the `BackendOmni` backend and its specific behaviors are considered experimental. Omni does not add separate exported startup or client-opening helpers.
 
-Use `RuntimePlatform(ctx, runtime)` when you want to surface the actual resolved container platform for a package-provided runtime handle without downcasting back to `*Emulator`.
+Use `RuntimePlatform(ctx, runtime)` when you want to surface the actual resolved container platform for a package-provided runtime handle without downcasting back to `*Emulator`. Depending on what metadata the underlying runtime exposes, that may be an `os/arch` string such as `linux/amd64`, a variant-qualified string such as `linux/arm64/v8`, or an OS-only value such as `linux`.
 
 ### Shared emulator patterns
 

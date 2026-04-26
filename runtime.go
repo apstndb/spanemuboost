@@ -63,6 +63,8 @@ type runtimeInstance interface {
 // RuntimePlatform returns the actual resolved container platform (for example,
 // "linux/amd64", "linux/arm64", or, when available, a variant-qualified value
 // such as "linux/arm64/v8") for a package-provided runtime handle.
+// When the underlying runtime only exposes partial metadata, it may return an
+// OS-only value such as "linux".
 //
 // It accepts the same started and lazy handles as [OpenClients] and
 // [SetupClients], and resolves lazy handles by starting them on first use.
