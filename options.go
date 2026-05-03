@@ -7,7 +7,7 @@ import (
 
 	"cloud.google.com/go/spanner"
 	"cloud.google.com/go/spanner/admin/database/apiv1/databasepb"
-	"github.com/docker/docker/api/types/container"
+	"github.com/moby/moby/api/types/container"
 	"github.com/testcontainers/testcontainers-go"
 	"google.golang.org/api/option"
 )

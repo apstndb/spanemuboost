@@ -232,7 +232,7 @@ func startOmni(ctx context.Context, opts *emulatorOptions) (*omniRuntime, error)
 		return nil, err
 	}
 
-	uri, err := container.PortEndpoint(ctx, omniGRPCPort, "")
+	uri, err := container.PortEndpoint(ctx, string(omniGRPCPort), "")
 	if err != nil {
 		// Cleanup must still run if setup failed because ctx was canceled or
 		// timed out, so don't reuse the possibly-dead setup context here.
