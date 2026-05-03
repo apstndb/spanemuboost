@@ -14,7 +14,7 @@ import (
 	"cloud.google.com/go/spanner/admin/database/apiv1/databasepb"
 	"cloud.google.com/go/spanner/admin/instance/apiv1"
 	"cloud.google.com/go/spanner/admin/instance/apiv1/instancepb"
-	dcontainer "github.com/docker/docker/api/types/container"
+	dcontainer "github.com/moby/moby/api/types/container"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"github.com/testcontainers/testcontainers-go"
 	tcspanner "github.com/testcontainers/testcontainers-go/modules/gcloud/spanner"
@@ -77,7 +77,7 @@ func inspectContainerPlatform(info *dcontainer.InspectResponse) (string, error) 
 	if platform := descriptorPlatformString(info.ImageManifestDescriptor); platform != "" {
 		return platform, nil
 	}
-	if info.ContainerJSONBase != nil && info.Platform != "" {
+	if info.Platform != "" {
 		return info.Platform, nil
 	}
 	return "", errors.New("spanemuboost: container platform metadata unavailable")

@@ -8,8 +8,8 @@ import (
 
 	"cloud.google.com/go/spanner"
 	"cloud.google.com/go/spanner/admin/database/apiv1/databasepb"
-	dcontainer "github.com/docker/docker/api/types/container"
 	"github.com/google/go-cmp/cmp"
+	dcontainer "github.com/moby/moby/api/types/container"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"google.golang.org/api/option"
 )
@@ -785,7 +785,7 @@ func TestRuntimePlatformNilHandle(t *testing.T) {
 func TestInspectContainerPlatform(t *testing.T) {
 	t.Run("prefers manifest platform", func(t *testing.T) {
 		got, err := inspectContainerPlatform(&dcontainer.InspectResponse{
-			ContainerJSONBase: &dcontainer.ContainerJSONBase{Platform: "linux/amd64"},
+			Platform: "linux/amd64",
 			ImageManifestDescriptor: &ocispec.Descriptor{
 				Platform: &ocispec.Platform{
 					OS:           "linux",
@@ -804,7 +804,7 @@ func TestInspectContainerPlatform(t *testing.T) {
 
 	t.Run("falls back to inspect platform string", func(t *testing.T) {
 		got, err := inspectContainerPlatform(&dcontainer.InspectResponse{
-			ContainerJSONBase: &dcontainer.ContainerJSONBase{Platform: "linux/amd64"},
+			Platform: "linux/amd64",
 		})
 		if err != nil {
 			t.Fatalf("inspectContainerPlatform() error = %v, want nil", err)
@@ -816,7 +816,7 @@ func TestInspectContainerPlatform(t *testing.T) {
 
 	t.Run("allows os-only inspect platform string", func(t *testing.T) {
 		got, err := inspectContainerPlatform(&dcontainer.InspectResponse{
-			ContainerJSONBase: &dcontainer.ContainerJSONBase{Platform: "linux"},
+			Platform: "linux",
 		})
 		if err != nil {
 			t.Fatalf("inspectContainerPlatform() error = %v, want nil", err)
