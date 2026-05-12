@@ -207,6 +207,9 @@ func finalizeOmniOptions(opts *emulatorOptions) (*emulatorOptions, error) {
 	if !opts.disableCreateInstance && !opts.disableBackendGuardrails {
 		return nil, omniGuardrailError("instance auto-configuration is unsupported for Spanner Omni single-server because the built-in default instance cannot be created, updated, or deleted", "use the default behavior or EnableDatabaseAutoConfigOnly(), or DisableBackendGuardrails() to bypass this validation")
 	}
+	if len(opts.gatewayFlags) > 0 && !opts.disableBackendGuardrails {
+		return nil, omniGuardrailError(fmt.Sprintf("emulator gateway flag options are unsupported for Spanner Omni; got %v", opts.gatewayFlags), "remove the emulator-only Option helpers (e.g. EnableFaultInjection, EnableLogRequests), or DisableBackendGuardrails() to bypass this validation")
+	}
 	if opts.randomDatabaseID && opts.databaseID != "" {
 		return nil, fmt.Errorf("WithRandomDatabaseID() and WithDatabaseID() are mutually exclusive")
 	}

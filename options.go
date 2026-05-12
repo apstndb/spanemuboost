@@ -7,7 +7,6 @@ import (
 
 	"cloud.google.com/go/spanner"
 	"cloud.google.com/go/spanner/admin/database/apiv1/databasepb"
-	"github.com/moby/moby/api/types/container"
 	"github.com/testcontainers/testcontainers-go"
 	"google.golang.org/api/option"
 )
@@ -30,6 +29,11 @@ type emulatorOptions struct {
 	clientConfig           *spanner.ClientConfig // nil until finalizeOptions; guaranteed non-nil after
 	containerCustomizers   []testcontainers.ContainerCustomizer
 	clientOptionsForClient []option.ClientOption
+
+	// gatewayFlags accumulates extra arguments appended to the emulator
+	// gateway_main command line. They are emulator-specific; finalizeOmniOptions
+	// rejects them unless backend guardrails are disabled.
+	gatewayFlags []string
 }
 
 // Option configures spanemuboost runtime bootstrap behavior.
@@ -45,61 +49,42 @@ func WithContainerCustomizers(containerCustomizers ...testcontainers.ContainerCu
 	}
 }
 
-// EnableFaultInjection enables fault injection of Cloud Spanner Emulator.
+// EnableFaultInjection enables fault injection of Cloud Spanner Emulator
+// (the emulator's --enable_fault_injection flag). Emulator-only.
 func EnableFaultInjection() Option {
-	return func(opts *emulatorOptions) error {
-		opts.containerCustomizers = append(opts.containerCustomizers, testcontainers.WithConfigModifier(func(config *container.Config) {
-			config.Cmd = append(config.Cmd, "--enable_fault_injection")
-		}))
-		return nil
-	}
+	return appendGatewayFlag("--enable_fault_injection")
 }
 
 // EnableLogRequests enables gRPC request and response logging in the emulator
 // gateway (the emulator's --log_requests flag). Useful when debugging test
-// failures; output is written to the container's stdout.
+// failures; output is written to the container's stdout. Emulator-only.
 func EnableLogRequests() Option {
-	return func(opts *emulatorOptions) error {
-		opts.containerCustomizers = append(opts.containerCustomizers, testcontainers.WithConfigModifier(func(config *container.Config) {
-			config.Cmd = append(config.Cmd, "--log_requests")
-		}))
-		return nil
-	}
+	return appendGatewayFlag("--log_requests")
 }
 
 // EnableEmulatorStdoutCopy enables copying the emulator backend's stdout to
 // the gateway's stdout (the emulator's --copy_emulator_stdout flag). The
 // gateway already copies the backend's stderr by default; this option adds
-// the matching stdout stream for debugging.
+// the matching stdout stream for debugging. Emulator-only.
 func EnableEmulatorStdoutCopy() Option {
-	return func(opts *emulatorOptions) error {
-		opts.containerCustomizers = append(opts.containerCustomizers, testcontainers.WithConfigModifier(func(config *container.Config) {
-			config.Cmd = append(config.Cmd, "--copy_emulator_stdout")
-		}))
-		return nil
-	}
+	return appendGatewayFlag("--copy_emulator_stdout")
 }
 
 // DisableQueryNullFilteredIndexCheck disables the emulator's safeguard that
 // rejects queries against NULL_FILTERED indexes (the emulator's
-// --disable_query_null_filtered_index_check flag).
+// --disable_query_null_filtered_index_check flag). Emulator-only.
 //
 // Production Spanner answers such queries; the emulator rejects them by
 // default because the result set can legitimately differ from a base-table
 // scan. Use this option only in tests that intentionally exercise reads
 // against NULL_FILTERED indexes and have accounted for that difference.
 func DisableQueryNullFilteredIndexCheck() Option {
-	return func(opts *emulatorOptions) error {
-		opts.containerCustomizers = append(opts.containerCustomizers, testcontainers.WithConfigModifier(func(config *container.Config) {
-			config.Cmd = append(config.Cmd, "--disable_query_null_filtered_index_check")
-		}))
-		return nil
-	}
+	return appendGatewayFlag("--disable_query_null_filtered_index_check")
 }
 
 // WithMaxDatabasesPerInstance overrides the emulator's maximum number of
 // databases per instance (the emulator's --override_max_databases_per_instance
-// flag). n must be positive.
+// flag). n must be positive. Emulator-only.
 //
 // Per the upstream help text, the emulator only honors values greater than
 // Spanner's default limit (100); smaller values are ignored. If the
@@ -110,9 +95,7 @@ func WithMaxDatabasesPerInstance(n int) Option {
 		if n <= 0 {
 			return fmt.Errorf("WithMaxDatabasesPerInstance: n must be > 0, got %d", n)
 		}
-		opts.containerCustomizers = append(opts.containerCustomizers, testcontainers.WithConfigModifier(func(config *container.Config) {
-			config.Cmd = append(config.Cmd, fmt.Sprintf("--override_max_databases_per_instance=%d", n))
-		}))
+		opts.gatewayFlags = append(opts.gatewayFlags, fmt.Sprintf("--override_max_databases_per_instance=%d", n))
 		return nil
 	}
 }
@@ -120,7 +103,7 @@ func WithMaxDatabasesPerInstance(n int) Option {
 // WithChangeStreamPartitionTokenAliveSeconds overrides the alive time of
 // change stream partition tokens (the emulator's
 // --override_change_stream_partition_token_alive_seconds flag). seconds must
-// be positive.
+// be positive. Emulator-only.
 //
 // Per the upstream help text, the effective alive time becomes
 // seconds..2*seconds (the emulator's default is 20..40s, which differs from
@@ -131,9 +114,14 @@ func WithChangeStreamPartitionTokenAliveSeconds(seconds int) Option {
 		if seconds <= 0 {
 			return fmt.Errorf("WithChangeStreamPartitionTokenAliveSeconds: seconds must be > 0, got %d", seconds)
 		}
-		opts.containerCustomizers = append(opts.containerCustomizers, testcontainers.WithConfigModifier(func(config *container.Config) {
-			config.Cmd = append(config.Cmd, fmt.Sprintf("--override_change_stream_partition_token_alive_seconds=%d", seconds))
-		}))
+		opts.gatewayFlags = append(opts.gatewayFlags, fmt.Sprintf("--override_change_stream_partition_token_alive_seconds=%d", seconds))
+		return nil
+	}
+}
+
+func appendGatewayFlag(flag string) Option {
+	return func(opts *emulatorOptions) error {
+		opts.gatewayFlags = append(opts.gatewayFlags, flag)
 		return nil
 	}
 }

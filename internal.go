@@ -34,10 +34,11 @@ type createdSchemaResources struct {
 const rollbackTimeout = 30 * time.Second
 
 func newEmulator(ctx context.Context, opts *emulatorOptions) (container *tcspanner.Container, teardown func(), err error) {
+	gatewayCmd := append([]string{"./gateway_main", "--hostname", "0.0.0.0"}, opts.gatewayFlags...)
 	containerCustomizers := []testcontainers.ContainerCustomizer{
 		tcspanner.WithProjectID(opts.projectID),
 		testcontainers.WithConfigModifier(func(config *dcontainer.Config) {
-			config.Cmd = []string{"./gateway_main", "--hostname", "0.0.0.0"}
+			config.Cmd = gatewayCmd
 		}),
 	}
 	containerCustomizers = append(containerCustomizers, opts.containerCustomizers...)
