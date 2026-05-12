@@ -55,6 +55,89 @@ func EnableFaultInjection() Option {
 	}
 }
 
+// EnableLogRequests enables gRPC request and response logging in the emulator
+// gateway (the emulator's --log_requests flag). Useful when debugging test
+// failures; output is written to the container's stdout.
+func EnableLogRequests() Option {
+	return func(opts *emulatorOptions) error {
+		opts.containerCustomizers = append(opts.containerCustomizers, testcontainers.WithConfigModifier(func(config *container.Config) {
+			config.Cmd = append(config.Cmd, "--log_requests")
+		}))
+		return nil
+	}
+}
+
+// EnableEmulatorStdoutCopy enables copying the emulator backend's stdout to
+// the gateway's stdout (the emulator's --copy_emulator_stdout flag). The
+// gateway already copies the backend's stderr by default; this option adds
+// the matching stdout stream for debugging.
+func EnableEmulatorStdoutCopy() Option {
+	return func(opts *emulatorOptions) error {
+		opts.containerCustomizers = append(opts.containerCustomizers, testcontainers.WithConfigModifier(func(config *container.Config) {
+			config.Cmd = append(config.Cmd, "--copy_emulator_stdout")
+		}))
+		return nil
+	}
+}
+
+// DisableQueryNullFilteredIndexCheck disables the emulator's safeguard that
+// rejects queries against NULL_FILTERED indexes (the emulator's
+// --disable_query_null_filtered_index_check flag).
+//
+// Production Spanner answers such queries; the emulator rejects them by
+// default because the result set can legitimately differ from a base-table
+// scan. Use this option only in tests that intentionally exercise reads
+// against NULL_FILTERED indexes and have accounted for that difference.
+func DisableQueryNullFilteredIndexCheck() Option {
+	return func(opts *emulatorOptions) error {
+		opts.containerCustomizers = append(opts.containerCustomizers, testcontainers.WithConfigModifier(func(config *container.Config) {
+			config.Cmd = append(config.Cmd, "--disable_query_null_filtered_index_check")
+		}))
+		return nil
+	}
+}
+
+// WithMaxDatabasesPerInstance overrides the emulator's maximum number of
+// databases per instance (the emulator's --override_max_databases_per_instance
+// flag). n must be positive.
+//
+// Per the upstream help text, the emulator only honors values greater than
+// Spanner's default limit (100); smaller values are ignored. If the
+// MAX_DATABASES_PER_INSTANCE environment variable is also set on the
+// container, it takes precedence over this flag.
+func WithMaxDatabasesPerInstance(n int) Option {
+	return func(opts *emulatorOptions) error {
+		if n <= 0 {
+			return fmt.Errorf("WithMaxDatabasesPerInstance: n must be > 0, got %d", n)
+		}
+		opts.containerCustomizers = append(opts.containerCustomizers, testcontainers.WithConfigModifier(func(config *container.Config) {
+			config.Cmd = append(config.Cmd, fmt.Sprintf("--override_max_databases_per_instance=%d", n))
+		}))
+		return nil
+	}
+}
+
+// WithChangeStreamPartitionTokenAliveSeconds overrides the alive time of
+// change stream partition tokens (the emulator's
+// --override_change_stream_partition_token_alive_seconds flag). seconds must
+// be positive.
+//
+// Per the upstream help text, the effective alive time becomes
+// seconds..2*seconds (the emulator's default is 20..40s, which differs from
+// production Spanner). This flag is emulator-only and has no effect on
+// production Spanner.
+func WithChangeStreamPartitionTokenAliveSeconds(seconds int) Option {
+	return func(opts *emulatorOptions) error {
+		if seconds <= 0 {
+			return fmt.Errorf("WithChangeStreamPartitionTokenAliveSeconds: seconds must be > 0, got %d", seconds)
+		}
+		opts.containerCustomizers = append(opts.containerCustomizers, testcontainers.WithConfigModifier(func(config *container.Config) {
+			config.Cmd = append(config.Cmd, fmt.Sprintf("--override_change_stream_partition_token_alive_seconds=%d", seconds))
+		}))
+		return nil
+	}
+}
+
 // WithClientOptionsForClient configures ClientOption for Clients.Client.
 func WithClientOptionsForClient(option ...option.ClientOption) Option {
 	return func(opts *emulatorOptions) error {
