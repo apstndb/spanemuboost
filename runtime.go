@@ -19,6 +19,14 @@ const (
 	BackendEmulator Backend = "emulator"
 	// BackendOmni starts the experimental Spanner Omni backend.
 	// Backend-specific behavior for Omni may change before v1.
+	//
+	// Each started Omni runtime owns one Spanner Omni container. Plan for roughly
+	// 4 GiB of memory per concurrently running Omni container, and keep tests
+	// that start Omni runtimes serial unless the host has enough spare memory.
+	// spanemuboost does not serialize Omni runtime lifetimes globally because
+	// such a lock would be process-local and surprising for callers that
+	// intentionally provision multiple independent runtimes.
+	//
 	// Use [RecommendedOmniClientConfig] for external Go clients.
 	BackendOmni Backend = "omni"
 )
@@ -188,7 +196,9 @@ func (e *RuntimeEnv) Close() error {
 }
 
 // Run starts the selected backend and returns it as a backend-neutral runtime.
-// When backend is [BackendOmni], backend-specific behavior remains experimental.
+// When backend is [BackendOmni], backend-specific behavior remains experimental
+// and each runtime owns a Spanner Omni container. Avoid concurrent Omni runtime
+// startup unless the host has enough memory for about 4 GiB per container.
 func Run(ctx context.Context, backend Backend, options ...Option) (Runtime, error) {
 	switch backend {
 	case BackendEmulator:
@@ -201,7 +211,9 @@ func Run(ctx context.Context, backend Backend, options ...Option) (Runtime, erro
 }
 
 // RunWithClients starts the selected backend and returns managed clients.
-// When backend is [BackendOmni], backend-specific behavior remains experimental.
+// When backend is [BackendOmni], backend-specific behavior remains experimental
+// and each runtime owns a Spanner Omni container. Avoid concurrent Omni runtime
+// startup unless the host has enough memory for about 4 GiB per container.
 func RunWithClients(ctx context.Context, backend Backend, options ...Option) (*RuntimeEnv, error) {
 	switch backend {
 	case BackendEmulator:
@@ -219,7 +231,10 @@ func RunWithClients(ctx context.Context, backend Backend, options ...Option) (*R
 
 // Setup starts the selected backend and registers cleanup with
 // [testing.TB.Cleanup].
-// When backend is [BackendOmni], backend-specific behavior remains experimental.
+// When backend is [BackendOmni], backend-specific behavior remains experimental
+// and each runtime owns a Spanner Omni container. Avoid combining Omni startup
+// with t.Parallel unless the host has enough memory for about 4 GiB per
+// container, or share a single runtime with [NewLazyRuntime].
 func Setup(tb testing.TB, backend Backend, options ...Option) Runtime {
 	tb.Helper()
 
@@ -236,7 +251,10 @@ func Setup(tb testing.TB, backend Backend, options ...Option) Runtime {
 
 // SetupWithClients starts the selected backend with managed clients and
 // registers cleanup with [testing.TB.Cleanup].
-// When backend is [BackendOmni], backend-specific behavior remains experimental.
+// When backend is [BackendOmni], backend-specific behavior remains experimental
+// and each runtime owns a Spanner Omni container. Avoid combining Omni startup
+// with t.Parallel unless the host has enough memory for about 4 GiB per
+// container, or share a single runtime with [NewLazyRuntime].
 func SetupWithClients(tb testing.TB, backend Backend, options ...Option) *RuntimeEnv {
 	tb.Helper()
 

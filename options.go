@@ -4,6 +4,8 @@ import (
 	"cmp"
 	"fmt"
 	"math/rand/v2"
+	"os"
+	"strings"
 
 	"cloud.google.com/go/spanner"
 	"cloud.google.com/go/spanner/admin/database/apiv1/databasepb"
@@ -28,6 +30,7 @@ type emulatorOptions struct {
 	setupDMLs              []spanner.Statement
 	clientConfig           *spanner.ClientConfig // nil until finalizeOptions; guaranteed non-nil after
 	containerCustomizers   []testcontainers.ContainerCustomizer
+	containerProviderSet   bool
 	clientOptionsForClient []option.ClientOption
 
 	// gatewayFlags accumulates extra arguments appended to the emulator
@@ -41,10 +44,40 @@ type emulatorOptions struct {
 // Skip* helpers; external Option implementations are not supported.
 type Option func(*emulatorOptions) error
 
-// WithContainerCustomizers sets any testcontainers.ContainerCustomizer
+const testcontainersProviderEnv = "SPANEMUBOOST_TESTCONTAINERS_PROVIDER"
+
+// WithContainerCustomizers adds low-level testcontainers customizers to backend
+// runtime containers.
+//
+// Prefer [WithContainerProvider] instead of passing testcontainers.WithProvider
+// directly when selecting Docker or Podman. If a customizer does set the
+// provider, it is applied after SPANEMUBOOST_TESTCONTAINERS_PROVIDER and can
+// override that environment default.
 func WithContainerCustomizers(containerCustomizers ...testcontainers.ContainerCustomizer) Option {
 	return func(opts *emulatorOptions) error {
 		opts.containerCustomizers = append(opts.containerCustomizers, containerCustomizers...)
+		return nil
+	}
+}
+
+// WithContainerProvider configures the testcontainers provider used to start
+// backend runtime containers.
+//
+// Use [testcontainers.ProviderPodman] when running against Podman and
+// Testcontainers-Go cannot auto-detect Podman from DOCKER_HOST. This is common
+// with macOS Podman machine forwarded sockets whose host path does not contain
+// "podman.sock".
+//
+// This option overrides SPANEMUBOOST_TESTCONTAINERS_PROVIDER. If several
+// provider customizers are supplied explicitly, the last one applied to the
+// Testcontainers request wins.
+func WithContainerProvider(provider testcontainers.ProviderType) Option {
+	return func(opts *emulatorOptions) error {
+		if err := validateContainerProvider(provider, "WithContainerProvider"); err != nil {
+			return err
+		}
+		opts.containerProviderSet = true
+		opts.containerCustomizers = append(opts.containerCustomizers, testcontainers.WithProvider(provider))
 		return nil
 	}
 }
@@ -492,7 +525,58 @@ func finalizeOptions(opts *emulatorOptions) (*emulatorOptions, error) {
 		opts.clientConfig = &spanner.ClientConfig{DisableNativeMetrics: true}
 	}
 
+	if err := applyContainerProviderEnv(opts); err != nil {
+		return nil, err
+	}
+
 	return opts, nil
+}
+
+func applyContainerProviderEnv(opts *emulatorOptions) error {
+	if opts.containerProviderSet {
+		return nil
+	}
+
+	raw := strings.TrimSpace(os.Getenv(testcontainersProviderEnv))
+	if raw == "" {
+		return nil
+	}
+
+	provider, err := parseContainerProvider(raw)
+	if err != nil {
+		return fmt.Errorf("%s: %w", testcontainersProviderEnv, err)
+	}
+	if provider == testcontainers.ProviderDefault {
+		return nil
+	}
+
+	opts.containerProviderSet = true
+	opts.containerCustomizers = append([]testcontainers.ContainerCustomizer{
+		testcontainers.WithProvider(provider),
+	}, opts.containerCustomizers...)
+	return nil
+}
+
+func parseContainerProvider(raw string) (testcontainers.ProviderType, error) {
+	switch strings.ToLower(strings.TrimSpace(raw)) {
+	case "default":
+		return testcontainers.ProviderDefault, nil
+	case "docker":
+		return testcontainers.ProviderDocker, nil
+	case "podman":
+		return testcontainers.ProviderPodman, nil
+	default:
+		return testcontainers.ProviderDefault, fmt.Errorf("unsupported testcontainers provider %q; supported values are default, docker, podman", raw)
+	}
+}
+
+func validateContainerProvider(provider testcontainers.ProviderType, source string) error {
+	switch provider {
+	case testcontainers.ProviderDefault, testcontainers.ProviderDocker, testcontainers.ProviderPodman:
+		return nil
+	default:
+		return fmt.Errorf("%s: unsupported testcontainers provider %d", source, provider)
+	}
 }
 
 const (
