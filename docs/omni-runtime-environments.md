@@ -164,6 +164,42 @@ The test logs showed repeated `spanner_server` crashes with `segmentation fault`
 `bus error`, and `aborted` before readiness. Ryuk cleaned up the failed
 containers and volumes after the test exited.
 
+## GitHub Actions rootless Podman
+
+GitHub-hosted Ubuntu runners include Podman. For Testcontainers-Go, start a
+rootless Podman API service and point `DOCKER_HOST` at that socket. Disable Ryuk
+because the hosted runner is ephemeral and the rootless Podman path does not
+provide the privileged reaper setup used by local rootful Podman. Run both the
+default emulator smoke tests and the Omni smoke tests so CI covers the
+Testcontainers-Go Spanner emulator module path as well as the custom Omni
+container path.
+
+```sh
+export XDG_RUNTIME_DIR="${RUNNER_TEMP}/podman-run"
+export DOCKER_HOST="unix://${XDG_RUNTIME_DIR}/podman.sock"
+export TESTCONTAINERS_RYUK_DISABLED=true
+export SPANEMUBOOST_TESTCONTAINERS_PROVIDER=podman
+
+mkdir -p "$XDG_RUNTIME_DIR"
+chmod 700 "$XDG_RUNTIME_DIR"
+podman system service --time=0 "$DOCKER_HOST" &
+podman_ready=false
+for _ in {1..30}; do
+  if podman --url "$DOCKER_HOST" info; then
+    podman_ready=true
+    break
+  fi
+  sleep 1
+done
+if [ "$podman_ready" != true ]; then
+  echo "Podman API service did not become ready" >&2
+  exit 1
+fi
+
+make emulator-smoke
+make omni-smoke
+```
+
 ## Quickstart probe
 
 Use this to recheck a runtime without running Go tests:
@@ -217,3 +253,4 @@ For Testcontainers-Go failures, also check:
 - Testcontainers-Go with Podman: https://golang.testcontainers.org/system_requirements/using_podman/
 - Testcontainers-Go configuration: https://golang.testcontainers.org/features/configuration/
 - Podman machine: https://docs.podman.io/en/latest/markdown/podman-machine.1.html
+- GitHub Actions Ubuntu runner image: https://github.com/actions/runner-images/blob/main/images/ubuntu/Ubuntu2404-Readme.md

@@ -39,3 +39,38 @@ jobs:
 
       - name: Run Omni smoke tests
         run: make omni-smoke
+
+  podman-smoke:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Set up Go
+        uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
+
+      - name: Run smoke tests with rootless Podman
+        run: |
+          export XDG_RUNTIME_DIR="${RUNNER_TEMP}/podman-run"
+          export DOCKER_HOST="unix://${XDG_RUNTIME_DIR}/podman.sock"
+          export SPANEMUBOOST_TESTCONTAINERS_PROVIDER=podman
+          export TESTCONTAINERS_RYUK_DISABLED=true
+
+          mkdir -p "$XDG_RUNTIME_DIR"
+          chmod 700 "$XDG_RUNTIME_DIR"
+          podman --version
+          podman system service --time=0 "$DOCKER_HOST" &
+          podman_service_pid=$!
+          trap 'kill "$podman_service_pid" 2>/dev/null || true' EXIT
+          for _ in {1..30}; do
+            if podman --url "$DOCKER_HOST" info; then
+              make emulator-smoke
+              make omni-smoke
+              exit 0
+            fi
+            sleep 1
+          done
+          echo "Podman API service did not become ready" >&2
+          exit 1
