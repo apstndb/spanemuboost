@@ -58,11 +58,32 @@ func TestOmni(t *testing.T) {
 |---|---|
 | Experimental runtime | Omni support is newer than the emulator path and should be treated as integration-test-oriented |
 | Primary endpoint | The main Spanner gRPC endpoint is `15000`; the console remains separate |
+| Resource use | Each started Omni runtime owns one Spanner Omni container; plan for roughly 4 GiB of memory per concurrently running Omni container |
 | Recommended client config | Managed Omni clients force the `RecommendedOmniClientConfig()` transport defaults (`DisableNativeMetrics` and `IsExperimentalHost`) unless guardrails are disabled; the same helper remains the recommended base for external Go clients |
-| Host and container prerequisites | Review the [Spanner Omni software requirements](https://docs.cloud.google.com/spanner-omni/system-requirements#software-requirements) before enabling Omni in local development or CI |
+| Host and container prerequisites | Review the [Spanner Omni software requirements](https://docs.cloud.google.com/spanner-omni/system-requirements#software-requirements) before enabling Omni in local development or CI; see [Omni runtime environments](docs/omni-runtime-environments.md) for local Colima and Podman notes |
 | Guardrails | Known-invalid single-server Omni settings fail fast with human-readable errors; use `DisableBackendGuardrails()` only when testing a newer backend whose constraints may have changed |
 
 The repository's Omni integration tests are gated by `SPANEMUBOOST_ENABLE_OMNI_TESTS=1` so default test runs stay hermetic unless the environment is explicitly prepared for Omni.
+Keep tests that start Omni runtimes serial unless the host has enough spare
+memory for multiple Omni containers. spanemuboost does not impose a global
+runtime lock; use `go test -p=1 -parallel=1` or share a runtime with
+`NewLazyRuntime(BackendOmni, ...)` when memory is tight.
+
+When running through Podman and Testcontainers-Go does not auto-detect Podman
+from `DOCKER_HOST`, set `SPANEMUBOOST_TESTCONTAINERS_PROVIDER=podman` for that
+command or pass `WithContainerProvider(testcontainers.ProviderPodman)`. The
+environment variable affects all spanemuboost runtime containers, including the
+default emulator backend. For rootful Podman machine with Ryuk enabled, the
+relevant environment is:
+
+```sh
+env DOCKER_HOST=unix://<host Podman API socket> \
+  TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE=/run/podman/podman.sock \
+  TESTCONTAINERS_RYUK_CONTAINER_PRIVILEGED=true \
+  SPANEMUBOOST_TESTCONTAINERS_PROVIDER=podman \
+  SPANEMUBOOST_ENABLE_OMNI_TESTS=1 \
+  go test -p=1 -parallel=1 ./...
+```
 
 Once a runtime is started, the shared client helpers are backend-neutral:
 
