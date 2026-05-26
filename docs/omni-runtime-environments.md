@@ -1,7 +1,7 @@
 # Runtime environments for Spanner Omni tests
 
-This note records the runtime settings that are useful for running or
-rechecking `spanemuboost` Spanner Omni tests on macOS arm64.
+This note records runtime settings that are useful for running or rechecking
+`spanemuboost` Spanner Omni tests on local runtimes and GitHub Actions.
 
 Last checked: 2026-05-19.
 

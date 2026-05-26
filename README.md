@@ -28,6 +28,33 @@ func TestFoo(t *testing.T) {
 
 For non-test usage (e.g. embedding the emulator in an application where the `testing` package is unavailable), see runnable examples on [pkg.go.dev](https://pkg.go.dev/github.com/apstndb/spanemuboost#pkg-examples).
 
+### Shared runtime, database-per-case
+
+For many independent test or validation cases, prefer one shared backend runtime
+and one database per case. That is the recommended shape for the emulator, and
+it is even more important for Omni because each Omni runtime owns a memory-heavy
+container.
+
+Use `NewLazyRuntime` plus `SetupClients` or `OpenClients` when cases should
+share a runtime lazily. Use `WithRandomDatabaseID()` for per-case isolation. See
+`ExampleNewLazyRuntime_validationCases` on
+[pkg.go.dev](https://pkg.go.dev/github.com/apstndb/spanemuboost#pkg-examples)
+for a validation-harness shape that composes shared and case-specific setup, and
+separates setup failures from candidate statement results.
+
+Random database IDs do not enable schema teardown on `Clients.Close()` by
+default. The databases disappear when the runtime container is closed. For
+long-lived shared runtimes, use `ForceSchemaTeardown()` or explicit cleanup if
+database accumulation matters.
+
+| Need | Entry point | Starts a new runtime container? |
+|---|---|---|
+| One test owns runtime and clients | `SetupWithClients(t, backend, ...)` | Yes |
+| Non-test code owns runtime and clients | `RunWithClients(ctx, backend, ...)` | Yes |
+| Many tests share one runtime with `testing.TB` cleanup | `NewLazyRuntime(backend, ...)` + `SetupClients` | Once, on first use |
+| Many cases need explicit `context.Context` or manual client cleanup | `NewLazyRuntime(backend, ...)` + `OpenClients` | Once, on first use |
+| Eager runtime startup with multiple databases | `Run(ctx, backend, ...)` + `OpenClients` | Once, when `Run` is called |
+
 ### Spanner Omni (experimental)
 
 `Setup`, `Run`, `RunWithClients`, and `SetupWithClients` with `BackendOmni` start a Spanner Omni single-server container and use the public Spanner gRPC API on port `15000` for database creation, DDL application, DML setup, and managed client creation. This path is intended for integration tests that want a real Omni runtime without depending on the emulator.
@@ -53,6 +80,11 @@ func TestOmni(t *testing.T) {
     if err != nil { t.Fatal(err) }
 }
 ```
+
+For Omni, use databases as the normal isolation unit. Do not use random project
+or instance IDs for ordinary test isolation; the single-server deployment uses
+fixed project and instance IDs. Use `WithRandomDatabaseID()` and share the
+runtime with `NewLazyRuntime(BackendOmni, ...)` when many cases are involved.
 
 | Omni caveat | Detail |
 |---|---|
