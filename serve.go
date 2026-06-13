@@ -71,10 +71,11 @@ func ServeFromConfig(ctx context.Context, cfg ServeConfig) error {
 	return Serve(ctx, cfg.Backend, cfg.EndpointFile, cfg.Options...)
 }
 
-// ParseServeArgs parses `spanemuboost serve <emulator|omni> --endpoint-file path [--pid-file path]`.
+// ParseServeArgs parses `spanemuboost serve <emulator|omni> --endpoint-file path [--pid-file path] [--with-default-database]`.
 func ParseServeArgs(args []string) (ServeConfig, error) {
 	cfg := ServeConfig{}
 	var backend string
+	withDefaultDatabase := false
 	for i := 0; i < len(args); i++ {
 		switch args[i] {
 		case "--endpoint-file", "-o":
@@ -89,6 +90,8 @@ func ParseServeArgs(args []string) (ServeConfig, error) {
 			}
 			cfg.PIDFile = args[i+1]
 			i++
+		case "--with-default-database":
+			withDefaultDatabase = true
 		case "emulator", "omni":
 			if backend != "" {
 				return ServeConfig{}, fmt.Errorf("multiple backends specified: %q and %q", backend, args[i])
@@ -99,13 +102,16 @@ func ParseServeArgs(args []string) (ServeConfig, error) {
 		}
 	}
 	if backend == "" {
-		return ServeConfig{}, fmt.Errorf("usage: spanemuboost serve <emulator|omni> --endpoint-file path [--pid-file path]")
+		return ServeConfig{}, fmt.Errorf("usage: spanemuboost serve <emulator|omni> --endpoint-file path [--pid-file path] [--with-default-database]")
 	}
 	switch Backend(backend) {
 	case BackendEmulator:
 		cfg.Backend = BackendEmulator
 	case BackendOmni:
 		cfg.Backend = BackendOmni
+		if !withDefaultDatabase {
+			cfg.Options = append(cfg.Options, DisableAutoConfig())
+		}
 	default:
 		return ServeConfig{}, fmt.Errorf("unsupported serve backend %q; supported values are emulator and omni", backend)
 	}

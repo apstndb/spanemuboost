@@ -97,6 +97,26 @@ func TestParseServeArgs(t *testing.T) {
 	if cfg.Backend != BackendOmni || cfg.EndpointFile != "/tmp/omni.json" {
 		t.Fatalf("ParseServeArgs() = %#v, want omni + /tmp/omni.json", cfg)
 	}
+	if len(cfg.Options) != 1 {
+		t.Fatalf("ParseServeArgs() Options len = %d, want 1 (DisableAutoConfig)", len(cfg.Options))
+	}
+	opts, err := applyOmniOptions(cfg.Options...)
+	if err != nil {
+		t.Fatalf("applyOmniOptions() error = %v", err)
+	}
+	if !opts.disableCreateDatabase || !opts.disableCreateInstance {
+		t.Fatalf("applyOmniOptions() = %#v, want auto-config disabled", opts)
+	}
+}
+
+func TestParseServeArgsOmniWithDefaultDatabase(t *testing.T) {
+	cfg, err := ParseServeArgs([]string{"omni", "--endpoint-file", "/tmp/omni.json", "--with-default-database"})
+	if err != nil {
+		t.Fatalf("ParseServeArgs() error = %v", err)
+	}
+	if len(cfg.Options) != 0 {
+		t.Fatalf("ParseServeArgs() Options len = %d, want 0", len(cfg.Options))
+	}
 }
 
 func TestLoadEndpointMissingEnvMentionsEmulatorURI(t *testing.T) {
