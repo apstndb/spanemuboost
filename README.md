@@ -132,6 +132,50 @@ func TestSharedHelpers(t *testing.T) {
 }
 ```
 
+### Reusing a long-lived Omni runtime
+
+Starting Spanner Omni through testcontainers is slow because each runtime pulls
+and boots a memory-heavy container. For local development and repeated test
+runs, start Omni once with the `spanemuboost` CLI and attach clients to the
+published endpoint:
+
+```sh
+spanemuboost serve omni --endpoint-file /tmp/omni-endpoint.json
+```
+
+In another shell:
+
+```sh
+export SPANEMUBOOST_ENDPOINT_FILE=/tmp/omni-endpoint.json
+export SPANEMUBOOST_ENABLE_OMNI_TESTS=1
+go test -p=1 -parallel=1 ./...
+```
+
+Client code can use [NewLazyRuntimeOptionalEndpoint] to keep the existing
+testcontainers path while automatically attaching when endpoint env vars are
+set, or [NewAttachedRuntimeFromEnv] for explicit attachment:
+
+```go
+runtime, err := spanemuboost.NewAttachedRuntimeFromEnv()
+if err != nil {
+    runtime = spanemuboost.NewLazyRuntime(spanemuboost.BackendOmni)
+}
+clients, err := spanemuboost.OpenClients(ctx, runtime,
+    spanemuboost.WithRandomDatabaseID(),
+    spanemuboost.WithSetupDDLs(ddls),
+)
+```
+
+| Variable | Purpose |
+|---|---|
+| `SPANEMUBOOST_ENDPOINT_FILE` | JSON file written by `spanemuboost serve` |
+| `SPANEMUBOOST_OMNI_URI` | Direct Omni gRPC endpoint (`host:port`) |
+| `SPANEMUBOOST_OMNI_PROJECT_ID` | Optional project override (default `default`) |
+| `SPANEMUBOOST_OMNI_INSTANCE_ID` | Optional instance override (default `default`) |
+
+`[AttachedRuntime.Close]` is a no-op because the lifecycle manager owns the
+container. Stop the `serve` process to tear down the shared runtime.
+
 `Run`, `RunWithClients`, `Setup`, `SetupWithClients`, `OpenClients`, `SetupClients`, `RuntimePlatform`, and `NewLazyRuntime` work across emulator and Omni. This backend-neutral API surface is the primary stable entry point; only the `BackendOmni` backend and its specific behaviors are considered experimental. Omni does not add separate exported startup or client-opening helpers.
 
 Use `RuntimePlatform(ctx, runtime)` when you want to surface the actual resolved container platform for a package-provided runtime handle without downcasting back to `*Emulator`. Depending on what metadata the underlying runtime exposes, that may be an `os/arch` string such as `linux/amd64`, a variant-qualified string such as `linux/arm64/v8`, or an OS-only value such as `linux`.

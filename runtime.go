@@ -35,8 +35,8 @@ const (
 // and [SetupClients].
 //
 // Supported handles are started [Runtime] values returned by [Run] or [Setup],
-// as well as [*Emulator], [*LazyRuntime], and [*LazyEmulator]. External
-// implementations are not supported.
+// as well as [*Emulator], [*LazyRuntime], [*LazyEmulator], and
+// [*AttachedRuntime]. External implementations are not supported.
 type RuntimeHandle interface {
 	spanemuboostRuntime()
 }
@@ -133,6 +133,11 @@ func resolveRuntime(ctx context.Context, runtime RuntimeHandle) (runtimeInstance
 			return nil, errors.New("spanemuboost: runtime is a nil *LazyEmulator")
 		}
 		return r.get(ctx)
+	case *AttachedRuntime:
+		if r == nil {
+			return nil, errors.New("spanemuboost: runtime is a nil *AttachedRuntime")
+		}
+		return r, nil
 	case Runtime:
 		if isNilRuntimeValue(r) {
 			return nil, fmt.Errorf("spanemuboost: runtime is a nil %T", r)
@@ -141,6 +146,8 @@ func resolveRuntime(ctx context.Context, runtime RuntimeHandle) (runtimeInstance
 		case *Emulator:
 			return instance, nil
 		case *omniRuntime:
+			return instance, nil
+		case *AttachedRuntime:
 			return instance, nil
 		default:
 			return nil, fmt.Errorf("spanemuboost: unsupported runtime type %T; use *Emulator, *LazyRuntime, *LazyEmulator, or a Runtime returned by Run or Setup", runtime)

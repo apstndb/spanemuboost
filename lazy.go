@@ -66,6 +66,8 @@ type LazyRuntime struct {
 	state   lazyRuntimeState
 	backend Backend
 	opts    []Option
+
+	attachedEndpoint *Endpoint
 }
 
 func (*LazyRuntime) spanemuboostRuntime() {}
@@ -81,6 +83,9 @@ func NewLazyRuntime(backend Backend, options ...Option) *LazyRuntime {
 
 func (lr *LazyRuntime) get(ctx context.Context) (runtimeInstance, error) {
 	return lr.state.get(ctx, func(ctx context.Context) (runtimeInstance, error) {
+		if lr.attachedEndpoint != nil {
+			return NewAttachedRuntime(*lr.attachedEndpoint)
+		}
 		runtime, err := Run(ctx, lr.backend, lr.opts...)
 		if err != nil {
 			return nil, err
