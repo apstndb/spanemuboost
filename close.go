@@ -14,9 +14,14 @@ import (
 const closeTimeout = 30 * time.Second
 
 const (
-	dropDatabaseTimeout     = 2 * time.Minute
-	dropDatabaseMaxAttempts = 3
+	dropDatabaseTimeout      = 2 * time.Minute
+	dropDatabaseMaxAttempts  = 3
+	dropDatabaseRetryBackoff = 15 * time.Second // 5s + 10s between attempts
 )
+
+func dropDatabaseRetryBudget() time.Duration {
+	return dropDatabaseTimeout*time.Duration(dropDatabaseMaxAttempts) + dropDatabaseRetryBackoff
+}
 
 func dropDatabaseWithRetry(ctx context.Context, dbCli *database.DatabaseAdminClient, dbPath string) error {
 	if dbCli == nil {
@@ -26,10 +31,13 @@ func dropDatabaseWithRetry(ctx context.Context, dbCli *database.DatabaseAdminCli
 	var lastErr error
 	for attempt := 1; attempt <= dropDatabaseMaxAttempts; attempt++ {
 		attemptCtx, cancel := context.WithTimeout(ctx, dropDatabaseTimeout)
-		withInstanceAdminLock(instancePath, func() {
+		lockErr := withInstanceAdminLock(attemptCtx, instancePath, func() {
 			lastErr = dbCli.DropDatabase(attemptCtx, &databasepb.DropDatabaseRequest{Database: dbPath})
 		})
 		cancel()
+		if lockErr != nil {
+			lastErr = lockErr
+		}
 		if lastErr == nil {
 			return nil
 		}
@@ -73,4 +81,8 @@ func ensureCloseState(slot **closeState) *closeState {
 
 func newCloseContext() (context.Context, context.CancelFunc) {
 	return context.WithTimeout(context.Background(), closeTimeout)
+}
+
+func newDropDatabaseContext() (context.Context, context.CancelFunc) {
+	return context.WithTimeout(context.Background(), dropDatabaseRetryBudget())
 }

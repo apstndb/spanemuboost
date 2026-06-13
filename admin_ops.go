@@ -1,31 +1,41 @@
 package spanemuboost
 
 import (
+	"context"
 	"strings"
 	"sync"
+
+	"golang.org/x/sync/semaphore"
 )
 
 var (
 	instanceAdminMu    sync.Mutex
-	instanceAdminLocks = make(map[string]*sync.Mutex)
+	instanceAdminLocks = make(map[string]*semaphore.Weighted)
 )
 
-func withInstanceAdminLock(instancePath string, fn func()) {
+func withInstanceAdminLock(ctx context.Context, instancePath string, fn func()) error {
 	if instancePath == "" {
 		fn()
-		return
+		return nil
 	}
-	instanceAdminMu.Lock()
-	mu, ok := instanceAdminLocks[instancePath]
-	if !ok {
-		mu = &sync.Mutex{}
-		instanceAdminLocks[instancePath] = mu
+	sem := instanceAdminSemaphore(instancePath)
+	if err := sem.Acquire(ctx, 1); err != nil {
+		return err
 	}
-	instanceAdminMu.Unlock()
-
-	mu.Lock()
-	defer mu.Unlock()
+	defer sem.Release(1)
 	fn()
+	return nil
+}
+
+func instanceAdminSemaphore(instancePath string) *semaphore.Weighted {
+	instanceAdminMu.Lock()
+	defer instanceAdminMu.Unlock()
+	sem, ok := instanceAdminLocks[instancePath]
+	if !ok {
+		sem = semaphore.NewWeighted(1)
+		instanceAdminLocks[instancePath] = sem
+	}
+	return sem
 }
 
 func instancePathFromDatabasePath(dbPath string) string {

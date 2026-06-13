@@ -290,7 +290,7 @@ func createDatabase(ctx context.Context, opts *emulatorOptions, dbCli *database.
 	}
 	instancePath := opts.InstancePath()
 	var err error
-	withInstanceAdminLock(instancePath, func() {
+	if lockErr := withInstanceAdminLock(ctx, instancePath, func() {
 		createDBOp, createErr := dbCli.CreateDatabase(ctx, &databasepb.CreateDatabaseRequest{
 			Parent:          instancePath,
 			CreateStatement: createStmt,
@@ -302,7 +302,9 @@ func createDatabase(ctx context.Context, opts *emulatorOptions, dbCli *database.
 			return
 		}
 		_, err = createDBOp.Wait(ctx)
-	})
+	}); lockErr != nil {
+		return lockErr
+	}
 	if err != nil {
 		if status.Code(err) == codes.AlreadyExists {
 			if len(opts.setupDDLs) > 0 {
