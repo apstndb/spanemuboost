@@ -129,7 +129,7 @@ ready. The quickstart container was started with:
 podman volume create spanemuboost-omni-58
 podman run -d --network host --name spanemuboost-omni-58 \
   -v spanemuboost-omni-58:/spanner \
-  us-docker.pkg.dev/spanner-omni/images/spanner-omni:2026.r1-beta \
+  us-docker.pkg.dev/spanner-omni/images/spanner-omni:2026.r1-beta.1 \
   start-single-server
 ```
 
@@ -207,7 +207,7 @@ Use this to recheck a runtime without running Go tests:
 ```sh
 podman volume create spanner
 podman run -d --network host --name spanneromni -v spanner:/spanner \
-  us-docker.pkg.dev/spanner-omni/images/spanner-omni:2026.r1-beta \
+  us-docker.pkg.dev/spanner-omni/images/spanner-omni:2026.r1-beta.1 \
   start-single-server
 podman logs --tail 120 spanneromni
 podman exec spanneromni /google/spanner/bin/spanner databases create-sample-db retail --database-name=retail-sample

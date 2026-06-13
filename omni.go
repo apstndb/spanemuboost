@@ -18,7 +18,7 @@ import (
 )
 
 const (
-	defaultOmniImage      = "us-docker.pkg.dev/spanner-omni/images/spanner-omni:2026.r1-beta"
+	defaultOmniImage      = "us-docker.pkg.dev/spanner-omni/images/spanner-omni:2026.r1-beta.1"
 	defaultOmniProjectID  = "default"
 	defaultOmniInstanceID = "default"
 )
