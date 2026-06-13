@@ -92,9 +92,17 @@ func finalizeAttachedOptions(endpoint Endpoint) (*emulatorOptions, error) {
 	}
 }
 
-func (a *AttachedRuntime) URI() string { return a.uri }
+func (a *AttachedRuntime) URI() string {
+	if a == nil {
+		return ""
+	}
+	return a.uri
+}
 
 func (a *AttachedRuntime) ClientOptions() []option.ClientOption {
+	if a == nil {
+		return nil
+	}
 	if a.opts != nil && len(a.opts.clientOptionsForClient) > 0 {
 		return a.opts.clientOptionsForClient
 	}
@@ -119,15 +127,48 @@ func (a *AttachedRuntime) ClientOptions() []option.ClientOption {
 // remote backend lifecycle.
 func (a *AttachedRuntime) Close() error { return nil }
 
-func (a *AttachedRuntime) ProjectID() string  { return a.opts.projectID }
-func (a *AttachedRuntime) InstanceID() string { return a.opts.instanceID }
-func (a *AttachedRuntime) DatabaseID() string { return a.opts.databaseID }
+func (a *AttachedRuntime) ProjectID() string {
+	if a == nil || a.opts == nil {
+		return ""
+	}
+	return a.opts.projectID
+}
+func (a *AttachedRuntime) InstanceID() string {
+	if a == nil || a.opts == nil {
+		return ""
+	}
+	return a.opts.instanceID
+}
+func (a *AttachedRuntime) DatabaseID() string {
+	if a == nil || a.opts == nil {
+		return ""
+	}
+	return a.opts.databaseID
+}
 
-func (a *AttachedRuntime) ProjectPath() string  { return a.opts.ProjectPath() }
-func (a *AttachedRuntime) InstancePath() string { return a.opts.InstancePath() }
-func (a *AttachedRuntime) DatabasePath() string { return a.opts.DatabasePath() }
+func (a *AttachedRuntime) ProjectPath() string {
+	if a == nil || a.opts == nil {
+		return ""
+	}
+	return a.opts.ProjectPath()
+}
+func (a *AttachedRuntime) InstancePath() string {
+	if a == nil || a.opts == nil {
+		return ""
+	}
+	return a.opts.InstancePath()
+}
+func (a *AttachedRuntime) DatabasePath() string {
+	if a == nil || a.opts == nil {
+		return ""
+	}
+	return a.opts.DatabasePath()
+}
 
 func (a *AttachedRuntime) inheritedOptions(options ...Option) (*emulatorOptions, error) {
+	if a == nil || a.opts == nil {
+		return nil, fmt.Errorf("spanemuboost: attached runtime or options is nil")
+	}
 	base := inheritedRuntimeOptions(a.opts)
 	switch a.backend {
 	case BackendOmni:

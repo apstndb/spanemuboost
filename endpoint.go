@@ -38,12 +38,16 @@ func EndpointFromRuntime(runtime Runtime) (Endpoint, error) {
 		return Endpoint{}, errors.New("spanemuboost: runtime URI is empty")
 	}
 	backend := backendForRuntime(runtime)
-	return Endpoint{
+	endpoint := Endpoint{
 		Backend:    backend,
 		URI:        uri,
 		ProjectID:  runtime.ProjectID(),
 		InstanceID: runtime.InstanceID(),
-	}, nil
+	}
+	if err := endpoint.validate(); err != nil {
+		return Endpoint{}, err
+	}
+	return endpoint, nil
 }
 
 func backendForRuntime(runtime Runtime) Backend {

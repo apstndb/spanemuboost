@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"google.golang.org/api/option"
 )
 
 func TestLoadEndpointFromFile(t *testing.T) {
@@ -198,6 +200,58 @@ func TestNewLazyRuntimeFromEnvOrStartRejectsBackendMismatch(t *testing.T) {
 	_, err := NewLazyRuntimeFromEnvOrStart(BackendEmulator)
 	if err == nil {
 		t.Fatal("NewLazyRuntimeFromEnvOrStart() error = nil, want non-nil")
+	}
+}
+
+func TestEndpointFromRuntimeRejectsInvalidEndpoint(t *testing.T) {
+	runtime := &invalidEndpointRuntime{}
+	_, err := EndpointFromRuntime(runtime)
+	if err == nil {
+		t.Fatal("EndpointFromRuntime() error = nil, want non-nil")
+	}
+	if !strings.Contains(err.Error(), "project_id") {
+		t.Fatalf("EndpointFromRuntime() error = %v, want project_id validation error", err)
+	}
+}
+
+type invalidEndpointRuntime struct{}
+
+func (*invalidEndpointRuntime) spanemuboostRuntime()                 {}
+func (*invalidEndpointRuntime) URI() string                          { return "127.0.0.1:1" }
+func (*invalidEndpointRuntime) ClientOptions() []option.ClientOption { return nil }
+func (*invalidEndpointRuntime) Close() error                         { return nil }
+func (*invalidEndpointRuntime) ProjectID() string                    { return "" }
+func (*invalidEndpointRuntime) InstanceID() string                   { return "" }
+func (*invalidEndpointRuntime) DatabaseID() string                   { return "" }
+func (*invalidEndpointRuntime) ProjectPath() string                  { return "" }
+func (*invalidEndpointRuntime) InstancePath() string                 { return "" }
+func (*invalidEndpointRuntime) DatabasePath() string                 { return "" }
+
+func TestAttachedRuntimeNilReceiverSafe(t *testing.T) {
+	var runtime *AttachedRuntime
+	if got := runtime.URI(); got != "" {
+		t.Fatalf("URI() = %q, want empty", got)
+	}
+	if got := runtime.ClientOptions(); got != nil {
+		t.Fatalf("ClientOptions() = %v, want nil", got)
+	}
+	if got := runtime.ProjectID(); got != "" {
+		t.Fatalf("ProjectID() = %q, want empty", got)
+	}
+	if got := runtime.InstanceID(); got != "" {
+		t.Fatalf("InstanceID() = %q, want empty", got)
+	}
+	if got := runtime.DatabaseID(); got != "" {
+		t.Fatalf("DatabaseID() = %q, want empty", got)
+	}
+	if got := runtime.ProjectPath(); got != "" {
+		t.Fatalf("ProjectPath() = %q, want empty", got)
+	}
+	if got := runtime.InstancePath(); got != "" {
+		t.Fatalf("InstancePath() = %q, want empty", got)
+	}
+	if got := runtime.DatabasePath(); got != "" {
+		t.Fatalf("DatabasePath() = %q, want empty", got)
 	}
 }
 
