@@ -132,6 +132,60 @@ func TestSharedHelpers(t *testing.T) {
 }
 ```
 
+### Reusing a long-lived Omni runtime
+
+Starting Spanner Omni through testcontainers is slow because each runtime pulls
+and boots a memory-heavy container. For local development and repeated test
+runs, start Omni once with the `spanemuboost` CLI and attach clients to the
+published endpoint:
+
+```sh
+spanemuboost serve omni --endpoint-file /tmp/omni-endpoint.json
+spanemuboost stop --endpoint-file /tmp/omni-endpoint.json
+```
+
+The endpoint file is owned by `serve`: it is written on startup (including the
+serve process PID for lifecycle management) and removed on exit. Unset
+`SPANEMUBOOST_ENDPOINT_FILE` after stopping the lifecycle manager.
+
+In another shell:
+
+```sh
+export SPANEMUBOOST_ENDPOINT_FILE=/tmp/omni-endpoint.json
+export SPANEMUBOOST_ENABLE_OMNI_TESTS=1
+go test -p=1 -parallel=1 ./...
+```
+
+Client code can use [NewLazyRuntimeFromEnvOrStart] to keep the existing
+testcontainers path while automatically attaching when endpoint env vars are
+set, or [NewAttachedRuntimeFromEnv] for explicit attachment:
+
+```go
+runtime, err := spanemuboost.NewLazyRuntimeFromEnvOrStart(spanemuboost.BackendOmni)
+if err != nil {
+    log.Fatal(err)
+}
+clients, err := spanemuboost.OpenClients(ctx, runtime,
+    spanemuboost.WithRandomDatabaseID(),
+    spanemuboost.WithSetupDDLs(ddls),
+)
+```
+
+| Variable | Purpose |
+|---|---|
+| `SPANEMUBOOST_ENDPOINT_FILE` | JSON file written by `spanemuboost serve` |
+| `SPANEMUBOOST_OMNI_URI` | Direct Omni gRPC endpoint (`host:port`) |
+| `SPANEMUBOOST_EMULATOR_URI` | Direct emulator gRPC endpoint (`host:port`) |
+
+When attaching to Omni via `SPANEMUBOOST_OMNI_URI`, project and instance IDs
+default to `default`. Non-default IDs require the running Omni instance to match
+and are rejected by Omni guardrails unless callers use
+`DisableBackendGuardrails()` on a programmatic runtime constructor.
+
+`[AttachedRuntime.Close]` is a no-op because the lifecycle manager owns the
+container. Stop the shared runtime with `spanemuboost stop` or by stopping the
+`serve` process directly.
+
 `Run`, `RunWithClients`, `Setup`, `SetupWithClients`, `OpenClients`, `SetupClients`, `RuntimePlatform`, and `NewLazyRuntime` work across emulator and Omni. This backend-neutral API surface is the primary stable entry point; only the `BackendOmni` backend and its specific behaviors are considered experimental. Omni does not add separate exported startup or client-opening helpers.
 
 Use `RuntimePlatform(ctx, runtime)` when you want to surface the actual resolved container platform for a package-provided runtime handle without downcasting back to `*Emulator`. Depending on what metadata the underlying runtime exposes, that may be an `os/arch` string such as `linux/amd64`, a variant-qualified string such as `linux/arm64/v8`, or an OS-only value such as `linux`.
