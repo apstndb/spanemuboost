@@ -288,18 +288,28 @@ func createDatabase(ctx context.Context, opts *emulatorOptions, dbCli *database.
 	} else {
 		createStmt = fmt.Sprintf(`CREATE DATABASE "%s"`, strings.ReplaceAll(opts.databaseID, `"`, `""`))
 	}
-	createDBOp, err := dbCli.CreateDatabase(ctx, &databasepb.CreateDatabaseRequest{
-		Parent:          opts.InstancePath(),
-		CreateStatement: createStmt,
-		DatabaseDialect: opts.databaseDialect,
-		ExtraStatements: opts.setupDDLs,
+	instancePath := opts.InstancePath()
+	var err error
+	withInstanceAdminLock(instancePath, func() {
+		createDBOp, createErr := dbCli.CreateDatabase(ctx, &databasepb.CreateDatabaseRequest{
+			Parent:          instancePath,
+			CreateStatement: createStmt,
+			DatabaseDialect: opts.databaseDialect,
+			ExtraStatements: opts.setupDDLs,
+		})
+		if createErr != nil {
+			err = createErr
+			return
+		}
+		_, err = createDBOp.Wait(ctx)
 	})
 	if err != nil {
-		return err
-	}
-
-	_, err = createDBOp.Wait(ctx)
-	if err != nil {
+		if status.Code(err) == codes.AlreadyExists {
+			if len(opts.setupDDLs) > 0 {
+				return updateDDLs(ctx, opts, dbCli)
+			}
+			return nil
+		}
 		return err
 	}
 	return nil
@@ -335,14 +345,19 @@ func bootstrapAndCreateClients(ctx context.Context, emu *Emulator, opts *emulato
 }
 
 func bootstrapAndCreateClientsWithOptions(ctx context.Context, uri string, opts *emulatorOptions, clientOpts []option.ClientOption) (_ *Clients, retErr error) {
-	instanceCli, err := instance.NewInstanceAdminClient(ctx, clientOpts...)
-	if err != nil {
-		return nil, err
+	var instanceCli *instance.InstanceAdminClient
+	if !opts.disableCreateInstance {
+		var err error
+		instanceCli, err = instance.NewInstanceAdminClient(ctx, clientOpts...)
+		if err != nil {
+			return nil, err
+		}
 	}
 	var (
 		dbCli            *database.DatabaseAdminClient
 		client           *spanner.Client
 		createdResources createdSchemaResources
+		err              error
 	)
 	defer func() {
 		if retErr != nil {
@@ -355,7 +370,9 @@ func bootstrapAndCreateClientsWithOptions(ctx context.Context, uri string, opts 
 			if dbCli != nil {
 				logCloseError("close database admin client", dbCli.Close())
 			}
-			logCloseError("close instance admin client", instanceCli.Close())
+			if instanceCli != nil {
+				logCloseError("close instance admin client", instanceCli.Close())
+			}
 		}
 	}()
 
@@ -431,11 +448,8 @@ func rollbackCreatedResources(instanceCli *instance.InstanceAdminClient, dbCli *
 		if dropDatabase {
 			if dbCli == nil {
 				errs = append(errs, fmt.Errorf("rollback drop database %s: database admin client is nil", opts.DatabasePath()))
-			} else {
-				err := dbCli.DropDatabase(ctx, &databasepb.DropDatabaseRequest{Database: opts.DatabasePath()})
-				if err != nil {
-					errs = append(errs, fmt.Errorf("rollback drop database %s: %w", opts.DatabasePath(), err))
-				}
+			} else if err := dropDatabaseWithRetry(ctx, dbCli, opts.DatabasePath()); err != nil {
+				errs = append(errs, fmt.Errorf("rollback %w", err))
 			}
 		}
 		return errors.Join(errs...)
@@ -446,9 +460,8 @@ func rollbackCreatedResources(instanceCli *instance.InstanceAdminClient, dbCli *
 			errs = append(errs, fmt.Errorf("rollback drop database %s: database admin client is nil", opts.DatabasePath()))
 			return errors.Join(errs...)
 		}
-		err := dbCli.DropDatabase(ctx, &databasepb.DropDatabaseRequest{Database: opts.DatabasePath()})
-		if err != nil {
-			errs = append(errs, fmt.Errorf("rollback drop database %s: %w", opts.DatabasePath(), err))
+		if err := dropDatabaseWithRetry(ctx, dbCli, opts.DatabasePath()); err != nil {
+			errs = append(errs, fmt.Errorf("rollback %w", err))
 		}
 	}
 	return errors.Join(errs...)

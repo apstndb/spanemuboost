@@ -8,7 +8,6 @@ import (
 
 	"cloud.google.com/go/spanner"
 	database "cloud.google.com/go/spanner/admin/database/apiv1"
-	"cloud.google.com/go/spanner/admin/database/apiv1/databasepb"
 	instance "cloud.google.com/go/spanner/admin/instance/apiv1"
 	"cloud.google.com/go/spanner/admin/instance/apiv1/instancepb"
 	tcspanner "github.com/testcontainers/testcontainers-go/modules/gcloud/spanner"
@@ -104,10 +103,8 @@ func (c *Clients) Close() error {
 			} else if c.dropDatabase {
 				if c.DatabaseClient == nil {
 					errs = append(errs, fmt.Errorf("drop database %s: database admin client is nil", c.DatabasePath()))
-				} else if err := c.DatabaseClient.DropDatabase(ctx, &databasepb.DropDatabaseRequest{
-					Database: c.DatabasePath(),
-				}); err != nil {
-					errs = append(errs, fmt.Errorf("drop database %s: %w", c.DatabasePath(), err))
+				} else if err := dropDatabaseWithRetry(ctx, c.DatabaseClient, c.DatabasePath()); err != nil {
+					errs = append(errs, err)
 				}
 			}
 		}
