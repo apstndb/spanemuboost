@@ -141,6 +141,9 @@ func SaveEndpoint(path string, endpoint Endpoint) error {
 	}
 	data = append(data, '\n')
 	dir := filepath.Dir(path)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return fmt.Errorf("spanemuboost: create endpoint directory %q: %w", dir, err)
+	}
 	tmp, err := os.CreateTemp(dir, ".endpoint-*.json")
 	if err != nil {
 		return fmt.Errorf("spanemuboost: create temp endpoint file in %q: %w", dir, err)

@@ -84,7 +84,7 @@ func NewLazyRuntime(backend Backend, options ...Option) *LazyRuntime {
 func (lr *LazyRuntime) get(ctx context.Context) (runtimeInstance, error) {
 	return lr.state.get(ctx, func(ctx context.Context) (runtimeInstance, error) {
 		if lr.attachedEndpoint != nil {
-			return NewAttachedRuntime(*lr.attachedEndpoint)
+			return NewAttachedRuntime(*lr.attachedEndpoint, lr.opts...)
 		}
 		runtime, err := Run(ctx, lr.backend, lr.opts...)
 		if err != nil {

@@ -21,11 +21,11 @@ type AttachedRuntime struct {
 func (*AttachedRuntime) spanemuboostRuntime() {}
 
 // NewAttachedRuntime connects to endpoint without starting a container.
-func NewAttachedRuntime(endpoint Endpoint) (*AttachedRuntime, error) {
+func NewAttachedRuntime(endpoint Endpoint, options ...Option) (*AttachedRuntime, error) {
 	if err := endpoint.validate(); err != nil {
 		return nil, err
 	}
-	opts, err := finalizeAttachedOptions(endpoint)
+	opts, err := finalizeAttachedOptions(endpoint, options...)
 	if err != nil {
 		return nil, err
 	}
@@ -38,12 +38,12 @@ func NewAttachedRuntime(endpoint Endpoint) (*AttachedRuntime, error) {
 
 // NewAttachedRuntimeFromEnv is a convenience wrapper around [LoadEndpoint] and
 // [NewAttachedRuntime].
-func NewAttachedRuntimeFromEnv() (*AttachedRuntime, error) {
+func NewAttachedRuntimeFromEnv(options ...Option) (*AttachedRuntime, error) {
 	endpoint, err := LoadEndpoint()
 	if err != nil {
 		return nil, err
 	}
-	return NewAttachedRuntime(endpoint)
+	return NewAttachedRuntime(endpoint, options...)
 }
 
 // NewLazyRuntimeFromEnvOrStart returns a [LazyRuntime] that attaches to an
@@ -76,16 +76,25 @@ func NewLazyRuntimeOptionalEndpoint(backend Backend, options ...Option) (*LazyRu
 	return NewLazyRuntimeFromEnvOrStart(backend, options...)
 }
 
-func finalizeAttachedOptions(endpoint Endpoint) (*emulatorOptions, error) {
+func finalizeAttachedOptions(endpoint Endpoint, options ...Option) (*emulatorOptions, error) {
 	base := &emulatorOptions{
 		projectID:             endpoint.ProjectID,
 		instanceID:            endpoint.InstanceID,
 		disableCreateInstance: true,
 	}
+	var err error
 	switch endpoint.Backend {
 	case BackendOmni:
+		base, err = applyOmniOptionsWithBase(base, options...)
+		if err != nil {
+			return nil, err
+		}
 		return finalizeOmniOptions(base)
 	case BackendEmulator:
+		base, err = applyOptionsWithBase(base, options...)
+		if err != nil {
+			return nil, err
+		}
 		return finalizeOptions(base)
 	default:
 		return nil, fmt.Errorf("unsupported backend %q", endpoint.Backend)

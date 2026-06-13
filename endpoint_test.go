@@ -203,6 +203,42 @@ func TestNewLazyRuntimeFromEnvOrStartRejectsBackendMismatch(t *testing.T) {
 	}
 }
 
+func TestNewAttachedRuntimeAppliesOptions(t *testing.T) {
+	runtime, err := NewAttachedRuntime(Endpoint{
+		Backend:    BackendOmni,
+		URI:        "127.0.0.1:15000",
+		ProjectID:  defaultOmniProjectID,
+		InstanceID: defaultOmniInstanceID,
+	}, WithDatabaseID("attached-db"))
+	if err != nil {
+		t.Fatalf("NewAttachedRuntime() error = %v", err)
+	}
+	if got := runtime.DatabaseID(); got != "attached-db" {
+		t.Fatalf("DatabaseID() = %q, want attached-db", got)
+	}
+}
+
+func TestSaveEndpointCreatesParentDirectory(t *testing.T) {
+	dir := filepath.Join(t.TempDir(), "nested", "dir")
+	path := filepath.Join(dir, "endpoint.json")
+	endpoint := Endpoint{
+		Backend:    BackendOmni,
+		URI:        "127.0.0.1:15000",
+		ProjectID:  defaultOmniProjectID,
+		InstanceID: defaultOmniInstanceID,
+	}
+	if err := SaveEndpoint(path, endpoint); err != nil {
+		t.Fatalf("SaveEndpoint() error = %v", err)
+	}
+	got, err := ReadEndpointFile(path)
+	if err != nil {
+		t.Fatalf("ReadEndpointFile() error = %v", err)
+	}
+	if got != endpoint {
+		t.Fatalf("ReadEndpointFile() = %#v, want %#v", got, endpoint)
+	}
+}
+
 func TestEndpointFromRuntimeRejectsInvalidEndpoint(t *testing.T) {
 	runtime := &invalidEndpointRuntime{}
 	_, err := EndpointFromRuntime(runtime)
