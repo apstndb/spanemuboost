@@ -2,6 +2,7 @@ package spanemuboost
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"strconv"
@@ -37,13 +38,16 @@ func StopFromConfig(ctx context.Context, cfg StopConfig) error {
 		return fmt.Errorf("spanemuboost: find serve process %d: %w", pid, err)
 	}
 	if err := proc.Signal(syscall.SIGTERM); err != nil {
+		if isProcessDone(err) {
+			return finishStopCleanup(cfg)
+		}
 		return fmt.Errorf("spanemuboost: signal serve process %d: %w", pid, err)
 	}
 
 	deadline := time.Now().Add(cfg.Timeout)
 	for time.Now().Before(deadline) {
 		if err := proc.Signal(syscall.Signal(0)); err != nil {
-			return waitForEndpointCleanup(ctx, cfg.EndpointFile, deadline)
+			return finishStopCleanup(cfg)
 		}
 		select {
 		case <-ctx.Done():
@@ -55,7 +59,7 @@ func StopFromConfig(ctx context.Context, cfg StopConfig) error {
 	if err := proc.Signal(syscall.SIGKILL); err == nil {
 		for time.Now().Before(deadline) {
 			if err := proc.Signal(syscall.Signal(0)); err != nil {
-				return waitForEndpointCleanup(ctx, cfg.EndpointFile, deadline)
+				return finishStopCleanup(cfg)
 			}
 			select {
 			case <-ctx.Done():
@@ -66,6 +70,16 @@ func StopFromConfig(ctx context.Context, cfg StopConfig) error {
 	}
 
 	return fmt.Errorf("spanemuboost: serve process %d did not exit within %s", pid, cfg.Timeout)
+}
+
+func finishStopCleanup(cfg StopConfig) error {
+	cleanupCtx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	return waitForEndpointCleanup(cleanupCtx, cfg, time.Now().Add(time.Second))
+}
+
+func isProcessDone(err error) bool {
+	return errors.Is(err, os.ErrProcessDone) || strings.Contains(err.Error(), "no such process")
 }
 
 func resolveServePID(cfg StopConfig) (int, error) {
@@ -93,22 +107,33 @@ func resolveServePID(cfg StopConfig) (int, error) {
 	return 0, fmt.Errorf("spanemuboost: --endpoint-file or --pid-file is required")
 }
 
-func waitForEndpointCleanup(ctx context.Context, endpointPath string, deadline time.Time) error {
-	path := strings.TrimSpace(endpointPath)
-	if path == "" {
+func waitForEndpointCleanup(ctx context.Context, cfg StopConfig, deadline time.Time) error {
+	if path := strings.TrimSpace(cfg.PIDFile); path != "" {
+		_ = os.Remove(path)
+	}
+	endpointPath := strings.TrimSpace(cfg.EndpointFile)
+	if endpointPath == "" {
 		return nil
 	}
-	for time.Now().Before(deadline) {
-		if _, err := os.Stat(path); os.IsNotExist(err) {
+	cleanupDeadline := time.Now().Add(time.Second)
+	if cleanupDeadline.After(deadline) {
+		cleanupDeadline = deadline
+	}
+	for time.Now().Before(cleanupDeadline) {
+		if _, err := os.Stat(endpointPath); os.IsNotExist(err) {
 			return nil
 		}
 		select {
 		case <-ctx.Done():
-			return ctx.Err()
-		case <-time.After(100 * time.Millisecond):
+			goto removeStale
+		case <-time.After(50 * time.Millisecond):
 		}
 	}
-	return fmt.Errorf("spanemuboost: endpoint file %q still exists after serve stopped", path)
+removeStale:
+	if err := os.Remove(endpointPath); err != nil && !os.IsNotExist(err) {
+		return fmt.Errorf("spanemuboost: remove stale endpoint file %q: %w", endpointPath, err)
+	}
+	return nil
 }
 
 // ParseStopArgs parses `spanemuboost stop --endpoint-file path [--pid-file path]`.
