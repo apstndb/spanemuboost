@@ -11,7 +11,7 @@ func TestAttachedOmniClientsFromEnv(t *testing.T) {
 	if os.Getenv("SPANEMUBOOST_ENABLE_OMNI_TESTS") == "" {
 		t.Skip("set SPANEMUBOOST_ENABLE_OMNI_TESTS=1 to run Spanner Omni tests")
 	}
-	if !EndpointConfigured() {
+	if !EndpointConfiguredForBackend(BackendOmni) {
 		t.Skip("set SPANEMUBOOST_ENDPOINT_FILE or SPANEMUBOOST_OMNI_URI to run attached Omni tests")
 	}
 

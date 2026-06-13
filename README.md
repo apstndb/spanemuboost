@@ -141,7 +141,12 @@ published endpoint:
 
 ```sh
 spanemuboost serve omni --endpoint-file /tmp/omni-endpoint.json
+spanemuboost stop --endpoint-file /tmp/omni-endpoint.json
 ```
+
+The endpoint file is owned by `serve`: it is written on startup (including the
+serve process PID for lifecycle management) and removed on exit. Unset
+`SPANEMUBOOST_ENDPOINT_FILE` after stopping the lifecycle manager.
 
 In another shell:
 
@@ -178,9 +183,8 @@ and are rejected by Omni guardrails unless callers use
 `DisableBackendGuardrails()` on a programmatic runtime constructor.
 
 `[AttachedRuntime.Close]` is a no-op because the lifecycle manager owns the
-container. Stop the `serve` process to tear down the shared runtime. The
-endpoint file is removed when `serve` exits; unset `SPANEMUBOOST_ENDPOINT_FILE`
-after stopping the lifecycle manager.
+container. Stop the shared runtime with `spanemuboost stop` or by stopping the
+`serve` process directly.
 
 `Run`, `RunWithClients`, `Setup`, `SetupWithClients`, `OpenClients`, `SetupClients`, `RuntimePlatform`, and `NewLazyRuntime` work across emulator and Omni. This backend-neutral API surface is the primary stable entry point; only the `BackendOmni` backend and its specific behaviors are considered experimental. Omni does not add separate exported startup or client-opening helpers.
 

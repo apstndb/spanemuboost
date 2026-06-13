@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"time"
 )
 
 // Serve starts a backend runtime, writes its [Endpoint] metadata when endpointPath
@@ -26,6 +27,9 @@ func Serve(ctx context.Context, backend Backend, endpointPath string, options ..
 	if err != nil {
 		return err
 	}
+	endpoint.ManagedBy = "spanemuboost serve"
+	endpoint.PID = os.Getpid()
+	endpoint.StartedAt = time.Now().UTC().Format(time.RFC3339)
 	if endpointPath != "" {
 		if err := SaveEndpoint(endpointPath, endpoint); err != nil {
 			return err
@@ -44,19 +48,30 @@ func Serve(ctx context.Context, backend Backend, endpointPath string, options ..
 	return nil
 }
 
-// ServeConfig configures [ServeFromArgs].
+// ServeConfig configures [ServeFromConfig].
 type ServeConfig struct {
 	Backend      Backend
 	EndpointFile string
+	PIDFile      string
 	Options      []Option
 }
 
 // ServeFromConfig starts a backend and blocks until interrupted.
 func ServeFromConfig(ctx context.Context, cfg ServeConfig) error {
+	if cfg.PIDFile != "" {
+		if err := os.WriteFile(cfg.PIDFile, []byte(fmt.Sprintf("%d\n", os.Getpid())), 0o600); err != nil {
+			return fmt.Errorf("spanemuboost: write pid file %q: %w", cfg.PIDFile, err)
+		}
+		defer func() {
+			if err := os.Remove(cfg.PIDFile); err != nil && !os.IsNotExist(err) {
+				logCloseError("remove pid file after serve", err)
+			}
+		}()
+	}
 	return Serve(ctx, cfg.Backend, cfg.EndpointFile, cfg.Options...)
 }
 
-// ParseServeArgs parses `spanemuboost serve <emulator|omni> [--endpoint-file path]`.
+// ParseServeArgs parses `spanemuboost serve <emulator|omni> --endpoint-file path [--pid-file path]`.
 func ParseServeArgs(args []string) (ServeConfig, error) {
 	cfg := ServeConfig{}
 	var backend string
@@ -68,6 +83,12 @@ func ParseServeArgs(args []string) (ServeConfig, error) {
 			}
 			cfg.EndpointFile = args[i+1]
 			i++
+		case "--pid-file":
+			if i+1 >= len(args) {
+				return ServeConfig{}, fmt.Errorf("--pid-file requires a value")
+			}
+			cfg.PIDFile = args[i+1]
+			i++
 		case "emulator", "omni":
 			if backend != "" {
 				return ServeConfig{}, fmt.Errorf("multiple backends specified: %q and %q", backend, args[i])
@@ -78,7 +99,7 @@ func ParseServeArgs(args []string) (ServeConfig, error) {
 		}
 	}
 	if backend == "" {
-		return ServeConfig{}, fmt.Errorf("usage: spanemuboost serve <emulator|omni> [--endpoint-file path]")
+		return ServeConfig{}, fmt.Errorf("usage: spanemuboost serve <emulator|omni> --endpoint-file path [--pid-file path]")
 	}
 	switch Backend(backend) {
 	case BackendEmulator:

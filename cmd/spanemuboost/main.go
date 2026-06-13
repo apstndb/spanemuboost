@@ -21,6 +21,11 @@ func main() {
 			fmt.Fprintln(os.Stderr, err)
 			os.Exit(1)
 		}
+	case "stop":
+		if err := runStop(os.Args[2:]); err != nil {
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
 	default:
 		usage()
 		os.Exit(2)
@@ -40,15 +45,28 @@ func runServe(args []string) error {
 	return spanemuboost.ServeFromConfig(ctx, cfg)
 }
 
+func runStop(args []string) error {
+	cfg, err := spanemuboost.ParseStopArgs(args)
+	if err != nil {
+		return err
+	}
+	return spanemuboost.StopFromConfig(context.Background(), cfg)
+}
+
 func usage() {
 	fmt.Fprintf(os.Stderr, `spanemuboost manages long-lived Spanner test backends.
 
 Usage:
-  spanemuboost serve <emulator|omni> --endpoint-file path
+  spanemuboost serve <emulator|omni> --endpoint-file path [--pid-file path]
+  spanemuboost stop --endpoint-file path [--pid-file path]
 
 Examples:
   spanemuboost serve omni --endpoint-file /tmp/omni-endpoint.json
+  spanemuboost stop --endpoint-file /tmp/omni-endpoint.json
   SPANEMUBOOST_ENDPOINT_FILE=/tmp/omni-endpoint.json go test ./...
+
+The endpoint file is owned by serve: it is written on startup and removed on
+exit. Unset SPANEMUBOOST_ENDPOINT_FILE after stopping the lifecycle manager.
 
 `)
 }

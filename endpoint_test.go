@@ -194,12 +194,111 @@ func TestNewLazyRuntimeFromEnvOrStartErrorsOnBrokenEndpointFile(t *testing.T) {
 }
 
 func TestNewLazyRuntimeFromEnvOrStartRejectsBackendMismatch(t *testing.T) {
-	t.Setenv(endpointFileEnv, "")
-	t.Setenv(omniURIEnv, "127.0.0.1:15000")
+	dir := t.TempDir()
+	path := filepath.Join(dir, "endpoint.json")
+	endpoint := Endpoint{
+		Backend:    BackendOmni,
+		URI:        "127.0.0.1:15000",
+		ProjectID:  defaultOmniProjectID,
+		InstanceID: defaultOmniInstanceID,
+	}
+	if err := SaveEndpoint(path, endpoint); err != nil {
+		t.Fatalf("SaveEndpoint() error = %v", err)
+	}
+	t.Setenv(endpointFileEnv, path)
+	t.Setenv(omniURIEnv, "")
 
 	_, err := NewLazyRuntimeFromEnvOrStart(BackendEmulator)
 	if err == nil {
 		t.Fatal("NewLazyRuntimeFromEnvOrStart() error = nil, want non-nil")
+	}
+}
+
+func TestEndpointConfiguredForBackend(t *testing.T) {
+	t.Setenv(endpointFileEnv, "")
+	t.Setenv(omniURIEnv, "")
+	t.Setenv(emulatorURIEnv, "")
+
+	if EndpointConfiguredForBackend(BackendOmni) {
+		t.Fatal("EndpointConfiguredForBackend(Omni) = true, want false")
+	}
+	t.Setenv(emulatorURIEnv, "127.0.0.1:9010")
+	if EndpointConfiguredForBackend(BackendOmni) {
+		t.Fatal("EndpointConfiguredForBackend(Omni) with emulator URI = true, want false")
+	}
+	if !EndpointConfiguredForBackend(BackendEmulator) {
+		t.Fatal("EndpointConfiguredForBackend(Emulator) = false, want true")
+	}
+}
+
+func TestLoadEndpointForBackendSelectsMatchingURIEnv(t *testing.T) {
+	t.Setenv(endpointFileEnv, "")
+	t.Setenv(omniURIEnv, "127.0.0.1:15000")
+	t.Setenv(emulatorURIEnv, "127.0.0.1:9010")
+
+	omni, err := LoadEndpointForBackend(BackendOmni)
+	if err != nil {
+		t.Fatalf("LoadEndpointForBackend(Omni) error = %v", err)
+	}
+	if omni.URI != "127.0.0.1:15000" {
+		t.Fatalf("Omni URI = %q, want 127.0.0.1:15000", omni.URI)
+	}
+
+	emulator, err := LoadEndpointForBackend(BackendEmulator)
+	if err != nil {
+		t.Fatalf("LoadEndpointForBackend(Emulator) error = %v", err)
+	}
+	if emulator.URI != "127.0.0.1:9010" {
+		t.Fatalf("Emulator URI = %q, want 127.0.0.1:9010", emulator.URI)
+	}
+}
+
+func TestAttachedRuntimeInheritedOptionsPreservesConstructorBootstrap(t *testing.T) {
+	runtime, err := NewAttachedRuntime(Endpoint{
+		Backend:    BackendOmni,
+		URI:        "127.0.0.1:15000",
+		ProjectID:  defaultOmniProjectID,
+		InstanceID: defaultOmniInstanceID,
+	},
+		WithRandomDatabaseID(),
+		WithSetupDDLs([]string{"CREATE TABLE tbl (pk STRING(MAX)) PRIMARY KEY (pk)"}),
+		WithSetupRawDMLs([]string{"INSERT INTO tbl (pk) VALUES ('x')"}),
+	)
+	if err != nil {
+		t.Fatalf("NewAttachedRuntime() error = %v", err)
+	}
+	opts, err := runtime.inheritedOptions()
+	if err != nil {
+		t.Fatalf("inheritedOptions() error = %v", err)
+	}
+	if opts.disableCreateDatabase {
+		t.Fatal("disableCreateDatabase = true, want false for WithRandomDatabaseID")
+	}
+	if len(opts.setupDDLs) != 1 {
+		t.Fatalf("len(setupDDLs) = %d, want 1", len(opts.setupDDLs))
+	}
+	if len(opts.setupDMLs) != 1 {
+		t.Fatalf("len(setupDMLs) = %d, want 1", len(opts.setupDMLs))
+	}
+}
+
+func TestParseStopArgs(t *testing.T) {
+	cfg, err := ParseStopArgs([]string{"--endpoint-file", "/tmp/omni.json"})
+	if err != nil {
+		t.Fatalf("ParseStopArgs() error = %v", err)
+	}
+	if cfg.EndpointFile != "/tmp/omni.json" {
+		t.Fatalf("EndpointFile = %q, want /tmp/omni.json", cfg.EndpointFile)
+	}
+}
+
+func TestParseServeArgsRequiresBackend(t *testing.T) {
+	_, err := ParseServeArgs([]string{"--endpoint-file", "/tmp/omni.json"})
+	if err == nil {
+		t.Fatal("ParseServeArgs() error = nil, want non-nil")
+	}
+	if !strings.Contains(err.Error(), "usage:") {
+		t.Fatalf("ParseServeArgs() error = %v, want usage error", err)
 	}
 }
 

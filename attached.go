@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"cloud.google.com/go/spanner"
 	"google.golang.org/api/option"
 	"google.golang.org/api/option/internaloption"
 	"google.golang.org/grpc"
@@ -47,21 +48,22 @@ func NewAttachedRuntimeFromEnv(options ...Option) (*AttachedRuntime, error) {
 }
 
 // NewLazyRuntimeFromEnvOrStart returns a [LazyRuntime] that attaches to an
-// external endpoint when one is configured in the environment. When no endpoint
-// env vars are set, it defers container startup until first use. When endpoint
-// env vars are set but [LoadEndpoint] fails, it returns an error instead of
-// falling back to cold start.
+// external endpoint when one is configured for the requested backend. When no
+// matching endpoint env vars are set, it defers container startup until first
+// use. When endpoint env vars are set but [LoadEndpointForBackend] fails, it
+// returns an error instead of falling back to cold start.
+//
+// Options passed to the constructor apply to both cold-start and attach paths.
+// Database bootstrap options such as [WithRandomDatabaseID] and [WithSetupDDLs]
+// are honored when [OpenClients] or [SetupClients] runs against the lazy handle.
 func NewLazyRuntimeFromEnvOrStart(backend Backend, options ...Option) (*LazyRuntime, error) {
 	lr := NewLazyRuntime(backend, options...)
-	if !endpointEnvConfigured() {
+	if !EndpointConfiguredForBackend(backend) {
 		return lr, nil
 	}
-	endpoint, err := LoadEndpoint()
+	endpoint, err := LoadEndpointForBackend(backend)
 	if err != nil {
 		return nil, err
-	}
-	if endpoint.Backend != backend {
-		return nil, fmt.Errorf("spanemuboost: configured endpoint backend %q does not match requested backend %q", endpoint.Backend, backend)
 	}
 	lr.attachedEndpoint = &endpoint
 	return lr, nil
@@ -90,6 +92,9 @@ func (a *AttachedRuntime) URI() string {
 	return a.uri
 }
 
+// ClientOptions returns transport options for the attached backend. Options
+// passed via [WithClientOptionsForClient] are applied in [OpenClients] and
+// [SetupClients], not here.
 func (a *AttachedRuntime) ClientOptions() []option.ClientOption {
 	if a == nil {
 		return nil
@@ -158,11 +163,28 @@ func (a *AttachedRuntime) inheritedOptions(options ...Option) (*emulatorOptions,
 		return nil, fmt.Errorf("spanemuboost: attached runtime or options is nil")
 	}
 	base := inheritedRuntimeOptions(a.opts)
+	preserveAttachedBootstrapOptions(base, a.opts)
+	if len(options) == 0 {
+		return base, nil
+	}
 	switch a.backend {
 	case BackendOmni:
 		return applyOmniOptionsWithBase(base, options...)
 	default:
 		return applyOptionsWithBase(base, options...)
+	}
+}
+
+func preserveAttachedBootstrapOptions(base, source *emulatorOptions) {
+	if !source.disableCreateDatabase {
+		base.disableCreateDatabase = false
+	}
+	base.randomDatabaseID = source.randomDatabaseID
+	if len(source.setupDDLs) > 0 {
+		base.setupDDLs = append([]string(nil), source.setupDDLs...)
+	}
+	if len(source.setupDMLs) > 0 {
+		base.setupDMLs = append([]spanner.Statement(nil), source.setupDMLs...)
 	}
 }
 
