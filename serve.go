@@ -4,12 +4,12 @@ import (
 	"context"
 	"fmt"
 	"os"
-	"os/signal"
-	"syscall"
 )
 
-// Serve starts a backend runtime, writes its [Endpoint] metadata, and blocks
-// until ctx is canceled. The runtime is closed before Serve returns.
+// Serve starts a backend runtime, writes its [Endpoint] metadata when endpointPath
+// is non-empty, and blocks until ctx is canceled. The runtime is closed before
+// Serve returns. When an endpoint file was written, it is removed on exit so
+// stale metadata is not left behind.
 func Serve(ctx context.Context, backend Backend, endpointPath string, options ...Option) error {
 	if ctx == nil {
 		ctx = context.Background()
@@ -30,12 +30,15 @@ func Serve(ctx context.Context, backend Backend, endpointPath string, options ..
 		if err := SaveEndpoint(endpointPath, endpoint); err != nil {
 			return err
 		}
+		defer func() {
+			if err := os.Remove(endpointPath); err != nil && !os.IsNotExist(err) {
+				logCloseError("remove endpoint file after serve", err)
+			}
+		}()
 	}
 
-	serveCtx, stop := signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)
-	defer stop()
-	<-serveCtx.Done()
-	if err := serveCtx.Err(); err != nil && err != context.Canceled {
+	<-ctx.Done()
+	if err := ctx.Err(); err != nil && err != context.Canceled {
 		return err
 	}
 	return nil

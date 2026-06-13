@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"os/signal"
+	"syscall"
 
 	"github.com/apstndb/spanemuboost"
 )
@@ -30,14 +32,19 @@ func runServe(args []string) error {
 	if err != nil {
 		return err
 	}
-	return spanemuboost.ServeFromConfig(context.Background(), cfg)
+	if cfg.EndpointFile == "" {
+		return fmt.Errorf("--endpoint-file is required")
+	}
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+	return spanemuboost.ServeFromConfig(ctx, cfg)
 }
 
 func usage() {
 	fmt.Fprintf(os.Stderr, `spanemuboost manages long-lived Spanner test backends.
 
 Usage:
-  spanemuboost serve <emulator|omni> [--endpoint-file path]
+  spanemuboost serve <emulator|omni> --endpoint-file path
 
 Examples:
   spanemuboost serve omni --endpoint-file /tmp/omni-endpoint.json

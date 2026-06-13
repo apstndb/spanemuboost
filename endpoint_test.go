@@ -1,6 +1,7 @@
 package spanemuboost
 
 import (
+	"context"
 	"os"
 	"path/filepath"
 	"strings"
@@ -93,6 +94,39 @@ func TestParseServeArgs(t *testing.T) {
 	}
 	if cfg.Backend != BackendOmni || cfg.EndpointFile != "/tmp/omni.json" {
 		t.Fatalf("ParseServeArgs() = %#v, want omni + /tmp/omni.json", cfg)
+	}
+}
+
+func TestLoadEndpointMissingEnvMentionsEmulatorURI(t *testing.T) {
+	t.Setenv(endpointFileEnv, "")
+	t.Setenv(omniURIEnv, "")
+	t.Setenv(emulatorURIEnv, "")
+
+	_, err := LoadEndpoint()
+	if err == nil {
+		t.Fatal("LoadEndpoint() error = nil, want non-nil")
+	}
+	if !strings.Contains(err.Error(), emulatorURIEnv) {
+		t.Fatalf("LoadEndpoint() error = %v, want mention of %s", err, emulatorURIEnv)
+	}
+}
+
+func TestRuntimePlatformAttached(t *testing.T) {
+	runtime, err := NewAttachedRuntime(Endpoint{
+		Backend:    BackendOmni,
+		URI:        "127.0.0.1:15000",
+		ProjectID:  defaultOmniProjectID,
+		InstanceID: defaultOmniInstanceID,
+	})
+	if err != nil {
+		t.Fatalf("NewAttachedRuntime() error = %v", err)
+	}
+	got, err := RuntimePlatform(context.Background(), runtime)
+	if err != nil {
+		t.Fatalf("RuntimePlatform() error = %v", err)
+	}
+	if got != "attached" {
+		t.Fatalf("RuntimePlatform() = %q, want attached", got)
 	}
 }
 

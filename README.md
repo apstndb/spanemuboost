@@ -170,11 +170,17 @@ clients, err := spanemuboost.OpenClients(ctx, runtime,
 |---|---|
 | `SPANEMUBOOST_ENDPOINT_FILE` | JSON file written by `spanemuboost serve` |
 | `SPANEMUBOOST_OMNI_URI` | Direct Omni gRPC endpoint (`host:port`) |
-| `SPANEMUBOOST_OMNI_PROJECT_ID` | Optional project override (default `default`) |
-| `SPANEMUBOOST_OMNI_INSTANCE_ID` | Optional instance override (default `default`) |
+| `SPANEMUBOOST_EMULATOR_URI` | Direct emulator gRPC endpoint (`host:port`) |
+
+When attaching to Omni via `SPANEMUBOOST_OMNI_URI`, project and instance IDs
+default to `default`. Non-default IDs require the running Omni instance to match
+and are rejected by Omni guardrails unless callers use
+`DisableBackendGuardrails()` on a programmatic runtime constructor.
 
 `[AttachedRuntime.Close]` is a no-op because the lifecycle manager owns the
-container. Stop the `serve` process to tear down the shared runtime.
+container. Stop the `serve` process to tear down the shared runtime. The
+endpoint file is removed when `serve` exits; unset `SPANEMUBOOST_ENDPOINT_FILE`
+after stopping the lifecycle manager.
 
 `Run`, `RunWithClients`, `Setup`, `SetupWithClients`, `OpenClients`, `SetupClients`, `RuntimePlatform`, and `NewLazyRuntime` work across emulator and Omni. This backend-neutral API surface is the primary stable entry point; only the `BackendOmni` backend and its specific behaviors are considered experimental. Omni does not add separate exported startup or client-opening helpers.
 

@@ -102,7 +102,7 @@ func LoadEndpoint() (Endpoint, error) {
 			InstanceID: cmpOrEnv(emulatorInstanceEnv, DefaultInstanceID),
 		}, nil
 	}
-	return Endpoint{}, fmt.Errorf("spanemuboost: no external endpoint configured; set %s or %s", endpointFileEnv, omniURIEnv)
+	return Endpoint{}, fmt.Errorf("spanemuboost: no external endpoint configured; set %s, %s, or %s", endpointFileEnv, omniURIEnv, emulatorURIEnv)
 }
 
 func cmpOrEnv(key, fallback string) string {
