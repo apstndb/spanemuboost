@@ -46,15 +46,34 @@ func NewAttachedRuntimeFromEnv() (*AttachedRuntime, error) {
 	return NewAttachedRuntime(endpoint)
 }
 
+// NewLazyRuntimeFromEnvOrStart returns a [LazyRuntime] that attaches to an
+// external endpoint when one is configured in the environment. When no endpoint
+// env vars are set, it defers container startup until first use. When endpoint
+// env vars are set but [LoadEndpoint] fails, it returns an error instead of
+// falling back to cold start.
+func NewLazyRuntimeFromEnvOrStart(backend Backend, options ...Option) (*LazyRuntime, error) {
+	lr := NewLazyRuntime(backend, options...)
+	if !endpointEnvConfigured() {
+		return lr, nil
+	}
+	endpoint, err := LoadEndpoint()
+	if err != nil {
+		return nil, err
+	}
+	if endpoint.Backend != backend {
+		return nil, fmt.Errorf("spanemuboost: configured endpoint backend %q does not match requested backend %q", endpoint.Backend, backend)
+	}
+	lr.attachedEndpoint = &endpoint
+	return lr, nil
+}
+
 // NewLazyRuntimeOptionalEndpoint returns a [LazyRuntime] that attaches to an
 // external endpoint when one is configured in the environment. Otherwise it
 // starts a container on first use, preserving the existing testcontainers path.
-func NewLazyRuntimeOptionalEndpoint(backend Backend, options ...Option) *LazyRuntime {
-	lr := NewLazyRuntime(backend, options...)
-	if endpoint, err := LoadEndpoint(); err == nil && endpoint.Backend == backend {
-		lr.attachedEndpoint = &endpoint
-	}
-	return lr
+//
+// Deprecated: use [NewLazyRuntimeFromEnvOrStart] to handle endpoint load errors.
+func NewLazyRuntimeOptionalEndpoint(backend Backend, options ...Option) (*LazyRuntime, error) {
+	return NewLazyRuntimeFromEnvOrStart(backend, options...)
 }
 
 func finalizeAttachedOptions(endpoint Endpoint) (*emulatorOptions, error) {

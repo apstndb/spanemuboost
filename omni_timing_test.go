@@ -17,7 +17,10 @@ func TestOmniRuntimeAttachTiming(t *testing.T) {
 	}
 
 	start := time.Now()
-	lazy := NewLazyRuntimeOptionalEndpoint(BackendOmni)
+	lazy, err := NewLazyRuntimeOptionalEndpoint(BackendOmni)
+	if err != nil {
+		t.Fatalf("NewLazyRuntimeOptionalEndpoint() error = %v", err)
+	}
 	clients := SetupClients(t, lazy,
 		WithRandomDatabaseID(),
 		WithSetupDDLs([]string{"CREATE TABLE tbl (pk STRING(MAX)) PRIMARY KEY (pk)"}),

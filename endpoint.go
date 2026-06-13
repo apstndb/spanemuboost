@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 )
 
@@ -46,19 +47,33 @@ func EndpointFromRuntime(runtime Runtime) (Endpoint, error) {
 }
 
 func backendForRuntime(runtime Runtime) Backend {
-	switch runtime.(type) {
+	switch r := runtime.(type) {
 	case *omniRuntime:
 		return BackendOmni
+	case *AttachedRuntime:
+		return r.backend
 	default:
 		return BackendEmulator
 	}
 }
 
-// EndpointConfigured reports whether [LoadEndpoint] is expected to succeed from
-// the current process environment.
+// EndpointConfigured reports whether external endpoint env vars are set in the
+// current process environment. It does not validate that [LoadEndpoint] succeeds.
 func EndpointConfigured() bool {
-	_, err := LoadEndpoint()
-	return err == nil
+	return endpointEnvConfigured()
+}
+
+func endpointEnvConfigured() bool {
+	if strings.TrimSpace(os.Getenv(endpointFileEnv)) != "" {
+		return true
+	}
+	if strings.TrimSpace(os.Getenv(omniURIEnv)) != "" {
+		return true
+	}
+	if strings.TrimSpace(os.Getenv(emulatorURIEnv)) != "" {
+		return true
+	}
+	return false
 }
 
 // LoadEndpoint reads connection metadata from SPANEMUBOOST_ENDPOINT_FILE or
@@ -121,9 +136,33 @@ func SaveEndpoint(path string, endpoint Endpoint) error {
 		return fmt.Errorf("spanemuboost: marshal endpoint: %w", err)
 	}
 	data = append(data, '\n')
-	if err := os.WriteFile(path, data, 0o600); err != nil {
+	dir := filepath.Dir(path)
+	tmp, err := os.CreateTemp(dir, ".endpoint-*.json")
+	if err != nil {
+		return fmt.Errorf("spanemuboost: create temp endpoint file in %q: %w", dir, err)
+	}
+	tmpPath := tmp.Name()
+	cleanup := true
+	defer func() {
+		if cleanup {
+			_ = os.Remove(tmpPath)
+		}
+	}()
+	if _, err := tmp.Write(data); err != nil {
+		_ = tmp.Close()
+		return fmt.Errorf("spanemuboost: write temp endpoint file %q: %w", tmpPath, err)
+	}
+	if err := tmp.Chmod(0o600); err != nil {
+		_ = tmp.Close()
+		return fmt.Errorf("spanemuboost: chmod temp endpoint file %q: %w", tmpPath, err)
+	}
+	if err := tmp.Close(); err != nil {
+		return fmt.Errorf("spanemuboost: close temp endpoint file %q: %w", tmpPath, err)
+	}
+	if err := os.Rename(tmpPath, path); err != nil {
 		return fmt.Errorf("spanemuboost: write endpoint file %q: %w", path, err)
 	}
+	cleanup = false
 	return nil
 }
 

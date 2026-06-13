@@ -15,7 +15,10 @@ func TestAttachedOmniClientsFromEnv(t *testing.T) {
 		t.Skip("set SPANEMUBOOST_ENDPOINT_FILE or SPANEMUBOOST_OMNI_URI to run attached Omni tests")
 	}
 
-	lazy := NewLazyRuntimeOptionalEndpoint(BackendOmni)
+	lazy, err := NewLazyRuntimeOptionalEndpoint(BackendOmni)
+	if err != nil {
+		t.Fatalf("NewLazyRuntimeOptionalEndpoint() error = %v", err)
+	}
 	clients := SetupClients(t, lazy,
 		WithRandomDatabaseID(),
 		WithSetupDDLs([]string{"CREATE TABLE tbl (pk STRING(MAX), col INT64) PRIMARY KEY (pk)"}),
@@ -23,7 +26,7 @@ func TestAttachedOmniClientsFromEnv(t *testing.T) {
 	)
 
 	iter := clients.Client.Single().Query(t.Context(), spanner.NewStatement("SELECT col FROM tbl WHERE pk = 'attached'"))
-	err := iter.Do(func(r *spanner.Row) error {
+	err = iter.Do(func(r *spanner.Row) error {
 		var col int64
 		if err := r.Column(0, &col); err != nil {
 			return err

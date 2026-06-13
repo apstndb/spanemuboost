@@ -151,14 +151,14 @@ export SPANEMUBOOST_ENABLE_OMNI_TESTS=1
 go test -p=1 -parallel=1 ./...
 ```
 
-Client code can use [NewLazyRuntimeOptionalEndpoint] to keep the existing
+Client code can use [NewLazyRuntimeFromEnvOrStart] to keep the existing
 testcontainers path while automatically attaching when endpoint env vars are
 set, or [NewAttachedRuntimeFromEnv] for explicit attachment:
 
 ```go
-runtime, err := spanemuboost.NewAttachedRuntimeFromEnv()
+runtime, err := spanemuboost.NewLazyRuntimeFromEnvOrStart(spanemuboost.BackendOmni)
 if err != nil {
-    runtime = spanemuboost.NewLazyRuntime(spanemuboost.BackendOmni)
+    log.Fatal(err)
 }
 clients, err := spanemuboost.OpenClients(ctx, runtime,
     spanemuboost.WithRandomDatabaseID(),

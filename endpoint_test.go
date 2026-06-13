@@ -56,12 +56,21 @@ func TestLoadEndpointFromOmniEnv(t *testing.T) {
 func TestEndpointConfigured(t *testing.T) {
 	t.Setenv(endpointFileEnv, "")
 	t.Setenv(omniURIEnv, "")
+	t.Setenv(emulatorURIEnv, "")
 	if EndpointConfigured() {
 		t.Fatal("EndpointConfigured() = true, want false")
 	}
 	t.Setenv(omniURIEnv, "127.0.0.1:15000")
 	if !EndpointConfigured() {
 		t.Fatal("EndpointConfigured() = false, want true")
+	}
+}
+
+func TestEndpointConfiguredWithBrokenFile(t *testing.T) {
+	t.Setenv(endpointFileEnv, filepath.Join(t.TempDir(), "missing.json"))
+	t.Setenv(omniURIEnv, "")
+	if !EndpointConfigured() {
+		t.Fatal("EndpointConfigured() = false, want true when endpoint file env is set")
 	}
 }
 
@@ -109,12 +118,77 @@ func TestNewLazyRuntimeOptionalEndpointUsesEnv(t *testing.T) {
 	t.Setenv(endpointFileEnv, "")
 	t.Setenv(omniURIEnv, "127.0.0.1:15000")
 
-	lazy := NewLazyRuntimeOptionalEndpoint(BackendOmni)
+	lazy, err := NewLazyRuntimeOptionalEndpoint(BackendOmni)
+	if err != nil {
+		t.Fatalf("NewLazyRuntimeOptionalEndpoint() error = %v", err)
+	}
 	if lazy.attachedEndpoint == nil {
 		t.Fatal("attachedEndpoint = nil, want non-nil")
 	}
 	if lazy.attachedEndpoint.URI != "127.0.0.1:15000" {
 		t.Fatalf("attachedEndpoint.URI = %q, want 127.0.0.1:15000", lazy.attachedEndpoint.URI)
+	}
+}
+
+func TestNewLazyRuntimeFromEnvOrStartColdStartWithoutEnv(t *testing.T) {
+	t.Setenv(endpointFileEnv, "")
+	t.Setenv(omniURIEnv, "")
+	t.Setenv(emulatorURIEnv, "")
+
+	lazy, err := NewLazyRuntimeFromEnvOrStart(BackendOmni)
+	if err != nil {
+		t.Fatalf("NewLazyRuntimeFromEnvOrStart() error = %v, want nil", err)
+	}
+	if lazy.attachedEndpoint != nil {
+		t.Fatal("attachedEndpoint = non-nil, want nil")
+	}
+}
+
+func TestNewLazyRuntimeFromEnvOrStartErrorsOnBrokenEndpointFile(t *testing.T) {
+	t.Setenv(endpointFileEnv, filepath.Join(t.TempDir(), "missing.json"))
+	t.Setenv(omniURIEnv, "")
+
+	lazy, err := NewLazyRuntimeFromEnvOrStart(BackendOmni)
+	if err == nil {
+		t.Fatal("NewLazyRuntimeFromEnvOrStart() error = nil, want non-nil")
+	}
+	if lazy != nil {
+		t.Fatal("NewLazyRuntimeFromEnvOrStart() runtime = non-nil, want nil")
+	}
+}
+
+func TestNewLazyRuntimeFromEnvOrStartRejectsBackendMismatch(t *testing.T) {
+	t.Setenv(endpointFileEnv, "")
+	t.Setenv(omniURIEnv, "127.0.0.1:15000")
+
+	_, err := NewLazyRuntimeFromEnvOrStart(BackendEmulator)
+	if err == nil {
+		t.Fatal("NewLazyRuntimeFromEnvOrStart() error = nil, want non-nil")
+	}
+}
+
+func TestEndpointFromRuntimeAttached(t *testing.T) {
+	runtime, err := NewAttachedRuntime(Endpoint{
+		Backend:    BackendOmni,
+		URI:        "127.0.0.1:15000",
+		ProjectID:  defaultOmniProjectID,
+		InstanceID: defaultOmniInstanceID,
+	})
+	if err != nil {
+		t.Fatalf("NewAttachedRuntime() error = %v", err)
+	}
+	got, err := EndpointFromRuntime(runtime)
+	if err != nil {
+		t.Fatalf("EndpointFromRuntime() error = %v", err)
+	}
+	want := Endpoint{
+		Backend:    BackendOmni,
+		URI:        "127.0.0.1:15000",
+		ProjectID:  defaultOmniProjectID,
+		InstanceID: defaultOmniInstanceID,
+	}
+	if got != want {
+		t.Fatalf("EndpointFromRuntime() = %#v, want %#v", got, want)
 	}
 }
 
