@@ -150,13 +150,13 @@ func TestNewAttachedRuntimeCloseIsNoOp(t *testing.T) {
 	}
 }
 
-func TestNewLazyRuntimeOptionalEndpointUsesEnv(t *testing.T) {
+func TestNewLazyRuntimeFromEnvOrStartUsesEnv(t *testing.T) {
 	t.Setenv(endpointFileEnv, "")
 	t.Setenv(omniURIEnv, "127.0.0.1:15000")
 
-	lazy, err := NewLazyRuntimeOptionalEndpoint(BackendOmni)
+	lazy, err := NewLazyRuntimeFromEnvOrStart(BackendOmni)
 	if err != nil {
-		t.Fatalf("NewLazyRuntimeOptionalEndpoint() error = %v", err)
+		t.Fatalf("NewLazyRuntimeFromEnvOrStart() error = %v", err)
 	}
 	if lazy.attachedEndpoint == nil {
 		t.Fatal("attachedEndpoint = nil, want non-nil")
@@ -200,6 +200,56 @@ func TestNewLazyRuntimeFromEnvOrStartRejectsBackendMismatch(t *testing.T) {
 	_, err := NewLazyRuntimeFromEnvOrStart(BackendEmulator)
 	if err == nil {
 		t.Fatal("NewLazyRuntimeFromEnvOrStart() error = nil, want non-nil")
+	}
+}
+
+func TestNewAttachedRuntimeWithRandomDatabaseID(t *testing.T) {
+	runtime, err := NewAttachedRuntime(Endpoint{
+		Backend:    BackendOmni,
+		URI:        "127.0.0.1:15000",
+		ProjectID:  defaultOmniProjectID,
+		InstanceID: defaultOmniInstanceID,
+	}, WithRandomDatabaseID())
+	if err != nil {
+		t.Fatalf("NewAttachedRuntime() error = %v", err)
+	}
+	if runtime.DatabaseID() == "" || runtime.DatabaseID() == DefaultDatabaseID {
+		t.Fatalf("DatabaseID() = %q, want generated random ID", runtime.DatabaseID())
+	}
+}
+
+func TestNewLazyRuntimeFromEnvOrStartAttachPathWithRandomDatabaseID(t *testing.T) {
+	t.Setenv(endpointFileEnv, "")
+	t.Setenv(omniURIEnv, "127.0.0.1:15000")
+
+	lazy, err := NewLazyRuntimeFromEnvOrStart(BackendOmni, WithRandomDatabaseID())
+	if err != nil {
+		t.Fatalf("NewLazyRuntimeFromEnvOrStart() error = %v", err)
+	}
+	if lazy.attachedEndpoint == nil {
+		t.Fatal("attachedEndpoint = nil, want non-nil")
+	}
+	runtime, err := NewAttachedRuntime(*lazy.attachedEndpoint, lazy.opts...)
+	if err != nil {
+		t.Fatalf("NewAttachedRuntime() via lazy attach path error = %v", err)
+	}
+	if runtime.DatabaseID() == "" || runtime.DatabaseID() == DefaultDatabaseID {
+		t.Fatalf("DatabaseID() = %q, want generated random ID", runtime.DatabaseID())
+	}
+}
+
+func TestAttachedRuntimeClientOptionsReturnsTransportOptions(t *testing.T) {
+	runtime, err := NewAttachedRuntime(Endpoint{
+		Backend:    BackendOmni,
+		URI:        "127.0.0.1:15000",
+		ProjectID:  defaultOmniProjectID,
+		InstanceID: defaultOmniInstanceID,
+	}, WithClientOptionsForClient(option.WithQuotaProject("client-only")))
+	if err != nil {
+		t.Fatalf("NewAttachedRuntime() error = %v", err)
+	}
+	if got := len(runtime.ClientOptions()); got != 3 {
+		t.Fatalf("ClientOptions() returned %d options, want 3 transport options", got)
 	}
 }
 

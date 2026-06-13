@@ -17,9 +17,9 @@ func TestOmniRuntimeAttachTiming(t *testing.T) {
 	}
 
 	start := time.Now()
-	lazy, err := NewLazyRuntimeOptionalEndpoint(BackendOmni)
+	lazy, err := NewLazyRuntimeFromEnvOrStart(BackendOmni)
 	if err != nil {
-		t.Fatalf("NewLazyRuntimeOptionalEndpoint() error = %v", err)
+		t.Fatalf("NewLazyRuntimeFromEnvOrStart() error = %v", err)
 	}
 	clients := SetupClients(t, lazy,
 		WithRandomDatabaseID(),

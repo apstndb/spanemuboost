@@ -67,35 +67,17 @@ func NewLazyRuntimeFromEnvOrStart(backend Backend, options ...Option) (*LazyRunt
 	return lr, nil
 }
 
-// NewLazyRuntimeOptionalEndpoint returns a [LazyRuntime] that attaches to an
-// external endpoint when one is configured in the environment. Otherwise it
-// starts a container on first use, preserving the existing testcontainers path.
-//
-// Deprecated: use [NewLazyRuntimeFromEnvOrStart] to handle endpoint load errors.
-func NewLazyRuntimeOptionalEndpoint(backend Backend, options ...Option) (*LazyRuntime, error) {
-	return NewLazyRuntimeFromEnvOrStart(backend, options...)
-}
-
 func finalizeAttachedOptions(endpoint Endpoint, options ...Option) (*emulatorOptions, error) {
 	base := &emulatorOptions{
 		projectID:             endpoint.ProjectID,
 		instanceID:            endpoint.InstanceID,
 		disableCreateInstance: true,
 	}
-	var err error
 	switch endpoint.Backend {
 	case BackendOmni:
-		base, err = applyOmniOptionsWithBase(base, options...)
-		if err != nil {
-			return nil, err
-		}
-		return finalizeOmniOptions(base)
+		return applyOmniOptionsWithBase(base, options...)
 	case BackendEmulator:
-		base, err = applyOptionsWithBase(base, options...)
-		if err != nil {
-			return nil, err
-		}
-		return finalizeOptions(base)
+		return applyOptionsWithBase(base, options...)
 	default:
 		return nil, fmt.Errorf("unsupported backend %q", endpoint.Backend)
 	}
@@ -111,9 +93,6 @@ func (a *AttachedRuntime) URI() string {
 func (a *AttachedRuntime) ClientOptions() []option.ClientOption {
 	if a == nil {
 		return nil
-	}
-	if a.opts != nil && len(a.opts.clientOptionsForClient) > 0 {
-		return a.opts.clientOptionsForClient
 	}
 	switch a.backend {
 	case BackendOmni:

@@ -15,9 +15,9 @@ func TestAttachedOmniClientsFromEnv(t *testing.T) {
 		t.Skip("set SPANEMUBOOST_ENDPOINT_FILE or SPANEMUBOOST_OMNI_URI to run attached Omni tests")
 	}
 
-	lazy, err := NewLazyRuntimeOptionalEndpoint(BackendOmni)
+	lazy, err := NewLazyRuntimeFromEnvOrStart(BackendOmni)
 	if err != nil {
-		t.Fatalf("NewLazyRuntimeOptionalEndpoint() error = %v", err)
+		t.Fatalf("NewLazyRuntimeFromEnvOrStart() error = %v", err)
 	}
 	clients := SetupClients(t, lazy,
 		WithRandomDatabaseID(),
