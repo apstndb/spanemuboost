@@ -52,7 +52,9 @@ func newEmulator(ctx context.Context, opts *emulatorOptions) (container *tcspann
 	}
 
 	teardown = func() {
-		if err := container.Terminate(context.Background()); err != nil {
+		ctx, cancel := newCloseContext()
+		defer cancel()
+		if err := container.Terminate(ctx); err != nil {
 			log.Printf("failed to terminate Cloud Spanner Emulator: %v", err)
 		}
 	}
@@ -517,6 +519,8 @@ func newClients(ctx context.Context, emulator *tcspanner.Container, opts *emulat
 		DatabaseID:     opts.databaseID,
 		clientOpts:     clientOpts,
 		uri:            emulator.URI(),
+		dropDatabase:   opts.shouldDropDatabase(),
+		dropInstance:   opts.shouldDropInstance(),
 	}, teardown, nil
 }
 

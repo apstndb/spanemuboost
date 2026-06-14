@@ -3,6 +3,7 @@ package spanemuboost
 import (
 	"cmp"
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
@@ -11,6 +12,7 @@ import (
 	"github.com/testcontainers/testcontainers-go"
 	"github.com/testcontainers/testcontainers-go/wait"
 	"google.golang.org/api/option"
+	"google.golang.org/api/option/internaloption"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/credentials/insecure"
@@ -44,9 +46,10 @@ func (o *omniRuntime) URI() string {
 // to the Omni gRPC endpoint without authentication.
 func (o *omniRuntime) ClientOptions() []option.ClientOption {
 	return []option.ClientOption{
-		option.WithEndpoint(o.URI()),
+		option.WithEndpoint("passthrough:///" + o.URI()),
 		option.WithoutAuthentication(),
 		option.WithGRPCDialOption(grpc.WithTransportCredentials(insecure.NewCredentials())),
+		internaloption.SkipDialSettingsValidation(),
 	}
 }
 
@@ -122,7 +125,10 @@ func runOmni(ctx context.Context, options ...Option) (Runtime, error) {
 		return nil, err
 	}
 	if err := bootstrapOmni(ctx, omni, opts); err != nil {
-		logCloseError("close omni after bootstrap failure", omni.Close())
+		closeErr := omni.Close()
+		if closeErr != nil {
+			return nil, errors.Join(wrapOmniBootstrapError(err), closeErr)
+		}
 		return nil, wrapOmniBootstrapError(err)
 	}
 	return omni, nil
@@ -140,7 +146,10 @@ func runOmniWithClients(ctx context.Context, options ...Option) (*RuntimeEnv, er
 	}
 	clients, err := bootstrapAndCreateClientsWithOptions(ctx, omni.URI(), opts, omni.ClientOptions())
 	if err != nil {
-		logCloseError("close omni after client creation failure", omni.Close())
+		closeErr := omni.Close()
+		if closeErr != nil {
+			return nil, errors.Join(wrapOmniBootstrapError(err), closeErr)
+		}
 		return nil, wrapOmniBootstrapError(err)
 	}
 
@@ -242,7 +251,9 @@ func startOmni(ctx context.Context, opts *emulatorOptions) (*omniRuntime, error)
 	if err != nil {
 		// Cleanup must still run if setup failed because ctx was canceled or
 		// timed out, so don't reuse the possibly-dead setup context here.
-		logCloseError("terminate omni container after endpoint lookup failure", container.Terminate(context.Background()))
+		ctx, cancel := newCloseContext()
+		defer cancel()
+		logCloseError("terminate omni container after endpoint lookup failure", container.Terminate(ctx))
 		return nil, err
 	}
 

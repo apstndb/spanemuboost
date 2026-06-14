@@ -2,6 +2,7 @@ package spanemuboost
 
 import (
 	"errors"
+	"fmt"
 	"strings"
 	"sync"
 	"testing"
@@ -775,6 +776,34 @@ func TestClientsAccessors(t *testing.T) {
 	}
 }
 
+func TestClientsClientOptionsReturnsCopy(t *testing.T) {
+	emu := SetupEmulator(t, EnableInstanceAutoConfigOnly())
+	clients := SetupClients(t, emu,
+		WithRandomDatabaseID(),
+	)
+	defer func() {
+		if err := clients.Close(); err != nil {
+			t.Errorf("failed to close clients: %v", err)
+		}
+	}()
+
+	opts := clients.ClientOptions()
+	if len(opts) == 0 {
+		t.Fatal("ClientOptions() returned empty slice")
+	}
+	before := fmt.Sprintf("%T", opts[0])
+
+	first := opts
+	first[0] = option.WithoutAuthentication()
+	if got := clients.ClientOptions(); len(got) != len(opts) {
+		t.Fatalf("ClientOptions() len = %d, want %d", len(got), len(opts))
+	} else if after := fmt.Sprintf("%T", got[0]); after == before {
+		t.Fatal("ClientOptions() mutation leaked")
+	} else if got[0] == nil {
+		t.Fatal("ClientOptions() mutation leaked")
+	}
+}
+
 func TestRuntimePlatformNilHandle(t *testing.T) {
 	_, err := RuntimePlatform(t.Context(), nil)
 	if err == nil {
@@ -1266,4 +1295,57 @@ func TestNewEmulatorAndNewClientsWithDisableAutoConfig(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestNewClientsDropFixedResourcesByDefault(t *testing.T) {
+	t.Run("fixed resources dropped by default on Close", func(t *testing.T) {
+		emu := SetupEmulator(t, EnableInstanceAutoConfigOnly())
+		ctx := t.Context()
+		const dbID = "rollback-deprecated-newclients"
+		ddls := []string{"CREATE TABLE tbl (pk STRING(MAX)) PRIMARY KEY (pk)"}
+
+		clients, _, err := NewClients(ctx, emu.Container(), WithDatabaseID(dbID), WithSetupDDLs(ddls))
+		if err != nil {
+			t.Fatalf("NewClients() error = %v, want nil", err)
+		}
+		if err := clients.Close(); err != nil {
+			t.Fatalf("clients.Close() error = %v, want nil", err)
+		}
+
+		clients2, _, err := NewClients(ctx, emu.Container(), WithDatabaseID(dbID), WithSetupDDLs(ddls))
+		if err != nil {
+			t.Fatalf("second NewClients() error = %v, want nil", err)
+		}
+		defer func() {
+			if err := clients2.Close(); err != nil {
+				t.Errorf("clients2.Close() error = %v", err)
+			}
+		}()
+
+		mustConsumeQuery(t, clients2, "SELECT 1")
+	})
+
+	t.Run("failed setup rolls back created database", func(t *testing.T) {
+		emu := SetupEmulator(t, EnableInstanceAutoConfigOnly())
+		ctx := t.Context()
+		const dbID = "rollback-newclients-on-failure"
+		dmls := []spanner.Statement{spanner.NewStatement("INSERT INTO missing_table (pk) VALUES ('x')")}
+
+		_, _, err := NewClients(ctx, emu.Container(), WithDatabaseID(dbID), WithSetupDDLs([]string{"CREATE TABLE tbl (pk STRING(MAX)) PRIMARY KEY (pk)"}), WithSetupDMLs(dmls))
+		if err == nil {
+			t.Fatal("first NewClients() error = nil, want non-nil")
+		}
+
+		clients, _, err := NewClients(ctx, emu.Container(), WithDatabaseID(dbID), WithSetupDDLs([]string{"CREATE TABLE tbl (pk STRING(MAX)) PRIMARY KEY (pk)"}))
+		if err != nil {
+			t.Fatalf("second NewClients() error = %v, want nil", err)
+		}
+		defer func() {
+			if err := clients.Close(); err != nil {
+				t.Errorf("clients.Close() error = %v", err)
+			}
+		}()
+
+		mustConsumeQuery(t, clients, "SELECT 1")
+	})
 }
