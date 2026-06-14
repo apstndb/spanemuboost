@@ -794,13 +794,13 @@ func TestClientsClientOptionsReturnsCopy(t *testing.T) {
 	before := fmt.Sprintf("%T", opts[0])
 
 	first := opts
-	first[0] = option.WithoutAuthentication()
+	first[0] = nil
 	if got := clients.ClientOptions(); len(got) != len(opts) {
 		t.Fatalf("ClientOptions() len = %d, want %d", len(got), len(opts))
+	} else if got[0] == nil {
+		t.Fatal("ClientOptions() mutation leaked: first option is nil")
 	} else if after := fmt.Sprintf("%T", got[0]); after != before {
 		t.Fatalf("ClientOptions() mutation leaked: first option type = %s, want %s", after, before)
-	} else if got[0] == nil {
-		t.Fatal("ClientOptions() mutation leaked")
 	}
 }
 

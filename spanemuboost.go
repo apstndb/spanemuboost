@@ -248,10 +248,11 @@ func NewEmulatorWithClients(ctx context.Context, options ...Option) (emulator *t
 		emulatorTeardown()
 		return nil, nil, nil, err
 	}
+	disableSchemaTeardownUnlessForced(opts, clients)
 
 	return emulator, clients, func() {
 		if clients != nil {
-			_ = clients.Close()
+			logCloseError("close clients", clients.Close())
 		}
 		emulatorTeardown()
 	}, nil
@@ -274,7 +275,7 @@ func NewClients(ctx context.Context, emulator *tcspanner.Container, options ...O
 
 	return clients, func() {
 		if clients != nil {
-			_ = clients.Close()
+			logCloseError("close clients", clients.Close())
 		}
 	}, nil
 }
