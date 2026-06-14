@@ -797,8 +797,8 @@ func TestClientsClientOptionsReturnsCopy(t *testing.T) {
 	first[0] = option.WithoutAuthentication()
 	if got := clients.ClientOptions(); len(got) != len(opts) {
 		t.Fatalf("ClientOptions() len = %d, want %d", len(got), len(opts))
-	} else if after := fmt.Sprintf("%T", got[0]); after == before {
-		t.Fatal("ClientOptions() mutation leaked")
+	} else if after := fmt.Sprintf("%T", got[0]); after != before {
+		t.Fatalf("ClientOptions() mutation leaked: first option type = %s, want %s", after, before)
 	} else if got[0] == nil {
 		t.Fatal("ClientOptions() mutation leaked")
 	}
@@ -1304,7 +1304,7 @@ func TestNewClientsDropFixedResourcesByDefault(t *testing.T) {
 		const dbID = "rollback-deprecated-newclients"
 		ddls := []string{"CREATE TABLE tbl (pk STRING(MAX)) PRIMARY KEY (pk)"}
 
-		clients, _, err := NewClients(ctx, emu.Container(), WithDatabaseID(dbID), WithSetupDDLs(ddls))
+		clients, _, err := NewClients(ctx, emu.Container(), EnableDatabaseAutoConfigOnly(), WithDatabaseID(dbID), WithSetupDDLs(ddls))
 		if err != nil {
 			t.Fatalf("NewClients() error = %v, want nil", err)
 		}
@@ -1312,7 +1312,7 @@ func TestNewClientsDropFixedResourcesByDefault(t *testing.T) {
 			t.Fatalf("clients.Close() error = %v, want nil", err)
 		}
 
-		clients2, _, err := NewClients(ctx, emu.Container(), WithDatabaseID(dbID), WithSetupDDLs(ddls))
+		clients2, _, err := NewClients(ctx, emu.Container(), EnableDatabaseAutoConfigOnly(), WithDatabaseID(dbID), WithSetupDDLs(ddls))
 		if err != nil {
 			t.Fatalf("second NewClients() error = %v, want nil", err)
 		}
@@ -1331,12 +1331,12 @@ func TestNewClientsDropFixedResourcesByDefault(t *testing.T) {
 		const dbID = "rollback-newclients-on-failure"
 		dmls := []spanner.Statement{spanner.NewStatement("INSERT INTO missing_table (pk) VALUES ('x')")}
 
-		_, _, err := NewClients(ctx, emu.Container(), WithDatabaseID(dbID), WithSetupDDLs([]string{"CREATE TABLE tbl (pk STRING(MAX)) PRIMARY KEY (pk)"}), WithSetupDMLs(dmls))
+		_, _, err := NewClients(ctx, emu.Container(), EnableDatabaseAutoConfigOnly(), WithDatabaseID(dbID), WithSetupDDLs([]string{"CREATE TABLE tbl (pk STRING(MAX)) PRIMARY KEY (pk)"}), WithSetupDMLs(dmls))
 		if err == nil {
 			t.Fatal("first NewClients() error = nil, want non-nil")
 		}
 
-		clients, _, err := NewClients(ctx, emu.Container(), WithDatabaseID(dbID), WithSetupDDLs([]string{"CREATE TABLE tbl (pk STRING(MAX)) PRIMARY KEY (pk)"}))
+		clients, _, err := NewClients(ctx, emu.Container(), EnableDatabaseAutoConfigOnly(), WithDatabaseID(dbID), WithSetupDDLs([]string{"CREATE TABLE tbl (pk STRING(MAX)) PRIMARY KEY (pk)"}))
 		if err != nil {
 			t.Fatalf("second NewClients() error = %v, want nil", err)
 		}
