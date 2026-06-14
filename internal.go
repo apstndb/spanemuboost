@@ -347,19 +347,14 @@ func bootstrapAndCreateClients(ctx context.Context, emu *Emulator, opts *emulato
 }
 
 func bootstrapAndCreateClientsWithOptions(ctx context.Context, uri string, opts *emulatorOptions, clientOpts []option.ClientOption) (_ *Clients, retErr error) {
-	var instanceCli *instance.InstanceAdminClient
-	if !opts.disableCreateInstance {
-		var err error
-		instanceCli, err = instance.NewInstanceAdminClient(ctx, clientOpts...)
-		if err != nil {
-			return nil, err
-		}
+	instanceCli, err := instance.NewInstanceAdminClient(ctx, clientOpts...)
+	if err != nil {
+		return nil, err
 	}
 	var (
 		dbCli            *database.DatabaseAdminClient
 		client           *spanner.Client
 		createdResources createdSchemaResources
-		err              error
 	)
 	defer func() {
 		if retErr != nil {
@@ -372,9 +367,7 @@ func bootstrapAndCreateClientsWithOptions(ctx context.Context, uri string, opts 
 			if dbCli != nil {
 				logCloseError("close database admin client", dbCli.Close())
 			}
-			if instanceCli != nil {
-				logCloseError("close instance admin client", instanceCli.Close())
-			}
+			logCloseError("close instance admin client", instanceCli.Close())
 		}
 	}()
 
