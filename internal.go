@@ -392,6 +392,7 @@ func bootstrapAndCreateClientsWithOptions(ctx context.Context, uri string, opts 
 		}
 	}
 
+	forceTeardown := opts.schemaTeardown != nil && *opts.schemaTeardown
 	return &Clients{
 		InstanceClient: instanceCli,
 		DatabaseClient: dbCli,
@@ -401,8 +402,8 @@ func bootstrapAndCreateClientsWithOptions(ctx context.Context, uri string, opts 
 		DatabaseID:     opts.databaseID,
 		clientOpts:     clientOpts,
 		uri:            uri,
-		dropDatabase:   createdResources.database && opts.shouldDropDatabase(),
-		dropInstance:   createdResources.instance && opts.shouldDropInstance(),
+		dropDatabase:   opts.shouldDropDatabase() && (createdResources.database || forceTeardown),
+		dropInstance:   opts.shouldDropInstance() && (createdResources.instance || forceTeardown),
 	}, nil
 }
 

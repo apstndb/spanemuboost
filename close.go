@@ -46,10 +46,17 @@ func dropDatabaseWithRetry(ctx context.Context, dbCli *database.DatabaseAdminCli
 		if attempt == dropDatabaseMaxAttempts {
 			break
 		}
+		timer := time.NewTimer(time.Duration(attempt) * 5 * time.Second)
 		select {
 		case <-ctx.Done():
+			if !timer.Stop() {
+				select {
+				case <-timer.C:
+				default:
+				}
+			}
 			return errors.Join(fmt.Errorf("drop database %s: %w", dbPath, lastErr), ctx.Err())
-		case <-time.After(time.Duration(attempt) * 5 * time.Second):
+		case <-timer.C:
 		}
 	}
 	return fmt.Errorf("drop database %s after %d attempts: %w", dbPath, dropDatabaseMaxAttempts, lastErr)

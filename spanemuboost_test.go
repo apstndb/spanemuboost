@@ -8,11 +8,14 @@ import (
 	"testing"
 
 	"cloud.google.com/go/spanner"
+	database "cloud.google.com/go/spanner/admin/database/apiv1"
 	"cloud.google.com/go/spanner/admin/database/apiv1/databasepb"
 	"github.com/google/go-cmp/cmp"
 	dcontainer "github.com/moby/moby/api/types/container"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"google.golang.org/api/option"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 type closeCountingRuntime struct {
@@ -620,6 +623,31 @@ func TestSchemaTeardown(t *testing.T) {
 		}
 		if err := reconnectClients.Close(); err != nil {
 			t.Errorf("failed to close reconnect clients: %v", err)
+		}
+
+		forceClients, err := OpenClients(t.Context(), emu,
+			WithDatabaseID("skip-teardown"),
+			ForceSchemaTeardown(),
+		)
+		if err != nil {
+			t.Fatalf("OpenClients() with ForceSchemaTeardown error = %v, want nil", err)
+		}
+		forceDatabasePath := forceClients.DatabasePath()
+		if err := forceClients.Close(); err != nil {
+			t.Errorf("failed to close forced teardown clients: %v", err)
+		}
+
+		dbCli, err := database.NewDatabaseAdminClient(t.Context(), emu.ClientOptions()...)
+		if err != nil {
+			t.Fatalf("NewDatabaseAdminClient() error = %v", err)
+		}
+		defer func() {
+			if err := dbCli.Close(); err != nil {
+				t.Errorf("failed to close database admin client: %v", err)
+			}
+		}()
+		if _, err := dbCli.GetDatabase(t.Context(), &databasepb.GetDatabaseRequest{Name: forceDatabasePath}); status.Code(err) != codes.NotFound {
+			t.Fatalf("GetDatabase() after ForceSchemaTeardown error = %v, want NotFound", err)
 		}
 	})
 
