@@ -144,6 +144,11 @@ spanemuboost serve omni --endpoint-file /tmp/omni-endpoint.json
 spanemuboost stop --endpoint-file /tmp/omni-endpoint.json
 ```
 
+By default, `serve omni` skips instance and database bootstrap so only the
+built-in `spanner-info` database exists until clients create their own. Pass
+`--with-default-database` to create the default `emulator-database` at serve
+time (legacy behavior).
+
 The endpoint file is owned by `serve`: it is written on startup (including the
 serve process PID for lifecycle management) and removed on exit. Unset
 `SPANEMUBOOST_ENDPOINT_FILE` after stopping the lifecycle manager.

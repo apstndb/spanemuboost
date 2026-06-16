@@ -180,12 +180,10 @@ func bootstrapInstance(ctx context.Context, opts *emulatorOptions, instanceCli *
 }
 
 // bootstrapDatabase creates the database (with DDLs) or applies DDLs to an existing database.
+// It reports whether this call created the database.
 func bootstrapDatabase(ctx context.Context, opts *emulatorOptions, dbCli *database.DatabaseAdminClient) (bool, error) {
 	if !opts.disableCreateDatabase {
-		if err := createDatabase(ctx, opts, dbCli); err != nil {
-			return false, err
-		}
-		return true, nil
+		return createDatabase(ctx, opts, dbCli)
 	}
 	if len(opts.setupDDLs) > 0 {
 		return false, updateDDLs(ctx, opts, dbCli)
@@ -281,28 +279,37 @@ func bootstrapWithManagedClientConfig(ctx context.Context, opts *emulatorOptions
 	return executeDMLsWithClient(ctx, opts, client)
 }
 
-func createDatabase(ctx context.Context, opts *emulatorOptions, dbCli *database.DatabaseAdminClient) error {
+func createDatabase(ctx context.Context, opts *emulatorOptions, dbCli *database.DatabaseAdminClient) (bool, error) {
 	var createStmt string
 	if opts.databaseDialect != databasepb.DatabaseDialect_POSTGRESQL {
 		createStmt = fmt.Sprintf("CREATE DATABASE `%v`", opts.databaseID)
 	} else {
 		createStmt = fmt.Sprintf(`CREATE DATABASE "%s"`, strings.ReplaceAll(opts.databaseID, `"`, `""`))
 	}
-	createDBOp, err := dbCli.CreateDatabase(ctx, &databasepb.CreateDatabaseRequest{
-		Parent:          opts.InstancePath(),
-		CreateStatement: createStmt,
-		DatabaseDialect: opts.databaseDialect,
-		ExtraStatements: opts.setupDDLs,
-	})
-	if err != nil {
-		return err
+	instancePath := opts.InstancePath()
+	var err error
+	if lockErr := withInstanceAdminLock(ctx, instancePath, func() {
+		createDBOp, createErr := dbCli.CreateDatabase(ctx, &databasepb.CreateDatabaseRequest{
+			Parent:          instancePath,
+			CreateStatement: createStmt,
+			DatabaseDialect: opts.databaseDialect,
+			ExtraStatements: opts.setupDDLs,
+		})
+		if createErr != nil {
+			err = createErr
+			return
+		}
+		_, err = createDBOp.Wait(ctx)
+	}); lockErr != nil {
+		return false, lockErr
 	}
-
-	_, err = createDBOp.Wait(ctx)
 	if err != nil {
-		return err
+		if status.Code(err) == codes.AlreadyExists {
+			return false, nil
+		}
+		return false, err
 	}
-	return nil
+	return true, nil
 }
 
 func createInstance(ctx context.Context, opts *emulatorOptions, instanceCli *instance.InstanceAdminClient) error {
@@ -385,6 +392,7 @@ func bootstrapAndCreateClientsWithOptions(ctx context.Context, uri string, opts 
 		}
 	}
 
+	forceTeardown := opts.schemaTeardown != nil && *opts.schemaTeardown
 	return &Clients{
 		InstanceClient: instanceCli,
 		DatabaseClient: dbCli,
@@ -394,8 +402,8 @@ func bootstrapAndCreateClientsWithOptions(ctx context.Context, uri string, opts 
 		DatabaseID:     opts.databaseID,
 		clientOpts:     clientOpts,
 		uri:            uri,
-		dropDatabase:   opts.shouldDropDatabase(),
-		dropInstance:   opts.shouldDropInstance(),
+		dropDatabase:   opts.shouldDropDatabase() && (createdResources.database || forceTeardown),
+		dropInstance:   opts.shouldDropInstance() && (createdResources.instance || forceTeardown),
 	}, nil
 }
 
@@ -431,11 +439,8 @@ func rollbackCreatedResources(instanceCli *instance.InstanceAdminClient, dbCli *
 		if dropDatabase {
 			if dbCli == nil {
 				errs = append(errs, fmt.Errorf("rollback drop database %s: database admin client is nil", opts.DatabasePath()))
-			} else {
-				err := dbCli.DropDatabase(ctx, &databasepb.DropDatabaseRequest{Database: opts.DatabasePath()})
-				if err != nil {
-					errs = append(errs, fmt.Errorf("rollback drop database %s: %w", opts.DatabasePath(), err))
-				}
+			} else if err := dropDatabaseWithRetry(ctx, dbCli, opts.DatabasePath()); err != nil {
+				errs = append(errs, fmt.Errorf("rollback %w", err))
 			}
 		}
 		return errors.Join(errs...)
@@ -446,9 +451,8 @@ func rollbackCreatedResources(instanceCli *instance.InstanceAdminClient, dbCli *
 			errs = append(errs, fmt.Errorf("rollback drop database %s: database admin client is nil", opts.DatabasePath()))
 			return errors.Join(errs...)
 		}
-		err := dbCli.DropDatabase(ctx, &databasepb.DropDatabaseRequest{Database: opts.DatabasePath()})
-		if err != nil {
-			errs = append(errs, fmt.Errorf("rollback drop database %s: %w", opts.DatabasePath(), err))
+		if err := dropDatabaseWithRetry(ctx, dbCli, opts.DatabasePath()); err != nil {
+			errs = append(errs, fmt.Errorf("rollback %w", err))
 		}
 	}
 	return errors.Join(errs...)

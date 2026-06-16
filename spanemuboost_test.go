@@ -8,11 +8,14 @@ import (
 	"testing"
 
 	"cloud.google.com/go/spanner"
+	database "cloud.google.com/go/spanner/admin/database/apiv1"
 	"cloud.google.com/go/spanner/admin/database/apiv1/databasepb"
 	"github.com/google/go-cmp/cmp"
 	dcontainer "github.com/moby/moby/api/types/container"
 	ocispec "github.com/opencontainers/image-spec/specs-go/v1"
 	"google.golang.org/api/option"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 type closeCountingRuntime struct {
@@ -595,14 +598,56 @@ func TestSchemaTeardown(t *testing.T) {
 			)
 			mustConsumeQuery(t, clients, "SELECT 1")
 		})
-		// Database still exists, so re-creating should fail.
-		// On error OpenClients returns (nil, err), so no Close call is needed.
-		_, err := OpenClients(t.Context(), emu,
+
+		// Database still exists, so auto-create treats AlreadyExists as an
+		// already-bootstrapped database and must not re-apply the same DDLs.
+		clients, err := OpenClients(t.Context(), emu,
 			WithDatabaseID("skip-teardown"),
 			WithSetupDDLs(ddls),
 		)
-		if err == nil {
-			t.Fatal("expected 'already exists' error, but got nil")
+		if err != nil {
+			t.Fatalf("OpenClients() existing database error = %v, want nil", err)
+		}
+		mustConsumeQuery(t, clients, "SELECT COUNT(*) FROM tbl")
+		if err := clients.Close(); err != nil {
+			t.Errorf("failed to close existing database clients: %v", err)
+		}
+
+		// Closing clients that reused the existing database must not drop it.
+		reconnectClients, err := OpenClients(t.Context(), emu,
+			WithDatabaseID("skip-teardown"),
+			DisableAutoConfig(),
+		)
+		if err != nil {
+			t.Fatalf("reconnect existing database error = %v, want nil", err)
+		}
+		if err := reconnectClients.Close(); err != nil {
+			t.Errorf("failed to close reconnect clients: %v", err)
+		}
+
+		forceClients, err := OpenClients(t.Context(), emu,
+			WithDatabaseID("skip-teardown"),
+			ForceSchemaTeardown(),
+		)
+		if err != nil {
+			t.Fatalf("OpenClients() with ForceSchemaTeardown error = %v, want nil", err)
+		}
+		forceDatabasePath := forceClients.DatabasePath()
+		if err := forceClients.Close(); err != nil {
+			t.Errorf("failed to close forced teardown clients: %v", err)
+		}
+
+		dbCli, err := database.NewDatabaseAdminClient(t.Context(), emu.ClientOptions()...)
+		if err != nil {
+			t.Fatalf("NewDatabaseAdminClient() error = %v", err)
+		}
+		defer func() {
+			if err := dbCli.Close(); err != nil {
+				t.Errorf("failed to close database admin client: %v", err)
+			}
+		}()
+		if _, err := dbCli.GetDatabase(t.Context(), &databasepb.GetDatabaseRequest{Name: forceDatabasePath}); status.Code(err) != codes.NotFound {
+			t.Fatalf("GetDatabase() after ForceSchemaTeardown error = %v, want NotFound", err)
 		}
 	})
 

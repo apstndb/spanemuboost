@@ -8,7 +8,6 @@ import (
 
 	"cloud.google.com/go/spanner"
 	database "cloud.google.com/go/spanner/admin/database/apiv1"
-	"cloud.google.com/go/spanner/admin/database/apiv1/databasepb"
 	instance "cloud.google.com/go/spanner/admin/instance/apiv1"
 	"cloud.google.com/go/spanner/admin/instance/apiv1/instancepb"
 	tcspanner "github.com/testcontainers/testcontainers-go/modules/gcloud/spanner"
@@ -88,28 +87,26 @@ func (c *Clients) Close() error {
 			c.Client.Close()
 		}
 
-		if c.dropInstance || c.dropDatabase {
+		if c.dropInstance {
 			ctx, cancel := newCloseContext()
-			defer cancel()
-			if c.dropInstance {
-				// Deleting the instance also removes all databases within it,
-				// so there is no need to drop the database separately.
-				if c.InstanceClient == nil {
-					errs = append(errs, fmt.Errorf("delete instance %s: instance admin client is nil", c.InstancePath()))
-				} else if err := c.InstanceClient.DeleteInstance(ctx, &instancepb.DeleteInstanceRequest{
-					Name: c.InstancePath(),
-				}); err != nil {
-					errs = append(errs, fmt.Errorf("delete instance %s: %w", c.InstancePath(), err))
-				}
-			} else if c.dropDatabase {
-				if c.DatabaseClient == nil {
-					errs = append(errs, fmt.Errorf("drop database %s: database admin client is nil", c.DatabasePath()))
-				} else if err := c.DatabaseClient.DropDatabase(ctx, &databasepb.DropDatabaseRequest{
-					Database: c.DatabasePath(),
-				}); err != nil {
-					errs = append(errs, fmt.Errorf("drop database %s: %w", c.DatabasePath(), err))
-				}
+			// Deleting the instance also removes all databases within it,
+			// so there is no need to drop the database separately.
+			if c.InstanceClient == nil {
+				errs = append(errs, fmt.Errorf("delete instance %s: instance admin client is nil", c.InstancePath()))
+			} else if err := c.InstanceClient.DeleteInstance(ctx, &instancepb.DeleteInstanceRequest{
+				Name: c.InstancePath(),
+			}); err != nil {
+				errs = append(errs, fmt.Errorf("delete instance %s: %w", c.InstancePath(), err))
 			}
+			cancel()
+		} else if c.dropDatabase {
+			ctx, cancel := newDropDatabaseContext()
+			if c.DatabaseClient == nil {
+				errs = append(errs, fmt.Errorf("drop database %s: database admin client is nil", c.DatabasePath()))
+			} else if err := dropDatabaseWithRetry(ctx, c.DatabaseClient, c.DatabasePath()); err != nil {
+				errs = append(errs, err)
+			}
+			cancel()
 		}
 
 		if c.DatabaseClient != nil {

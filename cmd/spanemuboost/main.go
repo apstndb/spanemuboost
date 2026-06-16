@@ -57,11 +57,12 @@ func usage() {
 	fmt.Fprintf(os.Stderr, `spanemuboost manages long-lived Spanner test backends.
 
 Usage:
-  spanemuboost serve <emulator|omni> --endpoint-file path [--pid-file path]
+  spanemuboost serve <emulator|omni> --endpoint-file path [--pid-file path] [--with-default-database]
   spanemuboost stop --endpoint-file path [--pid-file path]
 
 Examples:
   spanemuboost serve omni --endpoint-file /tmp/omni-endpoint.json
+  spanemuboost serve omni --endpoint-file /tmp/omni-endpoint.json --with-default-database
   spanemuboost stop --endpoint-file /tmp/omni-endpoint.json
   SPANEMUBOOST_ENDPOINT_FILE=/tmp/omni-endpoint.json go test ./...
 
