@@ -595,14 +595,31 @@ func TestSchemaTeardown(t *testing.T) {
 			)
 			mustConsumeQuery(t, clients, "SELECT 1")
 		})
-		// Database still exists, so re-creating should fail.
-		// On error OpenClients returns (nil, err), so no Close call is needed.
-		_, err := OpenClients(t.Context(), emu,
+
+		// Database still exists, so auto-create treats AlreadyExists as an
+		// already-bootstrapped database and must not re-apply the same DDLs.
+		clients, err := OpenClients(t.Context(), emu,
 			WithDatabaseID("skip-teardown"),
 			WithSetupDDLs(ddls),
 		)
-		if err == nil {
-			t.Fatal("expected 'already exists' error, but got nil")
+		if err != nil {
+			t.Fatalf("OpenClients() existing database error = %v, want nil", err)
+		}
+		mustConsumeQuery(t, clients, "SELECT COUNT(*) FROM tbl")
+		if err := clients.Close(); err != nil {
+			t.Errorf("failed to close existing database clients: %v", err)
+		}
+
+		// Closing clients that reused the existing database must not drop it.
+		reconnectClients, err := OpenClients(t.Context(), emu,
+			WithDatabaseID("skip-teardown"),
+			DisableAutoConfig(),
+		)
+		if err != nil {
+			t.Fatalf("reconnect existing database error = %v, want nil", err)
+		}
+		if err := reconnectClients.Close(); err != nil {
+			t.Errorf("failed to close reconnect clients: %v", err)
 		}
 	})
 

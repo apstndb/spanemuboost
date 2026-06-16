@@ -9,6 +9,8 @@ import (
 
 	database "cloud.google.com/go/spanner/admin/database/apiv1"
 	"cloud.google.com/go/spanner/admin/database/apiv1/databasepb"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 const closeTimeout = 30 * time.Second
@@ -38,7 +40,7 @@ func dropDatabaseWithRetry(ctx context.Context, dbCli *database.DatabaseAdminCli
 		if lockErr != nil {
 			lastErr = lockErr
 		}
-		if lastErr == nil {
+		if dropDatabaseComplete(lastErr) {
 			return nil
 		}
 		if attempt == dropDatabaseMaxAttempts {
@@ -51,6 +53,10 @@ func dropDatabaseWithRetry(ctx context.Context, dbCli *database.DatabaseAdminCli
 		}
 	}
 	return fmt.Errorf("drop database %s after %d attempts: %w", dbPath, dropDatabaseMaxAttempts, lastErr)
+}
+
+func dropDatabaseComplete(err error) bool {
+	return err == nil || status.Code(err) == codes.NotFound
 }
 
 type closeState struct {

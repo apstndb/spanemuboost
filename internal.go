@@ -180,12 +180,10 @@ func bootstrapInstance(ctx context.Context, opts *emulatorOptions, instanceCli *
 }
 
 // bootstrapDatabase creates the database (with DDLs) or applies DDLs to an existing database.
+// It reports whether this call created the database.
 func bootstrapDatabase(ctx context.Context, opts *emulatorOptions, dbCli *database.DatabaseAdminClient) (bool, error) {
 	if !opts.disableCreateDatabase {
-		if err := createDatabase(ctx, opts, dbCli); err != nil {
-			return false, err
-		}
-		return true, nil
+		return createDatabase(ctx, opts, dbCli)
 	}
 	if len(opts.setupDDLs) > 0 {
 		return false, updateDDLs(ctx, opts, dbCli)
@@ -281,7 +279,7 @@ func bootstrapWithManagedClientConfig(ctx context.Context, opts *emulatorOptions
 	return executeDMLsWithClient(ctx, opts, client)
 }
 
-func createDatabase(ctx context.Context, opts *emulatorOptions, dbCli *database.DatabaseAdminClient) error {
+func createDatabase(ctx context.Context, opts *emulatorOptions, dbCli *database.DatabaseAdminClient) (bool, error) {
 	var createStmt string
 	if opts.databaseDialect != databasepb.DatabaseDialect_POSTGRESQL {
 		createStmt = fmt.Sprintf("CREATE DATABASE `%v`", opts.databaseID)
@@ -303,18 +301,15 @@ func createDatabase(ctx context.Context, opts *emulatorOptions, dbCli *database.
 		}
 		_, err = createDBOp.Wait(ctx)
 	}); lockErr != nil {
-		return lockErr
+		return false, lockErr
 	}
 	if err != nil {
 		if status.Code(err) == codes.AlreadyExists {
-			if len(opts.setupDDLs) > 0 {
-				return updateDDLs(ctx, opts, dbCli)
-			}
-			return nil
+			return false, nil
 		}
-		return err
+		return false, err
 	}
-	return nil
+	return true, nil
 }
 
 func createInstance(ctx context.Context, opts *emulatorOptions, instanceCli *instance.InstanceAdminClient) error {
@@ -406,8 +401,8 @@ func bootstrapAndCreateClientsWithOptions(ctx context.Context, uri string, opts 
 		DatabaseID:     opts.databaseID,
 		clientOpts:     clientOpts,
 		uri:            uri,
-		dropDatabase:   opts.shouldDropDatabase(),
-		dropInstance:   opts.shouldDropInstance(),
+		dropDatabase:   createdResources.database && opts.shouldDropDatabase(),
+		dropInstance:   createdResources.instance && opts.shouldDropInstance(),
 	}, nil
 }
 

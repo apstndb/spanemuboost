@@ -6,6 +6,9 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 )
 
 func TestWithInstanceAdminLockCancelsWhileWaiting(t *testing.T) {
@@ -44,5 +47,17 @@ func TestDropDatabaseRetryBudget(t *testing.T) {
 	}
 	if got := dropDatabaseRetryBudget(); got <= closeTimeout {
 		t.Fatalf("drop retry budget %v must exceed close timeout %v", got, closeTimeout)
+	}
+}
+
+func TestDropDatabaseComplete(t *testing.T) {
+	if !dropDatabaseComplete(nil) {
+		t.Fatal("dropDatabaseComplete(nil) = false, want true")
+	}
+	if !dropDatabaseComplete(status.Error(codes.NotFound, "missing")) {
+		t.Fatal("dropDatabaseComplete(NotFound) = false, want true")
+	}
+	if dropDatabaseComplete(status.Error(codes.Unavailable, "retry")) {
+		t.Fatal("dropDatabaseComplete(Unavailable) = true, want false")
 	}
 }
