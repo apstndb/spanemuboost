@@ -52,7 +52,9 @@ func newEmulator(ctx context.Context, opts *emulatorOptions) (container *tcspann
 	}
 
 	teardown = func() {
-		if err := container.Terminate(context.Background()); err != nil {
+		ctx, cancel := newCloseContext()
+		defer cancel()
+		if err := container.Terminate(ctx); err != nil {
 			log.Printf("failed to terminate Cloud Spanner Emulator: %v", err)
 		}
 	}
@@ -469,61 +471,9 @@ func logCloseError(action string, err error) {
 	}
 }
 
-func newClients(ctx context.Context, emulator *tcspanner.Container, opts *emulatorOptions) (clients *Clients, teardown func(), err error) {
-	clientOpts := defaultClientOpts(emulator)
-	instanceCli, err := instance.NewInstanceAdminClient(ctx, clientOpts...)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	instanceCliTeardown := func() {
-		if err := instanceCli.Close(); err != nil {
-			log.Printf("failed to instanceAdminClient.Close(): %v", err)
-		}
-	}
-	teardown = instanceCliTeardown
-
-	dbCli, err := database.NewDatabaseAdminClient(ctx, clientOpts...)
-	if err != nil {
-		teardown()
-		return nil, nil, err
-	}
-
-	dbCliTeardown := func() {
-		if err := dbCli.Close(); err != nil {
-			log.Printf("failed to databaseAdminClient.Close(): %v", err)
-		}
-		instanceCliTeardown()
-	}
-	teardown = dbCliTeardown
-
-	client, err := spanner.NewClientWithConfig(ctx, opts.DatabasePath(), *opts.clientConfig, slices.Concat(clientOpts, opts.clientOptionsForClient)...)
-	if err != nil {
-		teardown()
-		return nil, nil, err
-	}
-
-	teardown = func() {
-		client.Close()
-		dbCliTeardown()
-	}
-
-	return &Clients{
-		InstanceClient: instanceCli,
-		DatabaseClient: dbCli,
-		Client:         client,
-		ProjectID:      opts.projectID,
-		InstanceID:     opts.instanceID,
-		DatabaseID:     opts.databaseID,
-		clientOpts:     clientOpts,
-		uri:            emulator.URI(),
-	}, teardown, nil
-}
-
 // defaultClientOpts returns client options for connecting to the emulator.
-// It is the shared implementation for [Emulator.ClientOptions] and the deprecated
-// newClients path. Once the deprecated path is removed, this function should be
-// inlined into [Emulator.ClientOptions].
+// It is the shared implementation for [Emulator.ClientOptions] and deprecated
+// public helpers that still accept the testcontainers emulator type.
 func defaultClientOpts(emulator *tcspanner.Container) []option.ClientOption {
 	return []option.ClientOption{
 		// passthrough:/// tells gRPC to use the address as-is without DNS resolution.

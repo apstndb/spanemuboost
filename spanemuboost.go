@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 
 	"cloud.google.com/go/spanner"
 	database "cloud.google.com/go/spanner/admin/database/apiv1"
@@ -32,6 +33,8 @@ const (
 // because the emulator container owns the resource lifecycle;
 // use [ForceSchemaTeardown] to override.
 type Clients struct {
+	// InstanceClient enables instance-level administrative operations.
+	// For Omni, instance lifecycle operations are backend-limited and may fail.
 	InstanceClient *instance.InstanceAdminClient
 	DatabaseClient *database.DatabaseAdminClient
 	Client         *spanner.Client
@@ -58,7 +61,7 @@ func (c *Clients) DatabasePath() string { return databasePath(c.ProjectID, c.Ins
 // (e.g., with custom interceptors) against the same emulator without holding a
 // separate [*Emulator] reference.
 func (c *Clients) ClientOptions() []option.ClientOption {
-	return c.clientOpts
+	return slices.Clone(c.clientOpts)
 }
 
 // URI returns the gRPC endpoint (host:port) of the emulator this [Clients]
@@ -240,19 +243,17 @@ func NewEmulatorWithClients(ctx context.Context, options ...Option) (emulator *t
 		return nil, nil, nil, err
 	}
 
-	if err = bootstrap(ctx, opts, defaultClientOpts(emulator)...); err != nil {
-		emulatorTeardown()
-		return nil, nil, nil, err
-	}
-
-	clients, clientsTeardown, err := newClients(ctx, emulator, opts)
+	clients, err = bootstrapAndCreateClientsWithOptions(ctx, emulator.URI(), opts, defaultClientOpts(emulator))
 	if err != nil {
 		emulatorTeardown()
 		return nil, nil, nil, err
 	}
+	disableSchemaTeardownUnlessForced(opts, clients)
 
 	return emulator, clients, func() {
-		clientsTeardown()
+		if clients != nil {
+			logCloseError("close clients", clients.Close())
+		}
 		emulatorTeardown()
 	}, nil
 }
@@ -267,9 +268,14 @@ func NewClients(ctx context.Context, emulator *tcspanner.Container, options ...O
 		return nil, nil, err
 	}
 
-	if err := bootstrap(ctx, opts, defaultClientOpts(emulator)...); err != nil {
+	clients, err = bootstrapAndCreateClientsWithOptions(ctx, emulator.URI(), opts, defaultClientOpts(emulator))
+	if err != nil {
 		return nil, nil, err
 	}
 
-	return newClients(ctx, emulator, opts)
+	return clients, func() {
+		if clients != nil {
+			logCloseError("close clients", clients.Close())
+		}
+	}, nil
 }
