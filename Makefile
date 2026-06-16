@@ -4,7 +4,7 @@
 # CI selection stays easy to audit when smoke coverage changes. Match either the
 # top-level test name or one of its subtests.
 EMULATOR_SMOKE_TEST_PATTERN = ^(TestRunEmulatorWithClients|TestSetupEmulatorAndSetupClients|TestRuntimePlatformWithStartedRuntime|TestLazyRuntimeEmulatorWithSetupClients)($$|/)
-OMNI_SMOKE_TEST_PATTERN = ^(TestRunOmni|TestRunOmniWithClients|TestOpenOmniClients|TestOpenOmniClientsReuseDefaultDatabase|TestOpenOmniClientsAllowDatabaseOverride|TestSetupClientsWithOmni|TestLazyRuntimeWithOmni)($$|/)
+OMNI_SMOKE_TEST_PATTERN = ^(TestRunOmni|TestRunOmniWithClients|TestOpenOmniClients|TestOpenOmniClientsReuseDefaultDatabase|TestOpenOmniClientsAllowDatabaseOverride|TestSetupClientsWithOmni|TestLazyRuntimeWithOmni|TestOpenOmniClientsRollsBackCreatedDatabaseOnFailure)($$|/)
 
 test:
 	go test -v ./...
