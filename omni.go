@@ -234,6 +234,9 @@ func finalizeOmniOptions(opts *emulatorOptions) (*emulatorOptions, error) {
 	if err := applyContainerProviderEnv(opts); err != nil {
 		return nil, err
 	}
+	if err := validateSetupFileDescriptorSet(opts); err != nil {
+		return nil, err
+	}
 	return opts, nil
 }
 

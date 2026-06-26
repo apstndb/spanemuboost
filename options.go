@@ -477,7 +477,7 @@ func (o *emulatorOptions) shouldDropDatabase() bool {
 }
 
 func (o *emulatorOptions) hasSetupDDLWork() bool {
-	return len(o.setupDDLs) > 0 || len(o.setupFileDescriptorSet) > 0
+	return len(o.setupDDLs) > 0
 }
 
 // shouldDropResource returns whether a resource should be dropped on Close.
@@ -571,7 +571,21 @@ func finalizeOptions(opts *emulatorOptions) (*emulatorOptions, error) {
 		return nil, err
 	}
 
+	if err := validateSetupFileDescriptorSet(opts); err != nil {
+		return nil, err
+	}
+
 	return opts, nil
+}
+
+func validateSetupFileDescriptorSet(opts *emulatorOptions) error {
+	if len(opts.setupFileDescriptorSet) == 0 || len(opts.setupDDLs) > 0 {
+		return nil
+	}
+	if !opts.disableCreateDatabase {
+		return nil
+	}
+	return fmt.Errorf("setup file descriptor set requires WithSetupDDLs when database auto-creation is disabled")
 }
 
 func applyContainerProviderEnv(opts *emulatorOptions) error {

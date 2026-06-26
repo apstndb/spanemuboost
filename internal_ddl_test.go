@@ -42,3 +42,27 @@ func TestUpdateDatabaseDdlRequestIncludesFileDescriptorSet(t *testing.T) {
 		t.Fatalf("len(Statements) = %d, want 1", len(req.Statements))
 	}
 }
+
+func TestCreateDatabaseRequestOmitsUnsetFileDescriptorSet(t *testing.T) {
+	opts, err := applyOptions(WithSetupDDLs([]string{"CREATE TABLE t (id INT64) PRIMARY KEY (id)"}))
+	if err != nil {
+		t.Fatalf("applyOptions: %v", err)
+	}
+
+	req := createDatabaseRequest(opts, opts.InstancePath(), "CREATE DATABASE `test`")
+	if req.ProtoDescriptors != nil {
+		t.Fatalf("ProtoDescriptors = %q, want nil", req.ProtoDescriptors)
+	}
+}
+
+func TestUpdateDatabaseDdlRequestOmitsUnsetFileDescriptorSet(t *testing.T) {
+	opts, err := applyOptions(WithSetupDDLs([]string{"CREATE TABLE t (id INT64) PRIMARY KEY (id)"}))
+	if err != nil {
+		t.Fatalf("applyOptions: %v", err)
+	}
+
+	req := updateDatabaseDdlRequest(opts)
+	if req.ProtoDescriptors != nil {
+		t.Fatalf("ProtoDescriptors = %q, want nil", req.ProtoDescriptors)
+	}
+}
