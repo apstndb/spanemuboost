@@ -154,10 +154,7 @@ func minimalBootstrapClientConfig(config spanner.ClientConfig) spanner.ClientCon
 }
 
 func updateDDLs(ctx context.Context, opts *emulatorOptions, dbCli *database.DatabaseAdminClient) error {
-	op, err := dbCli.UpdateDatabaseDdl(ctx, &databasepb.UpdateDatabaseDdlRequest{
-		Database:   databasePath(opts.projectID, opts.instanceID, opts.databaseID),
-		Statements: opts.setupDDLs,
-	})
+	op, err := dbCli.UpdateDatabaseDdl(ctx, updateDatabaseDdlRequest(opts))
 	if err != nil {
 		return err
 	}
@@ -185,7 +182,7 @@ func bootstrapDatabase(ctx context.Context, opts *emulatorOptions, dbCli *databa
 	if !opts.disableCreateDatabase {
 		return createDatabase(ctx, opts, dbCli)
 	}
-	if len(opts.setupDDLs) > 0 {
+	if len(opts.setupDDLs) > 0 || len(opts.setupFileDescriptorSet) > 0 {
 		return false, updateDDLs(ctx, opts, dbCli)
 	}
 	return false, nil
@@ -208,7 +205,7 @@ func bootstrap(ctx context.Context, opts *emulatorOptions, clientOpts ...option.
 		}
 	}
 
-	if !opts.disableCreateDatabase || len(opts.setupDDLs) > 0 {
+	if !opts.disableCreateDatabase || opts.hasSetupDDLWork() {
 		dbCli, err := database.NewDatabaseAdminClient(ctx, clientOpts...)
 		if err != nil {
 			return err
@@ -250,7 +247,7 @@ func bootstrapWithManagedClientConfig(ctx context.Context, opts *emulatorOptions
 		}
 	}
 
-	if !opts.disableCreateDatabase || len(opts.setupDDLs) > 0 {
+	if !opts.disableCreateDatabase || opts.hasSetupDDLWork() {
 		dbCli, err := database.NewDatabaseAdminClient(ctx, clientOpts...)
 		if err != nil {
 			return err
@@ -289,12 +286,7 @@ func createDatabase(ctx context.Context, opts *emulatorOptions, dbCli *database.
 	instancePath := opts.InstancePath()
 	var err error
 	if lockErr := withInstanceAdminLock(ctx, instancePath, func() {
-		createDBOp, createErr := dbCli.CreateDatabase(ctx, &databasepb.CreateDatabaseRequest{
-			Parent:          instancePath,
-			CreateStatement: createStmt,
-			DatabaseDialect: opts.databaseDialect,
-			ExtraStatements: opts.setupDDLs,
-		})
+		createDBOp, createErr := dbCli.CreateDatabase(ctx, createDatabaseRequest(opts, instancePath, createStmt))
 		if createErr != nil {
 			err = createErr
 			return
@@ -310,6 +302,24 @@ func createDatabase(ctx context.Context, opts *emulatorOptions, dbCli *database.
 		return false, err
 	}
 	return true, nil
+}
+
+func createDatabaseRequest(opts *emulatorOptions, parent, createStmt string) *databasepb.CreateDatabaseRequest {
+	return &databasepb.CreateDatabaseRequest{
+		Parent:           parent,
+		CreateStatement:  createStmt,
+		DatabaseDialect:  opts.databaseDialect,
+		ExtraStatements:  opts.setupDDLs,
+		ProtoDescriptors: opts.setupFileDescriptorSet,
+	}
+}
+
+func updateDatabaseDdlRequest(opts *emulatorOptions) *databasepb.UpdateDatabaseDdlRequest {
+	return &databasepb.UpdateDatabaseDdlRequest{
+		Database:         opts.DatabasePath(),
+		Statements:       opts.setupDDLs,
+		ProtoDescriptors: opts.setupFileDescriptorSet,
+	}
 }
 
 func createInstance(ctx context.Context, opts *emulatorOptions, instanceCli *instance.InstanceAdminClient) error {

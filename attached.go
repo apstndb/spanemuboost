@@ -1,6 +1,7 @@
 package spanemuboost
 
 import (
+	"bytes"
 	"context"
 	"fmt"
 
@@ -54,7 +55,8 @@ func NewAttachedRuntimeFromEnv(options ...Option) (*AttachedRuntime, error) {
 // returns an error instead of falling back to cold start.
 //
 // Options passed to the constructor apply to both cold-start and attach paths.
-// Database bootstrap options such as [WithRandomDatabaseID] and [WithSetupDDLs]
+// Database bootstrap options such as [WithRandomDatabaseID], [WithSetupDDLs],
+// [WithSetupFileDescriptorSet], and [WithSetupRawFileDescriptorSet] are honored
 // are honored when [OpenClients] or [SetupClients] runs against the lazy handle.
 func NewLazyRuntimeFromEnvOrStart(backend Backend, options ...Option) (*LazyRuntime, error) {
 	lr := NewLazyRuntime(backend, options...)
@@ -182,6 +184,9 @@ func preserveAttachedBootstrapOptions(base, source *emulatorOptions) {
 	base.randomDatabaseID = source.randomDatabaseID
 	if len(source.setupDDLs) > 0 {
 		base.setupDDLs = append([]string(nil), source.setupDDLs...)
+	}
+	if len(source.setupFileDescriptorSet) > 0 {
+		base.setupFileDescriptorSet = bytes.Clone(source.setupFileDescriptorSet)
 	}
 	if len(source.setupDMLs) > 0 {
 		base.setupDMLs = append([]spanner.Statement(nil), source.setupDMLs...)

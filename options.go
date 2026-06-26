@@ -1,6 +1,7 @@
 package spanemuboost
 
 import (
+	"bytes"
 	"cmp"
 	"fmt"
 	"math/rand/v2"
@@ -11,6 +12,8 @@ import (
 	"cloud.google.com/go/spanner/admin/database/apiv1/databasepb"
 	"github.com/testcontainers/testcontainers-go"
 	"google.golang.org/api/option"
+	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/descriptorpb"
 )
 
 type emulatorOptions struct {
@@ -27,6 +30,7 @@ type emulatorOptions struct {
 
 	databaseDialect        databasepb.DatabaseDialect
 	setupDDLs              []string
+	setupFileDescriptorSet []byte
 	setupDMLs              []spanner.Statement
 	clientConfig           *spanner.ClientConfig // nil until finalizeOptions; guaranteed non-nil after
 	containerCustomizers   []testcontainers.ContainerCustomizer
@@ -332,6 +336,37 @@ func WithSetupDDLs(ddls []string) Option {
 	}
 }
 
+// WithSetupFileDescriptorSet sets proto descriptors for CREATE/ALTER PROTO BUNDLE
+// statements in setup DDLs. The value is serialized for CreateDatabase and
+// UpdateDatabaseDdl requests.
+// Calling this multiple times replaces the previous value.
+func WithSetupFileDescriptorSet(fds *descriptorpb.FileDescriptorSet) Option {
+	return func(opts *emulatorOptions) error {
+		if fds == nil {
+			opts.setupFileDescriptorSet = nil
+			return nil
+		}
+		raw, err := proto.Marshal(fds)
+		if err != nil {
+			return fmt.Errorf("marshal file descriptor set: %w", err)
+		}
+		opts.setupFileDescriptorSet = raw
+		return nil
+	}
+}
+
+// WithSetupRawFileDescriptorSet sets pre-serialized proto descriptors for
+// CREATE/ALTER PROTO BUNDLE statements in setup DDLs.
+// Calling this multiple times replaces the previous value.
+// This is mutually exclusive with [WithSetupFileDescriptorSet]; the last one
+// called wins.
+func WithSetupRawFileDescriptorSet(raw []byte) Option {
+	return func(opts *emulatorOptions) error {
+		opts.setupFileDescriptorSet = bytes.Clone(raw)
+		return nil
+	}
+}
+
 // WithSetupRawDMLs sets string DMLs to be executed.
 // Calling this multiple times replaces the previous value.
 // This is mutually exclusive with WithSetupDMLs; the last one called wins.
@@ -436,6 +471,10 @@ func (o *emulatorOptions) shouldDropInstance() bool {
 // shouldDropDatabase returns whether the database should be dropped on Close.
 func (o *emulatorOptions) shouldDropDatabase() bool {
 	return o.shouldDropResource(o.disableCreateDatabase, o.randomDatabaseID)
+}
+
+func (o *emulatorOptions) hasSetupDDLWork() bool {
+	return len(o.setupDDLs) > 0 || len(o.setupFileDescriptorSet) > 0
 }
 
 // shouldDropResource returns whether a resource should be dropped on Close.
