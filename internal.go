@@ -182,7 +182,7 @@ func bootstrapDatabase(ctx context.Context, opts *emulatorOptions, dbCli *databa
 	if !opts.disableCreateDatabase {
 		return createDatabase(ctx, opts, dbCli)
 	}
-	if len(opts.setupDDLs) > 0 || len(opts.setupFileDescriptorSet) > 0 {
+	if opts.hasSetupDDLWork() {
 		return false, updateDDLs(ctx, opts, dbCli)
 	}
 	return false, nil

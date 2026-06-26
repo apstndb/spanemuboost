@@ -56,7 +56,7 @@ func NewAttachedRuntimeFromEnv(options ...Option) (*AttachedRuntime, error) {
 //
 // Options passed to the constructor apply to both cold-start and attach paths.
 // Database bootstrap options such as [WithRandomDatabaseID], [WithSetupDDLs],
-// [WithSetupFileDescriptorSet], and [WithSetupRawFileDescriptorSet] are honored
+// [WithSetupFileDescriptorSet], and [WithSetupRawFileDescriptorSet]
 // are honored when [OpenClients] or [SetupClients] runs against the lazy handle.
 func NewLazyRuntimeFromEnvOrStart(backend Backend, options ...Option) (*LazyRuntime, error) {
 	lr := NewLazyRuntime(backend, options...)

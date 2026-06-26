@@ -337,16 +337,17 @@ func WithSetupDDLs(ddls []string) Option {
 }
 
 // WithSetupFileDescriptorSet sets proto descriptors for CREATE/ALTER PROTO BUNDLE
-// statements in setup DDLs. The value is serialized for CreateDatabase and
+// statements in [WithSetupDDLs]. Use this option together with setup DDLs that
+// reference proto bundles; the value is serialized for CreateDatabase and
 // UpdateDatabaseDdl requests.
 // Calling this multiple times replaces the previous value.
 func WithSetupFileDescriptorSet(fds *descriptorpb.FileDescriptorSet) Option {
+	var raw []byte
+	var err error
+	if fds != nil {
+		raw, err = proto.Marshal(fds)
+	}
 	return func(opts *emulatorOptions) error {
-		if fds == nil {
-			opts.setupFileDescriptorSet = nil
-			return nil
-		}
-		raw, err := proto.Marshal(fds)
 		if err != nil {
 			return fmt.Errorf("marshal file descriptor set: %w", err)
 		}
@@ -356,13 +357,15 @@ func WithSetupFileDescriptorSet(fds *descriptorpb.FileDescriptorSet) Option {
 }
 
 // WithSetupRawFileDescriptorSet sets pre-serialized proto descriptors for
-// CREATE/ALTER PROTO BUNDLE statements in setup DDLs.
+// CREATE/ALTER PROTO BUNDLE statements in [WithSetupDDLs]. Use this option
+// together with setup DDLs that reference proto bundles.
 // Calling this multiple times replaces the previous value.
 // This is mutually exclusive with [WithSetupFileDescriptorSet]; the last one
 // called wins.
 func WithSetupRawFileDescriptorSet(raw []byte) Option {
+	cloned := bytes.Clone(raw)
 	return func(opts *emulatorOptions) error {
-		opts.setupFileDescriptorSet = bytes.Clone(raw)
+		opts.setupFileDescriptorSet = cloned
 		return nil
 	}
 }
