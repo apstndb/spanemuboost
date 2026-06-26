@@ -26,6 +26,25 @@ func TestFoo(t *testing.T) {
 }
 ```
 
+`CREATE PROTO BUNDLE` and `ALTER PROTO BUNDLE` setup DDLs need serialized
+descriptors alongside the DDL text. Pair [WithSetupDDLs] with
+[WithSetupFileDescriptorSet] or [WithSetupRawFileDescriptorSet]:
+
+```go
+func TestProtoBundle(t *testing.T) {
+    fds := &descriptorpb.FileDescriptorSet{ /* ... */ }
+
+    env := spanemuboost.SetupEmulatorWithClients(t,
+        spanemuboost.WithSetupDDLs([]string{
+            "CREATE PROTO BUNDLE (`examples.shipping.Order`)",
+        }),
+        spanemuboost.WithSetupFileDescriptorSet(fds),
+    )
+
+    // env.Client is ready with the proto bundle applied
+}
+```
+
 For non-test usage (e.g. embedding the emulator in an application where the `testing` package is unavailable), see runnable examples on [pkg.go.dev](https://pkg.go.dev/github.com/apstndb/spanemuboost#pkg-examples).
 
 ### Shared runtime, database-per-case
