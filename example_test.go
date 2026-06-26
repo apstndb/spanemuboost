@@ -41,6 +41,8 @@ func ExampleWithSetupFileDescriptorSet() {
 	fds := &descriptorpb.FileDescriptorSet{
 		File: []*descriptorpb.FileDescriptorProto{
 			{
+				Name:    proto.String("shipping.proto"),
+				Syntax:  proto.String("proto3"),
 				Package: proto.String("examples.shipping"),
 				MessageType: []*descriptorpb.DescriptorProto{
 					{Name: proto.String("Order")},

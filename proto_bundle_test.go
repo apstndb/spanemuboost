@@ -87,15 +87,27 @@ func exampleShippingFileDescriptorSet() *descriptorpb.FileDescriptorSet {
 	return &descriptorpb.FileDescriptorSet{
 		File: []*descriptorpb.FileDescriptorProto{
 			{
+				Name:    proto.String("shipping.proto"),
+				Syntax:  proto.String("proto3"),
 				Package: proto.String("examples.shipping"),
 				EnumType: []*descriptorpb.EnumDescriptorProto{
-					{Name: proto.String("ShippingSpeed")},
+					{
+						Name: proto.String("ShippingSpeed"),
+						Value: []*descriptorpb.EnumValueDescriptorProto{
+							{Name: proto.String("SHIPPING_SPEED_UNSPECIFIED"), Number: proto.Int32(0)},
+						},
+					},
 				},
 				MessageType: []*descriptorpb.DescriptorProto{
 					{
 						Name: proto.String("Order"),
 						EnumType: []*descriptorpb.EnumDescriptorProto{
-							{Name: proto.String("Status")},
+							{
+								Name: proto.String("Status"),
+								Value: []*descriptorpb.EnumValueDescriptorProto{
+									{Name: proto.String("STATUS_UNSPECIFIED"), Number: proto.Int32(0)},
+								},
+							},
 						},
 						NestedType: []*descriptorpb.DescriptorProto{
 							{Name: proto.String("Address")},
