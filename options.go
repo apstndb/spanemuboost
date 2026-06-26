@@ -339,7 +339,7 @@ func WithSetupDDLs(ddls []string) Option {
 // WithSetupFileDescriptorSet sets proto descriptors for CREATE/ALTER PROTO BUNDLE
 // statements in [WithSetupDDLs]. Use this option together with setup DDLs that
 // reference proto bundles; the value is serialized for CreateDatabase and
-// UpdateDatabaseDdl requests.
+// UpdateDatabaseDdl requests at bootstrap time.
 // Calling this multiple times replaces the previous value.
 func WithSetupFileDescriptorSet(fds *descriptorpb.FileDescriptorSet) Option {
 	var raw []byte

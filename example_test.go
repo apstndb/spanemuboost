@@ -10,6 +10,8 @@ import (
 	"cloud.google.com/go/spanner/admin/database/apiv1/databasepb"
 
 	"github.com/apstndb/spanemuboost"
+	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/descriptorpb"
 )
 
 func ExampleRunEmulatorWithClients() {
@@ -31,6 +33,35 @@ func ExampleRunEmulatorWithClients() {
 		log.Fatalln(err)
 	}
 	// Output: {fields: [type:{code:INT64}], values: [string_value:"1"]}
+}
+
+func ExampleWithSetupFileDescriptorSet() {
+	ctx := context.Background()
+
+	fds := &descriptorpb.FileDescriptorSet{
+		File: []*descriptorpb.FileDescriptorProto{
+			{
+				Package: proto.String("examples.shipping"),
+				MessageType: []*descriptorpb.DescriptorProto{
+					{Name: proto.String("Order")},
+				},
+			},
+		},
+	}
+
+	env, err := spanemuboost.RunEmulatorWithClients(ctx,
+		spanemuboost.WithSetupDDLs([]string{
+			"CREATE PROTO BUNDLE (`examples.shipping.Order`)",
+		}),
+		spanemuboost.WithSetupFileDescriptorSet(fds),
+	)
+	if err != nil {
+		log.Fatalln(err)
+		return
+	}
+	defer env.Close() //nolint:errcheck
+
+	_ = env.Client
 }
 
 func ExampleOpenClients() {
