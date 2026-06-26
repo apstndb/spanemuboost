@@ -207,7 +207,7 @@ Use this to recheck a runtime without running Go tests:
 ```sh
 podman volume create spanner
 podman run -d --network host --name spanneromni -v spanner:/spanner \
-  us-docker.pkg.dev/spanner-omni/images/spanner-omni:2026.r1-beta.1 \
+  us-docker.pkg.dev/spanner-omni/images/spanner-omni:2026.r1-beta.2 \
   start-single-server
 podman logs --tail 120 spanneromni
 podman exec spanneromni /google/spanner/bin/spanner databases create-sample-db retail --database-name=retail-sample
