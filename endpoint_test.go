@@ -1,6 +1,7 @@
 package spanemuboost
 
 import (
+	"bytes"
 	"context"
 	"os"
 	"path/filepath"
@@ -299,6 +300,32 @@ func TestAttachedRuntimeInheritedOptionsPreservesConstructorBootstrap(t *testing
 	}
 	if len(opts.setupDMLs) != 1 {
 		t.Fatalf("len(setupDMLs) = %d, want 1", len(opts.setupDMLs))
+	}
+}
+
+func TestAttachedRuntimeInheritedOptionsClonesFileDescriptorSet(t *testing.T) {
+	raw := []byte("proto-descriptors")
+	runtime, err := NewAttachedRuntime(Endpoint{
+		Backend:    BackendOmni,
+		URI:        "127.0.0.1:15000",
+		ProjectID:  defaultOmniProjectID,
+		InstanceID: defaultOmniInstanceID,
+	}, WithSetupRawFileDescriptorSet(raw))
+	if err != nil {
+		t.Fatalf("NewAttachedRuntime() error = %v", err)
+	}
+
+	opts, err := runtime.inheritedOptions()
+	if err != nil {
+		t.Fatalf("inheritedOptions() error = %v", err)
+	}
+	if !bytes.Equal(opts.setupFileDescriptorSet, []byte("proto-descriptors")) {
+		t.Fatalf("setupFileDescriptorSet = %q, want %q", opts.setupFileDescriptorSet, []byte("proto-descriptors"))
+	}
+
+	raw[0] = 'X'
+	if bytes.Equal(opts.setupFileDescriptorSet, raw) {
+		t.Fatal("inherited setupFileDescriptorSet aliases source slice")
 	}
 }
 

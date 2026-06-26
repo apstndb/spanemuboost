@@ -1,6 +1,7 @@
 package spanemuboost
 
 import (
+	"bytes"
 	"cmp"
 	"fmt"
 	"math/rand/v2"
@@ -11,6 +12,8 @@ import (
 	"cloud.google.com/go/spanner/admin/database/apiv1/databasepb"
 	"github.com/testcontainers/testcontainers-go"
 	"google.golang.org/api/option"
+	"google.golang.org/protobuf/proto"
+	"google.golang.org/protobuf/types/descriptorpb"
 )
 
 type emulatorOptions struct {
@@ -27,6 +30,7 @@ type emulatorOptions struct {
 
 	databaseDialect        databasepb.DatabaseDialect
 	setupDDLs              []string
+	setupFileDescriptorSet []byte
 	setupDMLs              []spanner.Statement
 	clientConfig           *spanner.ClientConfig // nil until finalizeOptions; guaranteed non-nil after
 	containerCustomizers   []testcontainers.ContainerCustomizer
@@ -332,6 +336,40 @@ func WithSetupDDLs(ddls []string) Option {
 	}
 }
 
+// WithSetupFileDescriptorSet sets proto descriptors for CREATE/ALTER PROTO BUNDLE
+// statements in [WithSetupDDLs]. Use this option together with setup DDLs that
+// reference proto bundles; the value is serialized for CreateDatabase and
+// UpdateDatabaseDdl requests.
+// Calling this multiple times replaces the previous value.
+func WithSetupFileDescriptorSet(fds *descriptorpb.FileDescriptorSet) Option {
+	var raw []byte
+	var err error
+	if fds != nil {
+		raw, err = proto.Marshal(fds)
+	}
+	return func(opts *emulatorOptions) error {
+		if err != nil {
+			return fmt.Errorf("marshal file descriptor set: %w", err)
+		}
+		opts.setupFileDescriptorSet = raw
+		return nil
+	}
+}
+
+// WithSetupRawFileDescriptorSet sets pre-serialized proto descriptors for
+// CREATE/ALTER PROTO BUNDLE statements in [WithSetupDDLs]. Use this option
+// together with setup DDLs that reference proto bundles.
+// Calling this multiple times replaces the previous value.
+// This is mutually exclusive with [WithSetupFileDescriptorSet]; the last one
+// called wins.
+func WithSetupRawFileDescriptorSet(raw []byte) Option {
+	cloned := bytes.Clone(raw)
+	return func(opts *emulatorOptions) error {
+		opts.setupFileDescriptorSet = cloned
+		return nil
+	}
+}
+
 // WithSetupRawDMLs sets string DMLs to be executed.
 // Calling this multiple times replaces the previous value.
 // This is mutually exclusive with WithSetupDMLs; the last one called wins.
@@ -438,6 +476,10 @@ func (o *emulatorOptions) shouldDropDatabase() bool {
 	return o.shouldDropResource(o.disableCreateDatabase, o.randomDatabaseID)
 }
 
+func (o *emulatorOptions) hasSetupDDLWork() bool {
+	return len(o.setupDDLs) > 0
+}
+
 // shouldDropResource returns whether a resource should be dropped on Close.
 // If schemaTeardown is explicitly set, it takes precedence.
 // Otherwise, a non-random (fixed) ID implies teardown.
@@ -529,7 +571,21 @@ func finalizeOptions(opts *emulatorOptions) (*emulatorOptions, error) {
 		return nil, err
 	}
 
+	if err := validateSetupFileDescriptorSet(opts); err != nil {
+		return nil, err
+	}
+
 	return opts, nil
+}
+
+func validateSetupFileDescriptorSet(opts *emulatorOptions) error {
+	if len(opts.setupFileDescriptorSet) == 0 || len(opts.setupDDLs) > 0 {
+		return nil
+	}
+	if !opts.disableCreateDatabase {
+		return nil
+	}
+	return fmt.Errorf("setup file descriptor set requires WithSetupDDLs when database auto-creation is disabled")
 }
 
 func applyContainerProviderEnv(opts *emulatorOptions) error {
