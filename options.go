@@ -559,6 +559,10 @@ func finalizeOptions(opts *emulatorOptions) (*emulatorOptions, error) {
 	opts.instanceID = cmp.Or(opts.instanceID, DefaultInstanceID)
 	opts.databaseID = cmp.Or(opts.databaseID, DefaultDatabaseID)
 
+	if err := validateResourceIDs(opts); err != nil {
+		return nil, err
+	}
+
 	// Disable native metrics by default for emulator connections.
 	// Without SPANNER_EMULATOR_HOST, the Spanner client tries to create a real
 	// Cloud Monitoring exporter and contacts the GCP metadata server, adding
@@ -586,6 +590,65 @@ func validateSetupFileDescriptorSet(opts *emulatorOptions) error {
 		return nil
 	}
 	return fmt.Errorf("setup file descriptor set requires WithSetupDDLs when database auto-creation is disabled")
+}
+
+const (
+	maxProjectIDLength  = 30
+	maxInstanceIDLength = 64
+	maxDatabaseIDLength = 30
+)
+
+func validateResourceIDs(opts *emulatorOptions) error {
+	for _, resource := range []struct {
+		kind   string
+		id     string
+		maxLen int
+	}{
+		{kind: "project", id: opts.projectID, maxLen: maxProjectIDLength},
+		{kind: "instance", id: opts.instanceID, maxLen: maxInstanceIDLength},
+		{kind: "database", id: opts.databaseID, maxLen: maxDatabaseIDLength},
+	} {
+		if err := validateResourceID(resource.kind, resource.id, resource.maxLen); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func validateResourceID(kind, id string, maxLen int) error {
+	if id == "" {
+		return fmt.Errorf("%s ID is empty after option finalization; use a non-empty ID or the default", kind)
+	}
+	if strings.TrimSpace(id) == "" {
+		return fmt.Errorf("%s ID %q is empty after trimming whitespace; use a non-empty ID or the default", kind, id)
+	}
+	if len(id) > maxLen {
+		return fmt.Errorf("%s ID %q is too long: got %d characters, max %d", kind, id, len(id), maxLen)
+	}
+	if !isLowercaseLetter(id[0]) {
+		return fmt.Errorf("%s ID %q must start with a lowercase letter and use only lowercase letters, digits, and hyphens", kind, id)
+	}
+	if !isLowercaseLetterOrDigit(id[len(id)-1]) {
+		return fmt.Errorf("%s ID %q must end with a lowercase letter or digit and use only lowercase letters, digits, and hyphens", kind, id)
+	}
+	for i := 1; i < len(id)-1; i++ {
+		if !isResourceIDChar(id[i]) {
+			return fmt.Errorf("%s ID %q contains invalid character %q at byte %d; use only lowercase letters, digits, and hyphens so it is safe in resource paths and CREATE DATABASE statements", kind, id, id[i], i)
+		}
+	}
+	return nil
+}
+
+func isResourceIDChar(b byte) bool {
+	return isLowercaseLetterOrDigit(b) || b == '-'
+}
+
+func isLowercaseLetterOrDigit(b byte) bool {
+	return isLowercaseLetter(b) || '0' <= b && b <= '9'
+}
+
+func isLowercaseLetter(b byte) bool {
+	return 'a' <= b && b <= 'z'
 }
 
 func applyContainerProviderEnv(opts *emulatorOptions) error {
