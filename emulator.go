@@ -105,6 +105,14 @@ func (e *Emulator) runtimePlatform(ctx context.Context) (string, error) {
 // Use [NewLazyEmulator] in a package-level var, then pass directly to [SetupClients]
 // or [OpenClients]. Call [LazyEmulator.Setup] or [LazyEmulator.Get] for standalone access.
 // [LazyEmulator.Close] is safe to call even if the emulator was never started (no-op).
+//
+// Concurrent first use and cleanup are serialized. If [LazyEmulator.Get] or
+// [LazyEmulator.Setup] starts initialization before [LazyEmulator.Close], Close
+// waits for initialization to finish and then closes the started emulator; that
+// concurrent first-use call may still return the emulator that Close is closing
+// or has closed. If Close runs before initialization starts, the emulator is
+// never started and later first-use calls fail. Callers should coordinate so
+// returned emulators are not used after Close begins.
 type LazyEmulator struct {
 	state lazyRuntimeState
 	opts  []Option
@@ -127,7 +135,8 @@ func (le *LazyEmulator) get(ctx context.Context) (runtimeInstance, error) {
 }
 
 // Get starts the emulator on first call (thread-safe via [sync.Once]) and
-// returns the cached [*Emulator] on subsequent calls.
+// returns the cached [*Emulator] on subsequent calls. It may run concurrently
+// with [LazyEmulator.Close]; see [LazyEmulator] for the lifecycle invariant.
 func (le *LazyEmulator) Get(ctx context.Context) (*Emulator, error) {
 	runtime, err := le.get(ctx)
 	if err != nil {
@@ -144,6 +153,9 @@ func (le *LazyEmulator) Get(ctx context.Context) (*Emulator, error) {
 // Close is nil-safe and idempotent — subsequent calls return the result of the first call.
 // Close waits for any in-progress initialization to complete before checking.
 // If Close is called before any Get or Setup, the emulator will never be started.
+// If the first Get or Setup is already initializing, Close closes the emulator
+// after initialization finishes; that concurrent first-use call may still
+// return the emulator.
 func (le *LazyEmulator) Close() error {
 	if le == nil {
 		return nil

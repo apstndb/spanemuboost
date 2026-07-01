@@ -231,6 +231,9 @@ func finalizeOmniOptions(opts *emulatorOptions) (*emulatorOptions, error) {
 	opts.projectID = cmp.Or(opts.projectID, defaultOmniProjectID)
 	opts.instanceID = cmp.Or(opts.instanceID, defaultOmniInstanceID)
 	opts.databaseID = cmp.Or(opts.databaseID, DefaultDatabaseID)
+	if err := validateResourceIDs(opts); err != nil {
+		return nil, err
+	}
 	opts.clientConfig = finalizeManagedOmniClientConfig(opts.clientConfig, opts.disableBackendGuardrails)
 	if err := applyContainerProviderEnv(opts); err != nil {
 		return nil, err
