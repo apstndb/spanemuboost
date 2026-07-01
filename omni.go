@@ -23,6 +23,7 @@ const (
 	defaultOmniImage      = "us-docker.pkg.dev/spanner-omni/images/spanner-omni:2026.r1-beta.2"
 	defaultOmniProjectID  = "default"
 	defaultOmniInstanceID = "default"
+	omniStartupTimeout    = 5 * time.Minute
 )
 
 var omniGRPCPort = nat.Port("15000/tcp")
@@ -287,9 +288,11 @@ func newOmni(ctx context.Context, opts *emulatorOptions) (testcontainers.Contain
 			ExposedPorts: []string{string(omniGRPCPort)},
 			Cmd:          []string{"start-single-server"},
 			WaitingFor: wait.ForAll(
-				wait.ForLog("Spanner is ready"),
-				wait.ForExposedPort().SkipInternalCheck(),
-			).WithDeadline(5 * time.Minute),
+				wait.ForLog("Spanner is ready").WithStartupTimeout(omniStartupTimeout),
+				wait.ForExposedPort().SkipInternalCheck().WithStartupTimeout(omniStartupTimeout),
+			).
+				WithStartupTimeoutDefault(omniStartupTimeout).
+				WithDeadline(omniStartupTimeout),
 		},
 		Started: true,
 	}
