@@ -559,6 +559,10 @@ func finalizeOptions(opts *emulatorOptions) (*emulatorOptions, error) {
 	opts.instanceID = cmp.Or(opts.instanceID, DefaultInstanceID)
 	opts.databaseID = cmp.Or(opts.databaseID, DefaultDatabaseID)
 
+	if err := validateResourceIDs(opts); err != nil {
+		return nil, err
+	}
+
 	// Disable native metrics by default for emulator connections.
 	// Without SPANNER_EMULATOR_HOST, the Spanner client tries to create a real
 	// Cloud Monitoring exporter and contacts the GCP metadata server, adding
@@ -586,6 +590,103 @@ func validateSetupFileDescriptorSet(opts *emulatorOptions) error {
 		return nil
 	}
 	return fmt.Errorf("setup file descriptor set requires WithSetupDDLs when database auto-creation is disabled")
+}
+
+const (
+	minProjectIDLength  = 6
+	minInstanceIDLength = 2
+	minDatabaseIDLength = 2
+
+	maxProjectIDLength  = 30
+	maxInstanceIDLength = 64
+	maxDatabaseIDLength = 30
+)
+
+func validateResourceIDs(opts *emulatorOptions) error {
+	for _, resource := range []struct {
+		kind   string
+		id     string
+		minLen int
+		maxLen int
+	}{
+		{
+			kind:   "project",
+			id:     opts.projectID,
+			minLen: minProjectIDLength,
+			maxLen: maxProjectIDLength,
+		},
+		{
+			kind:   "instance",
+			id:     opts.instanceID,
+			minLen: minInstanceIDLength,
+			maxLen: maxInstanceIDLength,
+		},
+		{
+			kind:   "database",
+			id:     opts.databaseID,
+			minLen: minDatabaseIDLength,
+			maxLen: maxDatabaseIDLength,
+		},
+	} {
+		if err := validateResourceID(resource.kind, resource.id, resource.minLen, resource.maxLen); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func validateResourceID(kind, id string, minLen, maxLen int) error {
+	if id == "" {
+		return fmt.Errorf("%s ID is empty after option finalization; use a non-empty ID or the default", kind)
+	}
+	if strings.TrimSpace(id) == "" {
+		return fmt.Errorf("%s ID %q is empty after trimming whitespace; use a non-empty ID or the default", kind, id)
+	}
+	if len(id) < minLen {
+		return fmt.Errorf("%s ID %q is too short: got %d characters, min %d", kind, id, len(id), minLen)
+	}
+	if len(id) > maxLen {
+		return fmt.Errorf("%s ID %q is too long: got %d characters, max %d", kind, id, len(id), maxLen)
+	}
+	allowedChars := resourceIDAllowedCharsDescription(kind)
+	if !isLowercaseLetter(id[0]) {
+		return fmt.Errorf("%s ID %q must start with a lowercase letter and use only %s", kind, id, allowedChars)
+	}
+	if !isLowercaseLetterOrDigit(id[len(id)-1]) {
+		return fmt.Errorf("%s ID %q must end with a lowercase letter or digit and use only %s", kind, id, allowedChars)
+	}
+	for i := 1; i < len(id)-1; i++ {
+		if !isResourceIDChar(id[i], kind == "database") {
+			return fmt.Errorf(
+				"%s ID %q contains invalid character %q at byte %d; use only %s so it is safe in resource paths and CREATE DATABASE statements",
+				kind,
+				id,
+				id[i],
+				i,
+				allowedChars,
+			)
+		}
+	}
+	return nil
+}
+
+func resourceIDAllowedCharsDescription(kind string) string {
+	if kind == "database" {
+		return "lowercase letters, digits, hyphens, and underscores"
+	}
+	return "lowercase letters, digits, and hyphens"
+}
+
+func isResourceIDChar(b byte, allowUnderscore bool) bool {
+	return isLowercaseLetterOrDigit(b) || b == '-' || (allowUnderscore && b == '_')
+}
+
+func isLowercaseLetterOrDigit(b byte) bool {
+	return isLowercaseLetter(b) || '0' <= b && b <= '9'
+}
+
+func isLowercaseLetter(b byte) bool {
+	return 'a' <= b && b <= 'z'
 }
 
 func applyContainerProviderEnv(opts *emulatorOptions) error {
