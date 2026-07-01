@@ -14,12 +14,6 @@ import (
 	"github.com/testcontainers/testcontainers-go/wait"
 )
 
-type containerCustomizerFunc func(*testcontainers.GenericContainerRequest) error
-
-func (f containerCustomizerFunc) Customize(req *testcontainers.GenericContainerRequest) error {
-	return f(req)
-}
-
 func TestRecommendedOmniClientConfig(t *testing.T) {
 	config := RecommendedOmniClientConfig()
 	if !config.DisableNativeMetrics {
@@ -49,7 +43,7 @@ func TestNewOmniConfiguresStartupWaitTimeouts(t *testing.T) {
 	captureErr := errors.New("capture omni request")
 	var req testcontainers.GenericContainerRequest
 
-	opts, err := applyOmniOptions(WithContainerCustomizers(containerCustomizerFunc(func(r *testcontainers.GenericContainerRequest) error {
+	opts, err := applyOmniOptions(WithContainerCustomizers(testcontainers.CustomizeRequestOption(func(r *testcontainers.GenericContainerRequest) error {
 		req = *r
 		return captureErr
 	})))
@@ -57,7 +51,7 @@ func TestNewOmniConfiguresStartupWaitTimeouts(t *testing.T) {
 		t.Fatalf("applyOmniOptions: %v", err)
 	}
 
-	_, err = newOmni(context.Background(), opts)
+	_, err = newOmni(t.Context(), opts)
 	if !errors.Is(err, captureErr) {
 		t.Fatalf("newOmni() error = %v, want %v", err, captureErr)
 	}
