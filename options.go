@@ -593,6 +593,10 @@ func validateSetupFileDescriptorSet(opts *emulatorOptions) error {
 }
 
 const (
+	minProjectIDLength  = 6
+	minInstanceIDLength = 2
+	minDatabaseIDLength = 2
+
 	maxProjectIDLength  = 30
 	maxInstanceIDLength = 64
 	maxDatabaseIDLength = 30
@@ -602,45 +606,79 @@ func validateResourceIDs(opts *emulatorOptions) error {
 	for _, resource := range []struct {
 		kind   string
 		id     string
+		minLen int
 		maxLen int
 	}{
-		{kind: "project", id: opts.projectID, maxLen: maxProjectIDLength},
-		{kind: "instance", id: opts.instanceID, maxLen: maxInstanceIDLength},
-		{kind: "database", id: opts.databaseID, maxLen: maxDatabaseIDLength},
+		{
+			kind:   "project",
+			id:     opts.projectID,
+			minLen: minProjectIDLength,
+			maxLen: maxProjectIDLength,
+		},
+		{
+			kind:   "instance",
+			id:     opts.instanceID,
+			minLen: minInstanceIDLength,
+			maxLen: maxInstanceIDLength,
+		},
+		{
+			kind:   "database",
+			id:     opts.databaseID,
+			minLen: minDatabaseIDLength,
+			maxLen: maxDatabaseIDLength,
+		},
 	} {
-		if err := validateResourceID(resource.kind, resource.id, resource.maxLen); err != nil {
+		if err := validateResourceID(resource.kind, resource.id, resource.minLen, resource.maxLen); err != nil {
 			return err
 		}
 	}
 	return nil
 }
 
-func validateResourceID(kind, id string, maxLen int) error {
+func validateResourceID(kind, id string, minLen, maxLen int) error {
 	if id == "" {
 		return fmt.Errorf("%s ID is empty after option finalization; use a non-empty ID or the default", kind)
 	}
 	if strings.TrimSpace(id) == "" {
 		return fmt.Errorf("%s ID %q is empty after trimming whitespace; use a non-empty ID or the default", kind, id)
 	}
+	if len(id) < minLen {
+		return fmt.Errorf("%s ID %q is too short: got %d characters, min %d", kind, id, len(id), minLen)
+	}
 	if len(id) > maxLen {
 		return fmt.Errorf("%s ID %q is too long: got %d characters, max %d", kind, id, len(id), maxLen)
 	}
+	allowedChars := resourceIDAllowedCharsDescription(kind)
 	if !isLowercaseLetter(id[0]) {
-		return fmt.Errorf("%s ID %q must start with a lowercase letter and use only lowercase letters, digits, and hyphens", kind, id)
+		return fmt.Errorf("%s ID %q must start with a lowercase letter and use only %s", kind, id, allowedChars)
 	}
 	if !isLowercaseLetterOrDigit(id[len(id)-1]) {
-		return fmt.Errorf("%s ID %q must end with a lowercase letter or digit and use only lowercase letters, digits, and hyphens", kind, id)
+		return fmt.Errorf("%s ID %q must end with a lowercase letter or digit and use only %s", kind, id, allowedChars)
 	}
 	for i := 1; i < len(id)-1; i++ {
-		if !isResourceIDChar(id[i]) {
-			return fmt.Errorf("%s ID %q contains invalid character %q at byte %d; use only lowercase letters, digits, and hyphens so it is safe in resource paths and CREATE DATABASE statements", kind, id, id[i], i)
+		if !isResourceIDChar(id[i], kind == "database") {
+			return fmt.Errorf(
+				"%s ID %q contains invalid character %q at byte %d; use only %s so it is safe in resource paths and CREATE DATABASE statements",
+				kind,
+				id,
+				id[i],
+				i,
+				allowedChars,
+			)
 		}
 	}
 	return nil
 }
 
-func isResourceIDChar(b byte) bool {
-	return isLowercaseLetterOrDigit(b) || b == '-'
+func resourceIDAllowedCharsDescription(kind string) string {
+	if kind == "database" {
+		return "lowercase letters, digits, hyphens, and underscores"
+	}
+	return "lowercase letters, digits, and hyphens"
+}
+
+func isResourceIDChar(b byte, allowUnderscore bool) bool {
+	return isLowercaseLetterOrDigit(b) || b == '-' || (allowUnderscore && b == '_')
 }
 
 func isLowercaseLetterOrDigit(b byte) bool {

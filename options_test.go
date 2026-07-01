@@ -132,9 +132,19 @@ func TestValidateResourceIDsRejectsInvalidOptions(t *testing.T) {
 			want:    "project ID",
 		},
 		{
+			name:    "project too short",
+			options: []Option{WithProjectID("abcde")},
+			want:    "too short",
+		},
+		{
 			name:    "project overlong",
 			options: []Option{WithProjectID(strings.Repeat("a", maxProjectIDLength+1))},
 			want:    "too long",
+		},
+		{
+			name:    "instance too short",
+			options: []Option{WithInstanceID("a")},
+			want:    "too short",
 		},
 		{
 			name:    "instance backtick",
@@ -160,6 +170,11 @@ func TestValidateResourceIDsRejectsInvalidOptions(t *testing.T) {
 			name:    "database uppercase",
 			options: []Option{WithDatabaseID("Database")},
 			want:    "database ID",
+		},
+		{
+			name:    "database too short",
+			options: []Option{WithDatabaseID("a")},
+			want:    "too short",
 		},
 		{
 			name:    "database overlong",
@@ -224,7 +239,7 @@ func TestValidateResourceIDsRejectsInvalidOmniOptions(t *testing.T) {
 }
 
 func TestValidateResourceIDRejectsEmptyFinalID(t *testing.T) {
-	err := validateResourceID("database", "", maxDatabaseIDLength)
+	err := validateResourceID("database", "", minDatabaseIDLength, maxDatabaseIDLength)
 	if err == nil {
 		t.Fatal("validateResourceID() error = nil, want non-nil")
 	}
@@ -270,6 +285,16 @@ func TestValidateResourceIDsAcceptsDefaultsAndRandomIDs(t *testing.T) {
 		}
 	})
 
+	t.Run("emulator database underscores", func(t *testing.T) {
+		opts, err := applyOptions(WithDatabaseID("my_database"))
+		if err != nil {
+			t.Fatalf("applyOptions() error = %v, want nil", err)
+		}
+		if opts.databaseID != "my_database" {
+			t.Fatalf("databaseID = %q, want %q", opts.databaseID, "my_database")
+		}
+	})
+
 	t.Run("omni defaults", func(t *testing.T) {
 		opts, err := applyOmniOptions()
 		if err != nil {
@@ -283,6 +308,16 @@ func TestValidateResourceIDsAcceptsDefaultsAndRandomIDs(t *testing.T) {
 		}
 		if opts.databaseID != DefaultDatabaseID {
 			t.Fatalf("databaseID = %q, want %q", opts.databaseID, DefaultDatabaseID)
+		}
+	})
+
+	t.Run("omni database underscores", func(t *testing.T) {
+		opts, err := applyOmniOptions(WithDatabaseID("my_database"))
+		if err != nil {
+			t.Fatalf("applyOmniOptions() error = %v, want nil", err)
+		}
+		if opts.databaseID != "my_database" {
+			t.Fatalf("databaseID = %q, want %q", opts.databaseID, "my_database")
 		}
 	})
 
