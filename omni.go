@@ -287,7 +287,9 @@ func newOmni(ctx context.Context, opts *emulatorOptions) (testcontainers.Contain
 			WaitingFor: wait.ForAll(
 				wait.ForLog("Spanner is ready").WithStartupTimeout(omniStartupTimeout),
 				wait.ForExposedPort().SkipInternalCheck().WithStartupTimeout(omniStartupTimeout),
-			).WithDeadline(omniStartupTimeout),
+			).
+				WithStartupTimeoutDefault(omniStartupTimeout).
+				WithDeadline(omniStartupTimeout),
 		},
 		Started: true,
 	}

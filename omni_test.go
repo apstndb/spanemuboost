@@ -4,7 +4,6 @@ import (
 	"context"
 	"errors"
 	"os"
-	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -70,7 +69,7 @@ func TestNewOmniConfiguresStartupWaitTimeouts(t *testing.T) {
 	if !ok {
 		t.Fatalf("WaitingFor = %T, want *wait.MultiStrategy", req.WaitingFor)
 	}
-	assertWaitDeadline(t, multiStrategy, omniStartupTimeout)
+	assertWaitTimeout(t, "combined", multiStrategy.Timeout(), omniStartupTimeout)
 
 	var sawLogWait, sawPortWait bool
 	root := req.WaitingFor
@@ -92,21 +91,6 @@ func TestNewOmniConfiguresStartupWaitTimeouts(t *testing.T) {
 	}
 	if !sawPortWait {
 		t.Fatal("exposed-port wait strategy not found")
-	}
-}
-
-func assertWaitDeadline(t *testing.T, strategy *wait.MultiStrategy, want time.Duration) {
-	t.Helper()
-
-	deadline := reflect.ValueOf(strategy).Elem().FieldByName("deadline")
-	if !deadline.IsValid() {
-		t.Fatal("combined deadline field not found")
-	}
-	if deadline.IsNil() {
-		t.Fatalf("combined deadline = nil, want %s", want)
-	}
-	if got := time.Duration(deadline.Elem().Int()); got != want {
-		t.Fatalf("combined deadline = %s, want %s", got, want)
 	}
 }
 
