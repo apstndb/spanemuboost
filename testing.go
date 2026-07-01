@@ -88,6 +88,8 @@ func setupLazy[T any](tb testing.TB, get func(context.Context) (T, error)) T {
 
 // Setup starts the selected backend on first call (thread-safe via [sync.Once])
 // and returns the cached [Runtime] on subsequent calls.
+// It may run concurrently with [LazyRuntime.Close]; see [LazyRuntime] for the
+// lifecycle invariant.
 // It calls [testing.TB.Fatal] if startup fails.
 // For use with [SetupClients] or [OpenClients], you can pass [*LazyRuntime] directly
 // without calling Setup.
@@ -97,6 +99,8 @@ func (lr *LazyRuntime) Setup(tb testing.TB) Runtime {
 
 // Setup starts the emulator on first call (thread-safe via [sync.Once]) and
 // returns the cached [*Emulator] on subsequent calls.
+// It may run concurrently with [LazyEmulator.Close]; see [LazyEmulator] for the
+// lifecycle invariant.
 // It calls [testing.TB.Fatal] if startup fails.
 // For use with [SetupClients] or [OpenClients], you can pass [*LazyEmulator] directly
 // without calling Setup.
