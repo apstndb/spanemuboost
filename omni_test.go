@@ -2,13 +2,24 @@ package spanemuboost
 
 import (
 	"context"
+	"errors"
 	"os"
+	"reflect"
 	"strings"
 	"testing"
+	"time"
 
 	"cloud.google.com/go/spanner"
 	"cloud.google.com/go/spanner/admin/database/apiv1/databasepb"
+	"github.com/testcontainers/testcontainers-go"
+	"github.com/testcontainers/testcontainers-go/wait"
 )
+
+type containerCustomizerFunc func(*testcontainers.GenericContainerRequest) error
+
+func (f containerCustomizerFunc) Customize(req *testcontainers.GenericContainerRequest) error {
+	return f(req)
+}
 
 func TestRecommendedOmniClientConfig(t *testing.T) {
 	config := RecommendedOmniClientConfig()
@@ -32,6 +43,81 @@ func TestOmniRuntimeCloseZeroValue(t *testing.T) {
 	}
 	if err := runtime.Close(); err != nil {
 		t.Fatalf("second Close() error = %v, want nil", err)
+	}
+}
+
+func TestNewOmniConfiguresStartupWaitTimeouts(t *testing.T) {
+	captureErr := errors.New("capture omni request")
+	var req testcontainers.GenericContainerRequest
+
+	opts, err := applyOmniOptions(WithContainerCustomizers(containerCustomizerFunc(func(r *testcontainers.GenericContainerRequest) error {
+		req = *r
+		return captureErr
+	})))
+	if err != nil {
+		t.Fatalf("applyOmniOptions: %v", err)
+	}
+
+	_, err = newOmni(context.Background(), opts)
+	if !errors.Is(err, captureErr) {
+		t.Fatalf("newOmni() error = %v, want %v", err, captureErr)
+	}
+	if req.WaitingFor == nil {
+		t.Fatal("WaitingFor is nil")
+	}
+
+	multiStrategy, ok := req.WaitingFor.(*wait.MultiStrategy)
+	if !ok {
+		t.Fatalf("WaitingFor = %T, want *wait.MultiStrategy", req.WaitingFor)
+	}
+	assertWaitDeadline(t, multiStrategy, omniStartupTimeout)
+
+	var sawLogWait, sawPortWait bool
+	root := req.WaitingFor
+	if err := wait.Walk(&root, func(strategy wait.Strategy) error {
+		switch strategy := strategy.(type) {
+		case *wait.LogStrategy:
+			sawLogWait = true
+			assertWaitTimeout(t, "log", strategy.Timeout(), omniStartupTimeout)
+		case *wait.HostPortStrategy:
+			sawPortWait = true
+			assertWaitTimeout(t, "exposed-port", strategy.Timeout(), omniStartupTimeout)
+		}
+		return nil
+	}); err != nil {
+		t.Fatalf("walk wait strategies: %v", err)
+	}
+	if !sawLogWait {
+		t.Fatal("log wait strategy not found")
+	}
+	if !sawPortWait {
+		t.Fatal("exposed-port wait strategy not found")
+	}
+}
+
+func assertWaitDeadline(t *testing.T, strategy *wait.MultiStrategy, want time.Duration) {
+	t.Helper()
+
+	deadline := reflect.ValueOf(strategy).Elem().FieldByName("deadline")
+	if !deadline.IsValid() {
+		t.Fatal("combined deadline field not found")
+	}
+	if deadline.IsNil() {
+		t.Fatalf("combined deadline = nil, want %s", want)
+	}
+	if got := time.Duration(deadline.Elem().Int()); got != want {
+		t.Fatalf("combined deadline = %s, want %s", got, want)
+	}
+}
+
+func assertWaitTimeout(t *testing.T, name string, got *time.Duration, want time.Duration) {
+	t.Helper()
+
+	if got == nil {
+		t.Fatalf("%s timeout = nil, want %s", name, want)
+	}
+	if *got != want {
+		t.Fatalf("%s timeout = %s, want %s", name, *got, want)
 	}
 }
 
