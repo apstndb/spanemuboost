@@ -15,7 +15,7 @@ import (
 )
 
 const (
-	DefaultEmulatorImage = "gcr.io/cloud-spanner-emulator/emulator:1.5.55"
+	DefaultEmulatorImage = "gcr.io/cloud-spanner-emulator/emulator:1.5.56"
 	DefaultProjectID     = "emulator-project"
 	DefaultInstanceID    = "emulator-instance"
 	DefaultDatabaseID    = "emulator-database"
