@@ -16,6 +16,10 @@ type Emulator struct {
 
 	// Pointer-backed to keep exported Emulator comparable as a value.
 	closeState *closeState
+
+	// provenance is the startup container observation. Nil when inspect failed.
+	// A failed observation does not fail startup.
+	provenance *ImageProvenance
 }
 
 func (*Emulator) spanemuboostRuntime() {}

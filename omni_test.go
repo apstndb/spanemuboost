@@ -357,6 +357,7 @@ func TestRunOmni(t *testing.T) {
 	} else if platform == "" {
 		t.Fatal("RuntimePlatform() returned empty platform")
 	}
+	assertObservedRuntimeProvenance(t, omni, defaultOmniImage)
 
 	client, err := spanner.NewClientWithConfig(t.Context(), omni.DatabasePath(), RecommendedOmniClientConfig(), omni.ClientOptions()...)
 	if err != nil {

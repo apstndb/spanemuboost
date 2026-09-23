@@ -31,6 +31,11 @@ type Endpoint struct {
 	ManagedBy string `json:"managed_by,omitempty"`
 	PID       int    `json:"pid,omitempty"`
 	StartedAt string `json:"started_at,omitempty"`
+
+	// Provenance is optional producer-reported image metadata.
+	// Old endpoint files omit it and remain valid. It is not a fresh
+	// observation of the running container.
+	Provenance *EndpointProvenance `json:"provenance,omitempty"`
 }
 
 // EndpointFromRuntime builds an [Endpoint] from a started [Runtime].
@@ -48,6 +53,7 @@ func EndpointFromRuntime(runtime Runtime) (Endpoint, error) {
 		URI:        uri,
 		ProjectID:  runtime.ProjectID(),
 		InstanceID: runtime.InstanceID(),
+		Provenance: endpointProvenanceFromRuntime(runtime),
 	}
 	if err := endpoint.validate(); err != nil {
 		return Endpoint{}, err

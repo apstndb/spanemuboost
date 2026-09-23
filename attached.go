@@ -18,6 +18,10 @@ type AttachedRuntime struct {
 	backend Backend
 	opts    *emulatorOptions
 	uri     string
+
+	// reportedProvenance is copied from the endpoint file. It stays
+	// producer-reported and is never treated as an inspection by this process.
+	reportedProvenance *EndpointProvenance
 }
 
 func (*AttachedRuntime) spanemuboostRuntime() {}
@@ -32,9 +36,10 @@ func NewAttachedRuntime(endpoint Endpoint, options ...Option) (*AttachedRuntime,
 		return nil, err
 	}
 	return &AttachedRuntime{
-		backend: endpoint.Backend,
-		opts:    opts,
-		uri:     endpoint.URI,
+		backend:            endpoint.Backend,
+		opts:               opts,
+		uri:                endpoint.URI,
+		reportedProvenance: cloneEndpointProvenance(endpoint.Provenance),
 	}, nil
 }
 
