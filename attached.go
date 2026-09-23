@@ -182,6 +182,7 @@ func preserveAttachedBootstrapOptions(base, source *emulatorOptions) {
 		base.disableCreateDatabase = false
 	}
 	base.randomDatabaseID = source.randomDatabaseID
+	base.randomDatabaseIDResolved = source.randomDatabaseIDResolved
 	if len(source.setupDDLs) > 0 {
 		base.setupDDLs = append([]string(nil), source.setupDDLs...)
 	}
