@@ -182,6 +182,15 @@ func preserveAttachedBootstrapOptions(base, source *emulatorOptions) {
 		base.disableCreateDatabase = false
 	}
 	base.randomDatabaseID = source.randomDatabaseID
+	// inheritedRuntimeOptions keeps only resource IDs and client config.
+	// Explicit constructor policies must survive OpenClients/SetupClients,
+	// including the no-extra-option path that returns this base directly.
+	// Per-call options are applied later and replace these values.
+	base.schemaTeardown = source.schemaTeardown
+	base.disableBackendGuardrails = source.disableBackendGuardrails
+	if len(source.clientOptionsForClient) > 0 {
+		base.clientOptionsForClient = append([]option.ClientOption(nil), source.clientOptionsForClient...)
+	}
 	if len(source.setupDDLs) > 0 {
 		base.setupDDLs = append([]string(nil), source.setupDDLs...)
 	}
