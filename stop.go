@@ -56,16 +56,24 @@ func StopFromConfig(ctx context.Context, cfg StopConfig) error {
 		}
 	}
 
-	if err := proc.Signal(syscall.SIGKILL); err == nil {
-		for time.Now().Before(deadline) {
-			if err := proc.Signal(syscall.Signal(0)); err != nil {
-				return finishStopCleanup(cfg)
-			}
-			select {
-			case <-ctx.Done():
-				return ctx.Err()
-			case <-time.After(100 * time.Millisecond):
-			}
+	if err := proc.Signal(syscall.SIGKILL); err != nil {
+		// The process can exit between the last liveness check and SIGKILL.
+		if isProcessDone(err) {
+			return finishStopCleanup(cfg)
+		}
+		return fmt.Errorf("spanemuboost: kill serve process %d: %w", pid, err)
+	}
+	// The graceful deadline has already passed. Forced termination needs its
+	// own wait or this loop never runs and metadata is left behind.
+	killDeadline := time.Now().Add(cfg.Timeout)
+	for time.Now().Before(killDeadline) {
+		if err := proc.Signal(syscall.Signal(0)); err != nil {
+			return finishStopCleanup(cfg)
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(100 * time.Millisecond):
 		}
 	}
 
