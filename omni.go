@@ -251,7 +251,9 @@ func omniGuardrailError(problem, suggestion string) error {
 func startOmni(ctx context.Context, opts *emulatorOptions) (*omniRuntime, error) {
 	container, err := newOmni(ctx, opts)
 	if err != nil {
-		return nil, err
+		// Same as newEmulator: a failed GenericContainer start can still
+		// return the container. Drop it before the caller discards the handle.
+		return nil, terminateContainerAfterStartupError(container, err)
 	}
 
 	uri, err := container.PortEndpoint(ctx, string(omniGRPCPort), "")

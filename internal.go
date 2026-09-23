@@ -48,6 +48,12 @@ func newEmulator(ctx context.Context, opts *emulatorOptions) (container *tcspann
 		containerCustomizers...,
 	)
 	if err != nil {
+		// Testcontainers can return a live container together with a startup
+		// error. Callers only see the error, so terminate here. Use a fresh
+		// context because the startup context may already be canceled.
+		if container != nil {
+			err = terminateContainerAfterStartupError(container, err)
+		}
 		return nil, nil, err
 	}
 
@@ -60,6 +66,18 @@ func newEmulator(ctx context.Context, opts *emulatorOptions) (container *tcspann
 	}
 
 	return container, teardown, nil
+}
+
+func terminateContainerAfterStartupError(container testcontainers.Container, startupErr error) error {
+	if container == nil || startupErr == nil {
+		return startupErr
+	}
+	ctx, cancel := newCloseContext()
+	defer cancel()
+	if err := container.Terminate(ctx); err != nil {
+		return errors.Join(startupErr, fmt.Errorf("spanemuboost: terminate container after startup failure: %w", err))
+	}
+	return startupErr
 }
 
 func containerPlatform(ctx context.Context, container testcontainers.Container) (string, error) {
