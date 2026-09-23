@@ -136,6 +136,7 @@ func RunEmulator(ctx context.Context, options ...Option) (*Emulator, error) {
 	}
 
 	emu := &Emulator{container: container, opts: opts}
+	emu.captureImageProvenance(ctx)
 
 	if err = bootstrap(ctx, opts, emu.ClientOptions()...); err != nil {
 		_ = emu.Close()
@@ -160,6 +161,7 @@ func RunEmulatorWithClients(ctx context.Context, options ...Option) (*Env, error
 	}
 
 	emu := &Emulator{container: container, opts: opts}
+	emu.captureImageProvenance(ctx)
 
 	clients, err := bootstrapAndCreateClients(ctx, emu, opts)
 	if err != nil {

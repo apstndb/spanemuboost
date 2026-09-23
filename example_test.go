@@ -391,3 +391,35 @@ func ExampleNewClients() {
 	fmt.Println(pks)
 	// Output: [0 1 2 3 4 5 6 7 8 9]
 }
+
+func ExampleRuntimeImageProvenance() {
+	// Producer-reported endpoint metadata is not an observation by this process.
+	attached, err := spanemuboost.NewAttachedRuntime(spanemuboost.Endpoint{
+		Backend:    spanemuboost.BackendEmulator,
+		URI:        "127.0.0.1:9010",
+		ProjectID:  spanemuboost.DefaultProjectID,
+		InstanceID: spanemuboost.DefaultInstanceID,
+		Provenance: &spanemuboost.EndpointProvenance{
+			RequestedImage: "gcr.io/cloud-spanner-emulator/emulator:1.5.58",
+			ImageID:        "sha256:example",
+			ManifestDigest: "sha256:manifest",
+			Platform:       "linux/arm64",
+		},
+	})
+	if err != nil {
+		log.Fatalln(err)
+	}
+	prov, err := spanemuboost.RuntimeImageProvenance(context.Background(), attached)
+	if err != nil {
+		log.Fatalln(err)
+	}
+	fmt.Println(prov.Source)
+	fmt.Println(prov.ObservedByThisProcess)
+	fmt.Println(prov.RequestedImage)
+	fmt.Println(prov.ImageID)
+	// Output:
+	// endpoint_file
+	// false
+	// gcr.io/cloud-spanner-emulator/emulator:1.5.58
+	// sha256:example
+}

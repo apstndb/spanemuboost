@@ -918,6 +918,7 @@ func TestRuntimePlatformWithStartedRuntime(t *testing.T) {
 	if got == "" {
 		t.Fatal("RuntimePlatform() returned empty platform")
 	}
+	assertObservedRuntimeProvenance(t, runtime, DefaultEmulatorImage)
 }
 
 func TestRuntimePlatformWithLazyRuntime(t *testing.T) {

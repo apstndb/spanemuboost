@@ -34,6 +34,9 @@ type omniRuntime struct {
 	uri       string
 
 	closeState closeState
+
+	// provenance is the startup container observation. Nil when inspect failed.
+	provenance *ImageProvenance
 }
 
 func (*omniRuntime) spanemuboostRuntime() {}
@@ -266,11 +269,13 @@ func startOmni(ctx context.Context, opts *emulatorOptions) (*omniRuntime, error)
 		return nil, err
 	}
 
-	return &omniRuntime{
+	omni := &omniRuntime{
 		container: container,
 		opts:      opts,
 		uri:       uri,
-	}, nil
+	}
+	omni.captureImageProvenance(ctx)
+	return omni, nil
 }
 
 func wrapOmniBootstrapError(err error) error {
