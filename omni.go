@@ -223,11 +223,12 @@ func finalizeOmniOptions(opts *emulatorOptions) (*emulatorOptions, error) {
 	if len(opts.gatewayFlags) > 0 && !opts.disableBackendGuardrails {
 		return nil, omniGuardrailError(fmt.Sprintf("emulator gateway flag options are unsupported for Spanner Omni; got %v", opts.gatewayFlags), "remove the emulator-only Option helpers (e.g. EnableFaultInjection, EnableLogRequests), or DisableBackendGuardrails() to bypass this validation")
 	}
-	if opts.randomDatabaseID && opts.databaseID != "" {
+	if opts.randomDatabaseID && opts.databaseID != "" && !opts.randomDatabaseIDResolved {
 		return nil, fmt.Errorf("WithRandomDatabaseID() and WithDatabaseID() are mutually exclusive")
 	}
-	if opts.randomDatabaseID {
+	if opts.randomDatabaseID && !opts.randomDatabaseIDResolved {
 		opts.databaseID = generateRandomID()
+		opts.randomDatabaseIDResolved = true
 	}
 
 	opts.emulatorImage = cmp.Or(opts.emulatorImage, defaultOmniImage)

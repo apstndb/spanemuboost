@@ -21,6 +21,11 @@ type emulatorOptions struct {
 	projectID, instanceID, databaseID string
 
 	randomProjectID, randomInstanceID, randomDatabaseID bool
+	// randomDatabaseIDResolved is true after finalize has generated databaseID
+	// from WithRandomDatabaseID. The stored ID is inherited identity, not an
+	// explicit WithDatabaseID, so a later OpenClients option set must not
+	// treat the pair as a mutual-exclusion conflict.
+	randomDatabaseIDResolved bool
 
 	disableCreateInstance    bool
 	disableCreateDatabase    bool
@@ -240,6 +245,13 @@ func WithDatabaseID(databaseID string) Option {
 			opts.disableCreateDatabase = false
 		}
 		opts.reuseExistingDatabase = false
+		// An already-generated random ID is inherited identity. This call
+		// overrides it. A WithRandomDatabaseID in the same option set leaves
+		// the random flag unset-resolved so finalize still reports the conflict.
+		if opts.randomDatabaseIDResolved {
+			opts.randomDatabaseID = false
+			opts.randomDatabaseIDResolved = false
+		}
 		opts.databaseID = databaseID
 		return nil
 	}
@@ -254,6 +266,7 @@ func WithDatabaseID(databaseID string) Option {
 func WithRandomDatabaseID() Option {
 	return func(opts *emulatorOptions) error {
 		opts.randomDatabaseID = true
+		opts.randomDatabaseIDResolved = false
 		opts.reuseExistingDatabase = false
 		opts.databaseID = ""
 		opts.disableCreateDatabase = false
@@ -538,7 +551,7 @@ func finalizeOptions(opts *emulatorOptions) (*emulatorOptions, error) {
 		return nil, fmt.Errorf("WithRandomInstanceID() and WithInstanceID() are mutually exclusive")
 	}
 
-	if opts.randomDatabaseID && opts.databaseID != "" {
+	if opts.randomDatabaseID && opts.databaseID != "" && !opts.randomDatabaseIDResolved {
 		return nil, fmt.Errorf("WithRandomDatabaseID() and WithDatabaseID() are mutually exclusive")
 	}
 
@@ -550,8 +563,9 @@ func finalizeOptions(opts *emulatorOptions) (*emulatorOptions, error) {
 		opts.instanceID = generateRandomID()
 	}
 
-	if opts.randomDatabaseID {
+	if opts.randomDatabaseID && !opts.randomDatabaseIDResolved {
 		opts.databaseID = generateRandomID()
+		opts.randomDatabaseIDResolved = true
 	}
 
 	opts.emulatorImage = cmp.Or(opts.emulatorImage, DefaultEmulatorImage)
