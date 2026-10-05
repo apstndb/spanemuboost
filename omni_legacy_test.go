@@ -16,7 +16,7 @@ func TestRunOmniLegacyImages(t *testing.T) {
 		t.Run(version, func(t *testing.T) {
 			image := "us-docker.pkg.dev/spanner-omni/images/spanner-omni:" + version
 			env, err := RunWithClients(t.Context(), BackendOmni,
-				WithContainerImage(image), WithOmniStartArgs(),
+				WithContainerImage(image),
 				WithRandomDatabaseID(),
 				WithSetupDDLs([]string{"CREATE TABLE tbl (pk INT64, col STRING(MAX)) PRIMARY KEY (pk)"}),
 				WithSetupRawDMLs([]string{"INSERT INTO tbl (pk, col) VALUES (1, 'legacy')"}),

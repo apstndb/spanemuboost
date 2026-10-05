@@ -76,9 +76,9 @@ database accumulation matters.
 
 ### Spanner Omni (experimental)
 
-Omni defaults to `2026.r4-lts`. For r2.1/r3 images, pair
-`WithContainerImage(...)` with `WithOmniStartArgs()` to retain the flagless
-startup command. See [package documentation](https://pkg.go.dev/github.com/apstndb/spanemuboost#hdr-Omni_image_selection)
+Omni defaults to `2026.r4-lts`. Use `WithContainerImage(...)` to select another
+image. Startup detects supported listen-address flags inside the container;
+r2.1/r3 keep their flagless command automatically. See [package documentation](https://pkg.go.dev/github.com/apstndb/spanemuboost#hdr-Omni_image_selection)
 for image selection and custom startup arguments.
 
 `Setup`, `Run`, `RunWithClients`, and `SetupWithClients` with `BackendOmni` start a Spanner Omni single-server container and use the public Spanner gRPC API on port `15000` for database creation, DDL application, DML setup, and managed client creation. This path is intended for integration tests that want a real Omni runtime without depending on the emulator.
@@ -168,9 +168,9 @@ spanemuboost serve omni --endpoint-file /tmp/omni-endpoint.json
 spanemuboost stop --endpoint-file /tmp/omni-endpoint.json
 ```
 
-Use `--image IMAGE --omni-start-mode legacy` for older r2.1/r3 images.
-Both flags also accept `--flag=value`; selecting an image alone retains the
-current LTS startup arguments.
+Use `--image IMAGE` to select another image, including r2.1/r3.
+The flag accepts both `--image value` and `--image=value`. Startup detects
+supported listen-address flags inside the selected container.
 
 By default, `serve omni` skips instance and database bootstrap so only the
 built-in `spanner-info` database exists until clients create their own. Pass

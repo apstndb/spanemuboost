@@ -424,11 +424,10 @@ func ExampleRuntimeImageProvenance() {
 	// sha256:example
 }
 
-// Explicitly pair older images with their flagless startup command.
-func ExampleWithOmniStartArgs() {
+// Older verified Omni images use the same automatic startup path as the default.
+func ExampleWithContainerImage_omni() {
 	lazy := spanemuboost.NewLazyRuntime(spanemuboost.BackendOmni,
 		spanemuboost.WithContainerImage("us-docker.pkg.dev/spanner-omni/images/spanner-omni:2026.r3-beta"),
-		spanemuboost.WithOmniStartArgs(),
 	)
 	defer func() {
 		if err := lazy.Close(); err != nil {
@@ -436,6 +435,6 @@ func ExampleWithOmniStartArgs() {
 		}
 	}()
 	// Pass lazy to OpenClients or SetupClients to start the selected image.
-	fmt.Println("legacy Omni runtime configured")
-	// Output: legacy Omni runtime configured
+	fmt.Println("r3 Omni runtime configured")
+	// Output: r3 Omni runtime configured
 }

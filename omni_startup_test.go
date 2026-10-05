@@ -30,28 +30,37 @@ func captureOmniRequest(t *testing.T, options ...Option) testcontainers.GenericC
 func TestOmniStartupConfiguration(t *testing.T) {
 	const ltsImage = "us-docker.pkg.dev/spanner-omni/images/spanner-omni:2026.r4-lts"
 	const customImage = "example.invalid/omni@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+	automaticEntrypoint := []string{"/bin/tini", "--", "/bin/sh", "-c", omniAutomaticStartScript, "--", "spanemuboost-omni"}
 	for _, tt := range []struct {
-		name    string
-		options []Option
-		image   string
-		cmd     []string
+		name       string
+		options    []Option
+		image      string
+		cmd        []string
+		entrypoint []string
 	}{
-		{"LTS default", nil, ltsImage, []string{"start-single-server", "--listen-addresses=0.0.0.0"}},
-		{"legacy image", []Option{WithContainerImage(customImage), WithOmniStartArgs()}, customImage, []string{"start-single-server"}},
-		{"image alone keeps LTS args", []Option{WithContainerImage(customImage)}, customImage, []string{"start-single-server", "--listen-addresses=0.0.0.0"}},
-		{"custom argv", []Option{WithOmniStartArgs("--listen-addresses=0.0.0.0", "--log-errors-inline")}, ltsImage, []string{"start-single-server", "--listen-addresses=0.0.0.0", "--log-errors-inline"}},
-		{"empty last wins", []Option{WithOmniStartArgs("--log-errors-inline"), WithOmniStartArgs()}, ltsImage, []string{"start-single-server"}},
-		{"nonempty last wins", []Option{WithOmniStartArgs(), WithOmniStartArgs("--listen-addresses=0.0.0.0")}, ltsImage, []string{"start-single-server", "--listen-addresses=0.0.0.0"}},
-		{"customizer wins", []Option{WithOmniStartArgs(), WithContainerCustomizers(testcontainers.CustomizeRequestOption(func(r *testcontainers.GenericContainerRequest) error {
+		{"LTS default", nil, ltsImage, []string{"start-single-server"}, automaticEntrypoint},
+		{"image alone detects capabilities", []Option{WithContainerImage(customImage)}, customImage, []string{"start-single-server"}, automaticEntrypoint},
+		{"explicit empty bypasses detection", []Option{WithContainerImage(customImage), WithOmniStartArgs()}, customImage, []string{"start-single-server"}, nil},
+		{"custom argv", []Option{WithOmniStartArgs("--listen-addresses=0.0.0.0", "--log-errors-inline")}, ltsImage, []string{"start-single-server", "--listen-addresses=0.0.0.0", "--log-errors-inline"}, nil},
+		{"empty last wins", []Option{WithOmniStartArgs("--log-errors-inline"), WithOmniStartArgs()}, ltsImage, []string{"start-single-server"}, nil},
+		{"nonempty last wins", []Option{WithOmniStartArgs(), WithOmniStartArgs("--listen-addresses=0.0.0.0")}, ltsImage, []string{"start-single-server", "--listen-addresses=0.0.0.0"}, nil},
+		{"image customizer keeps detection", []Option{WithContainerCustomizers(testcontainers.CustomizeRequestOption(func(r *testcontainers.GenericContainerRequest) error {
 			r.Image = customImage
+			return nil
+		}))}, customImage, []string{"start-single-server"}, automaticEntrypoint},
+		{"command customizer wins", []Option{WithContainerCustomizers(testcontainers.CustomizeRequestOption(func(r *testcontainers.GenericContainerRequest) error {
 			r.Cmd = []string{"custom-subcommand", "custom-arg"}
 			return nil
-		}))}, customImage, []string{"custom-subcommand", "custom-arg"}},
+		}))}, ltsImage, []string{"custom-subcommand", "custom-arg"}, automaticEntrypoint},
+		{"entrypoint customizer wins", []Option{WithContainerCustomizers(testcontainers.CustomizeRequestOption(func(r *testcontainers.GenericContainerRequest) error {
+			r.Entrypoint = []string{"custom-entrypoint"}
+			return nil
+		}))}, ltsImage, []string{"start-single-server"}, []string{"custom-entrypoint"}},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			req := captureOmniRequest(t, tt.options...)
-			if req.Image != tt.image || !slices.Equal(req.Cmd, tt.cmd) {
-				t.Fatalf("request image/cmd = %q/%q, want %q/%q", req.Image, req.Cmd, tt.image, tt.cmd)
+			if req.Image != tt.image || !slices.Equal(req.Cmd, tt.cmd) || !slices.Equal(req.Entrypoint, tt.entrypoint) {
+				t.Fatalf("request image/cmd/entrypoint = %q/%q/%q, want %q/%q/%q", req.Image, req.Cmd, req.Entrypoint, tt.image, tt.cmd, tt.entrypoint)
 			}
 		})
 	}

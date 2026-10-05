@@ -15,21 +15,23 @@
 //
 // # Omni image selection
 //
-// [BackendOmni] defaults to the Developer image 2026.r4-lts and starts it with
-// --listen-addresses=0.0.0.0 for container port forwarding. Omni support in this
-// package remains experimental regardless of the image's LTS designation.
+// [BackendOmni] defaults to the Developer image 2026.r4-lts. Startup checks
+// start-single-server --help inside the owned container and adds
+// --listen-addresses=0.0.0.0 when supported, so r4 is reachable through the
+// published port while older images keep their flagless command. The verified
+// 2026.r2.1-beta, 2026.r3-beta, and 2026.r4-lts images share this startup path.
+// Omni support remains experimental regardless of the image's LTS designation.
 //
-// To retain the old flagless startup command for 2026.r2.1-beta or 2026.r3-beta,
-// pair [WithContainerImage] with an explicitly empty [WithOmniStartArgs]:
+// Select another image with [WithContainerImage]:
 //
 //	env, err := RunWithClients(ctx, BackendOmni,
 //		WithContainerImage("us-docker.pkg.dev/spanner-omni/images/spanner-omni:2026.r3-beta"),
-//		WithOmniStartArgs(),
 //	)
 //
-// WithOmniStartArgs replaces all default arguments after start-single-server.
-// Custom arguments for r4 must retain the listen address. No version inference
-// is made from tags or digests. These options apply to new containers only;
-// attached endpoints and clients opened on an existing runtime are unchanged.
-// The CLI equivalent is serve omni --image IMAGE --omni-start-mode legacy.
+// The CLI equivalent is serve omni --image IMAGE. No version inference is made
+// from tags or digests, and detection does not start a second container.
+// [WithOmniStartArgs] bypasses detection and uses the image's native entrypoint
+// with explicit arguments, for custom layouts or help behavior. Custom r4
+// arguments must retain the listen address. These options apply to new
+// containers only; attached endpoints and reopened clients are unchanged.
 package spanemuboost

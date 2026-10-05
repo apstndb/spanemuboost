@@ -19,7 +19,7 @@ import (
 
 type emulatorOptions struct {
 	omniStartArgs    []string
-	omniStartArgsSet bool // An explicitly empty list selects the legacy command.
+	omniStartArgsSet bool // Explicit args bypass automatic capability detection.
 
 	emulatorImage                     string
 	projectID, instanceID, databaseID string
@@ -295,9 +295,8 @@ func WithDatabaseDialect(dialect databasepb.DatabaseDialect) Option {
 }
 
 // WithContainerImage configures the container image used for the selected backend.
-// Empty string will be ignored. For older Omni images, also supply
-// [WithOmniStartArgs] with arguments appropriate to that image. Image names
-// are not inspected to select startup arguments.
+// Empty string will be ignored. Omni startup detects supported listen-address
+// flags inside the selected container; image tags and digests are not parsed.
 func WithContainerImage(image string) Option {
 	return func(opts *emulatorOptions) error {
 		if image != "" {
@@ -308,14 +307,15 @@ func WithContainerImage(image string) Option {
 }
 
 // WithOmniStartArgs replaces the arguments after Omni's fixed
-// start-single-server subcommand. It applies only when starting an Omni
+// start-single-server subcommand and bypasses automatic capability detection,
+// using the image's native entrypoint. It applies only when starting an Omni
 // container; it does not reconfigure attached runtimes or [OpenClients].
 //
-// Without this option, Omni uses --listen-addresses=0.0.0.0 so the default
-// 2026.r4-lts image is reachable through the published container port. An
-// explicit empty list, WithOmniStartArgs(), selects the flagless command used
-// by older images such as 2026.r2.1-beta and 2026.r3-beta. Image selection via
-// [WithContainerImage] does not change these defaults automatically.
+// Without this option, startup checks start-single-server --help inside the
+// container and adds --listen-addresses=0.0.0.0 when that flag is supported.
+// Older verified images (2026.r2.1-beta and 2026.r3-beta) work automatically
+// with just [WithContainerImage]. Use this override for custom image layouts
+// or help behavior. An explicit empty list selects the flagless command.
 //
 // Arguments are passed as argv, not shell text. Empty individual arguments
 // are rejected. The last call wins, including an empty last call. Custom

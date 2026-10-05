@@ -26,6 +26,39 @@ const (
 	omniStartupTimeout    = 5 * time.Minute
 )
 
+// Detect capabilities in the owned container rather than inferring a version
+// from a mutable tag or digest. Retain tini and exec for signal handling.
+// Omni's Toybox sh lacks reliable command-substitution exit status and `set --`
+// support. Redirect help to a temporary file and capture statuses immediately.
+const omniAutomaticStartScript = `spanner=/google/spanner/bin/spanner
+if [ "$0" = -- ]; then shift; fi
+if [ "${1:-}" = start-single-server ]; then
+    explicit_listen=false
+    for arg do
+        case "$arg" in
+            --listen-addresses|--listen-addresses=*) explicit_listen=true ;;
+        esac
+    done
+    if [ "$explicit_listen" = false ]; then
+        help_file=/tmp/spanemuboost-omni-help-$$
+        "$spanner" start-single-server --help > "$help_file"
+        result=$?
+        if [ "$result" -ne 0 ]; then
+            rm -f "$help_file"
+            exit "$result"
+        fi
+        grep -Eq '^[[:space:]]+(-[^[:space:]]+,[[:space:]]+)?--listen-addresses([[:space:]]|=)' "$help_file"
+        result=$?
+        rm -f "$help_file"
+        if [ "$result" -eq 0 ]; then
+            exec "$spanner" "$@" --listen-addresses=0.0.0.0
+        fi
+        if [ "$result" -ne 1 ]; then exit "$result"; fi
+    fi
+fi
+exec "$spanner" "$@"
+`
+
 var omniGRPCPort = nat.Port("15000/tcp")
 
 type omniRuntime struct {
@@ -231,10 +264,6 @@ func finalizeOmniOptions(opts *emulatorOptions) (*emulatorOptions, error) {
 		opts.randomDatabaseIDResolved = true
 	}
 
-	// r4 binds to localhost by default; publish a reachable container port.
-	if !opts.omniStartArgsSet {
-		opts.omniStartArgs = []string{"--listen-addresses=0.0.0.0"}
-	}
 	opts.emulatorImage = cmp.Or(opts.emulatorImage, defaultOmniImage)
 	opts.projectID = cmp.Or(opts.projectID, defaultOmniProjectID)
 	opts.instanceID = cmp.Or(opts.instanceID, defaultOmniInstanceID)
@@ -307,6 +336,14 @@ func newOmni(ctx context.Context, opts *emulatorOptions) (testcontainers.Contain
 				WithDeadline(omniStartupTimeout),
 		},
 		Started: true,
+	}
+	if !opts.omniStartArgsSet {
+		// The image layout is shared by the verified r2.1, r3, and r4 images.
+		// Explicit startup args keep the image's native entrypoint as an escape
+		// hatch for custom layouts or help behavior. Customizers still run last.
+		// The separator stops r2.1's shell from parsing Cmd flags as its own.
+		// POSIX shells keep it as $0; the script normalizes the marker argument.
+		req.Entrypoint = []string{"/bin/tini", "--", "/bin/sh", "-c", omniAutomaticStartScript, "--", "spanemuboost-omni"}
 	}
 	for _, customizer := range opts.containerCustomizers {
 		if err := customizer.Customize(&req); err != nil {
