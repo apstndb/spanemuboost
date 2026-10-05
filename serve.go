@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 )
 
@@ -71,13 +72,40 @@ func ServeFromConfig(ctx context.Context, cfg ServeConfig) error {
 	return Serve(ctx, cfg.Backend, cfg.EndpointFile, cfg.Options...)
 }
 
-// ParseServeArgs parses `spanemuboost serve <emulator|omni> --endpoint-file path [--pid-file path] [--with-default-database]`.
+// ParseServeArgs parses the arguments to spanemuboost serve.
+// --image selects a container image. --omni-start-mode default|legacy selects
+// Omni's default LTS arguments or the flagless command for older images.
+// These two flags accept both --flag value and --flag=value forms.
 func ParseServeArgs(args []string) (ServeConfig, error) {
 	cfg := ServeConfig{}
 	var backend string
 	withDefaultDatabase := false
+	var image, omniStartMode string
 	for i := 0; i < len(args); i++ {
-		switch args[i] {
+		arg, value, hasValue := strings.Cut(args[i], "=")
+		if arg != "--image" && arg != "--omni-start-mode" {
+			arg = args[i]
+		}
+		switch arg {
+		case "--image", "--omni-start-mode":
+			if !hasValue {
+				if i+1 >= len(args) || strings.HasPrefix(args[i+1], "--") {
+					return ServeConfig{}, fmt.Errorf("%s requires a value", arg)
+				}
+				i++
+				value = args[i]
+			}
+			if value == "" {
+				return ServeConfig{}, fmt.Errorf("%s requires a non-empty value", arg)
+			}
+			if arg == "--image" {
+				image = value
+			} else {
+				if value != "default" && value != "legacy" {
+					return ServeConfig{}, fmt.Errorf("--omni-start-mode must be default or legacy, got %q", value)
+				}
+				omniStartMode = value
+			}
 		case "--endpoint-file", "-o":
 			if i+1 >= len(args) {
 				return ServeConfig{}, fmt.Errorf("--endpoint-file requires a value")
@@ -102,10 +130,13 @@ func ParseServeArgs(args []string) (ServeConfig, error) {
 		}
 	}
 	if backend == "" {
-		return ServeConfig{}, fmt.Errorf("usage: spanemuboost serve <emulator|omni> --endpoint-file path [--pid-file path] [--with-default-database]")
+		return ServeConfig{}, fmt.Errorf("usage: spanemuboost serve <emulator|omni> --endpoint-file path [--pid-file path] [--with-default-database] [--image image] [--omni-start-mode default|legacy]")
 	}
 	switch Backend(backend) {
 	case BackendEmulator:
+		if omniStartMode != "" {
+			return ServeConfig{}, fmt.Errorf("--omni-start-mode is only supported for Spanner Omni")
+		}
 		cfg.Backend = BackendEmulator
 	case BackendOmni:
 		cfg.Backend = BackendOmni
@@ -114,6 +145,12 @@ func ParseServeArgs(args []string) (ServeConfig, error) {
 		}
 	default:
 		return ServeConfig{}, fmt.Errorf("unsupported serve backend %q; supported values are emulator and omni", backend)
+	}
+	if image != "" {
+		cfg.Options = append(cfg.Options, WithContainerImage(image))
+	}
+	if omniStartMode == "legacy" {
+		cfg.Options = append(cfg.Options, WithOmniStartArgs())
 	}
 	return cfg, nil
 }

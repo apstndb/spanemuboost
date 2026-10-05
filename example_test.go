@@ -423,3 +423,19 @@ func ExampleRuntimeImageProvenance() {
 	// gcr.io/cloud-spanner-emulator/emulator:1.5.58
 	// sha256:example
 }
+
+// Explicitly pair older images with their flagless startup command.
+func ExampleWithOmniStartArgs() {
+	lazy := spanemuboost.NewLazyRuntime(spanemuboost.BackendOmni,
+		spanemuboost.WithContainerImage("us-docker.pkg.dev/spanner-omni/images/spanner-omni:2026.r3-beta"),
+		spanemuboost.WithOmniStartArgs(),
+	)
+	defer func() {
+		if err := lazy.Close(); err != nil {
+			log.Printf("close runtime: %v", err)
+		}
+	}()
+	// Pass lazy to OpenClients or SetupClients to start the selected image.
+	fmt.Println("legacy Omni runtime configured")
+	// Output: legacy Omni runtime configured
+}

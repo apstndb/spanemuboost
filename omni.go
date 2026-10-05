@@ -20,7 +20,7 @@ import (
 )
 
 const (
-	defaultOmniImage      = "us-docker.pkg.dev/spanner-omni/images/spanner-omni:2026.r2.1-beta"
+	defaultOmniImage      = "us-docker.pkg.dev/spanner-omni/images/spanner-omni:2026.r4-lts"
 	defaultOmniProjectID  = "default"
 	defaultOmniInstanceID = "default"
 	omniStartupTimeout    = 5 * time.Minute
@@ -231,6 +231,10 @@ func finalizeOmniOptions(opts *emulatorOptions) (*emulatorOptions, error) {
 		opts.randomDatabaseIDResolved = true
 	}
 
+	// r4 binds to localhost by default; publish a reachable container port.
+	if !opts.omniStartArgsSet {
+		opts.omniStartArgs = []string{"--listen-addresses=0.0.0.0"}
+	}
 	opts.emulatorImage = cmp.Or(opts.emulatorImage, defaultOmniImage)
 	opts.projectID = cmp.Or(opts.projectID, defaultOmniProjectID)
 	opts.instanceID = cmp.Or(opts.instanceID, defaultOmniInstanceID)
@@ -294,7 +298,7 @@ func newOmni(ctx context.Context, opts *emulatorOptions) (testcontainers.Contain
 		ContainerRequest: testcontainers.ContainerRequest{
 			Image:        opts.emulatorImage,
 			ExposedPorts: []string{string(omniGRPCPort)},
-			Cmd:          []string{"start-single-server"},
+			Cmd:          append([]string{"start-single-server"}, opts.omniStartArgs...),
 			WaitingFor: wait.ForAll(
 				wait.ForLog("Spanner is ready").WithStartupTimeout(omniStartupTimeout),
 				wait.ForExposedPort().SkipInternalCheck().WithStartupTimeout(omniStartupTimeout),

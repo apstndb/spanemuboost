@@ -3,7 +3,33 @@
 This note records runtime settings that are useful for running or rechecking
 `spanemuboost` Spanner Omni tests on local runtimes and GitHub Actions.
 
-Last checked: 2026-05-19.
+Historical environment checks below: 2026-05-19.
+
+## Current startup configuration
+
+The Omni default is the Developer image `2026.r4-lts`, started with
+`start-single-server --listen-addresses=0.0.0.0`. The listen address is needed
+for forwarding port 15000 from the container. To use `2026.r2.1-beta` or
+`2026.r3-beta`, select the image with `WithContainerImage` and reset startup
+arguments with `WithOmniStartArgs()`. The CLI equivalent is:
+
+```sh
+spanemuboost serve omni \
+  --image us-docker.pkg.dev/spanner-omni/images/spanner-omni:2026.r3-beta \
+  --omni-start-mode legacy --endpoint-file /tmp/omni-endpoint.json
+```
+
+Image tags and digests do not select startup arguments automatically. These
+settings apply only to newly started containers. Omni library support remains
+experimental. The dated observations below describe their original images
+and environments; they do not establish compatibility for every newer image.
+
+Checked on 2026-10-05 with native linux/arm64 Colima/Docker (about 8 GiB),
+Go 1.25.0, and the existing Spanner Go SDK v1.82.0: `go test -race ./...` and
+`make omni-smoke` passed. The smoke target covers default r4 startup, managed
+clients, reopened clients, lazy startup and bootstrap rollback, plus r2.1/r3
+images with explicitly empty startup arguments. The existing GitHub Actions
+Docker and Podman smoke jobs exercise the same target on amd64.
 
 ## Status
 
