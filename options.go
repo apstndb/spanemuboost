@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"math/rand/v2"
 	"os"
-	"slices"
 	"strings"
 
 	"cloud.google.com/go/spanner"
@@ -18,9 +17,6 @@ import (
 )
 
 type emulatorOptions struct {
-	omniStartArgs    []string
-	omniStartArgsSet bool // Explicit args override automatic image selection.
-
 	emulatorImage                     string
 	projectID, instanceID, databaseID string
 
@@ -298,43 +294,12 @@ func WithDatabaseDialect(dialect databasepb.DatabaseDialect) Option {
 // Empty string will be ignored. Omni startup recognizes tags containing
 // 2026.r1 through r3 (also spelled 2026-r1 through r3), including tags followed
 // by a digest. Other tags and digest-only references use GA startup defaults.
-// Use [WithOmniStartArgs] to override startup arguments for a particular image.
+// Use [WithContainerCustomizers] for custom container commands.
 func WithContainerImage(image string) Option {
 	return func(opts *emulatorOptions) error {
 		if image != "" {
 			opts.emulatorImage = image
 		}
-		return nil
-	}
-}
-
-// WithOmniStartArgs replaces the arguments after Omni's fixed
-// start-single-server subcommand, overriding automatic image selection. It
-// applies only when starting an Omni container; it does not reconfigure
-// attached runtimes or [OpenClients].
-//
-// Without this option, image tags containing 2026.r1 through r3 (also spelled
-// 2026-r1 through r3) use the flagless command, including tags followed by a
-// digest. Other tags and digest-only references use --listen-addresses=0.0.0.0.
-// An explicit empty list selects the flagless command, for example for a
-// pre-GA image selected by digest only or an unrecognized tag. All modes use
-// the image's native entrypoint.
-//
-// Arguments are passed as argv, not shell text. Empty individual arguments
-// are rejected. The last call wins, including an empty last call. Custom
-// r4 arguments must retain --listen-addresses=0.0.0.0 for port forwarding.
-// [WithContainerCustomizers] runs afterward and may override the command.
-// This option is rejected for the Emulator even with [DisableBackendGuardrails].
-func WithOmniStartArgs(args ...string) Option {
-	args = slices.Clone(args)
-	return func(opts *emulatorOptions) error {
-		for _, arg := range args {
-			if arg == "" {
-				return fmt.Errorf("WithOmniStartArgs: individual arguments must not be empty")
-			}
-		}
-		opts.omniStartArgs = slices.Clone(args)
-		opts.omniStartArgsSet = true
 		return nil
 	}
 }
@@ -581,9 +546,6 @@ func applyOptions(options ...Option) (*emulatorOptions, error) {
 }
 
 func finalizeOptions(opts *emulatorOptions) (*emulatorOptions, error) {
-	if opts.omniStartArgsSet {
-		return nil, fmt.Errorf("WithOmniStartArgs is only supported for Spanner Omni")
-	}
 	if opts.randomProjectID && opts.projectID != "" {
 		return nil, fmt.Errorf("WithRandomProjectID() and WithProjectID() are mutually exclusive")
 	}

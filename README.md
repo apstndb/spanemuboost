@@ -169,13 +169,11 @@ spanemuboost stop --endpoint-file /tmp/omni-endpoint.json
 ```
 
 Use `--image IMAGE` to select another image, including r2.1/r3.
-Startup mode defaults to `auto`: tags containing `2026.r1` through `2026.r3`
-(or `2026-r1` through `2026-r3`) use the flagless command; other references use
-`--listen-addresses=0.0.0.0`. The suffix need not be `beta`, and a tag is used
-even when followed by a digest. Use `--omni-start-mode ga|legacy` to override
-this for a digest-only reference or an unrecognized custom tag.
-Both flags accept `--flag value` and `--flag=value`. Manual mode changes
-startup arguments without changing the selected image.
+Startup arguments are selected automatically: tags containing `2026.r1`
+through `2026.r3` (or `2026-r1` through `2026-r3`) use the flagless command;
+other references use `--listen-addresses=0.0.0.0`. The suffix need not be
+`beta`, and a tag is used even when followed by a digest. `--image` accepts
+`--image value` and `--image=value`.
 
 By default, `serve omni` skips instance and database bootstrap so only the
 built-in `spanner-info` database exists until clients create their own. Pass

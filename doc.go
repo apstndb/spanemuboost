@@ -32,11 +32,9 @@
 // The CLI equivalent is serve omni --image IMAGE. Startup uses the image's
 // native entrypoint without running help probes or injecting a shell wrapper.
 // Digest-only references and unrecognized tags use GA defaults. Selection uses
-// the tag's name without inspecting the resolved image. Use [WithOmniStartArgs]
-// to supply exact startup arguments, including an empty list for a pre-GA
-// digest-only reference or custom alias. The CLI supports --omni-start-mode
-// auto|ga|legacy, with auto as the default. Manual settings
-// override image selection but do not select a different image. Custom r4 args
-// must retain the listen address. These options affect new containers only;
-// attached endpoints and reopened clients are unchanged.
+// the tag's name without inspecting the resolved image. A named tag may be
+// retained before @sha256:... to select startup for a pinned older image.
+// [WithContainerCustomizers] can override container commands when needed.
+// Image selection affects new containers only; attached endpoints and reopened
+// clients are unchanged.
 package spanemuboost

@@ -32,7 +32,7 @@ const (
 // Recognize the pre-GA version in the tag without requiring a beta suffix.
 // Token boundaries prevent r30 and later years from selecting legacy startup.
 // A tag accompanying a digest is still a name hint; this does not inspect the
-// resolved image. Callers can override the selected startup arguments.
+// resolved image. Existing container customizers can override the command.
 var preGAOmniImageTag = regexp.MustCompile(`(?:^|[._-])2026[.-]r[1-3](?:$|[._-])`)
 
 func defaultOmniStartArgs(image string) []string {
@@ -308,15 +308,11 @@ func wrapOmniBootstrapError(err error) error {
 }
 
 func newOmni(ctx context.Context, opts *emulatorOptions) (testcontainers.Container, error) {
-	startArgs := opts.omniStartArgs
-	if !opts.omniStartArgsSet {
-		startArgs = defaultOmniStartArgs(opts.emulatorImage)
-	}
 	req := testcontainers.GenericContainerRequest{
 		ContainerRequest: testcontainers.ContainerRequest{
 			Image:        opts.emulatorImage,
 			ExposedPorts: []string{string(omniGRPCPort)},
-			Cmd:          append([]string{"start-single-server"}, startArgs...),
+			Cmd:          append([]string{"start-single-server"}, defaultOmniStartArgs(opts.emulatorImage)...),
 			WaitingFor: wait.ForAll(
 				wait.ForLog("Spanner is ready").WithStartupTimeout(omniStartupTimeout),
 				wait.ForExposedPort().SkipInternalCheck().WithStartupTimeout(omniStartupTimeout),
@@ -326,7 +322,7 @@ func newOmni(ctx context.Context, opts *emulatorOptions) (testcontainers.Contain
 		},
 		Started: true,
 	}
-	automaticCmd := !opts.omniStartArgsSet
+	automaticCmd := true
 	for _, customizer := range opts.containerCustomizers {
 		previousImage, previousCmd := req.Image, slices.Clone(req.Cmd)
 		if err := customizer.Customize(&req); err != nil {

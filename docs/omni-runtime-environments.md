@@ -26,24 +26,24 @@ spanemuboost serve omni \
   --endpoint-file /tmp/omni-endpoint.json
 ```
 
-`--omni-start-mode` defaults to `auto`. Select `ga` or `legacy` to override
-startup arguments, for example when a pre-GA image is selected by digest only
-or an unrecognized custom tag. The Go equivalent is `WithOmniStartArgs`, with
-an empty list for legacy startup or explicit arguments for a custom command
-configuration.
-These settings apply only to newly started containers and never change the
-selected image.
+Startup selection is automatic; there is no startup mode flag. To pin an
+older image by digest while retaining its version hint, keep a named tag
+before `@sha256:...`. Go callers can use the existing
+`WithContainerCustomizers` for custom container commands. Image selection
+applies only to newly started containers.
 
 Startup retains the image's native entrypoint. There are no help probes,
 helper containers, injected shell scripts, or Toybox-specific requirements.
 Omni library support remains experimental. The dated environment observations
 below describe their original images and environments.
 
-Checked on 2026-10-06 with native linux/arm64 Colima/Docker (about 8 GiB),
-Go 1.25.0 and the existing Spanner Go SDK v1.82.0: full race tests, lint, and
-`make omni-smoke` passed. The smoke run took 254 seconds. CLI probes passed
-DDL/DML/SELECT, serve/stop and endpoint/PID cleanup for both tagged r3 with
-automatic selection and an r3 arm64 manifest digest with manual legacy mode.
+Before removing the startup mode options, revision
+`557f316b0306d3dc0544d803909275964e3e4826` passed full race tests, lint, and
+hosted amd64 Docker and Podman Omni smoke on 2026-10-06. Earlier native
+linux/arm64 Colima/Docker verification (about 8 GiB) at `6be70eb` used Go
+1.25.0 and the existing Spanner Go SDK v1.82.0; the three-image smoke run took
+254 seconds. These are historical receipts; validation of the mode-free
+revision is recorded separately.
 
 The smoke target covers default r4 startup, managed clients, reopened clients,
 lazy startup and bootstrap rollback, plus r2.1/r3 images selected with no
