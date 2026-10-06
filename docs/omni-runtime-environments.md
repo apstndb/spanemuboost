@@ -8,10 +8,13 @@ Historical environment checks below: 2026-05-19.
 ## Current startup configuration
 
 The Omni default is the Developer image `2026.r4-lts`, with automatic startup
-selection from the image tag. Pre-GA beta tags `2026.r1` through `2026.r3`
-(including dotted patch versions) use the flagless `start-single-server`
-command. Other tags, including later beta releases, and digest references use
+selection from the image tag. Tags containing `2026.r1` through `2026.r3`
+(or `2026-r1` through `2026-r3`) use the flagless `start-single-server`
+command, regardless of the suffix. Version tokens are delimited so `r30` does
+not match `r3`. Other tags and digest-only references use
 `--listen-addresses=0.0.0.0` so port 15000 is reachable through forwarding.
+A tag accompanying a digest is classified by its name too; this is a naming
+policy without inspecting the resolved image.
 The verified runtime images are r2.1, r3 and r4; tag classification alone is
 not runtime readiness evidence for every older or future image.
 
@@ -24,11 +27,12 @@ spanemuboost serve omni \
 ```
 
 `--omni-start-mode` defaults to `auto`. Select `ga` or `legacy` to override
-startup arguments, for example when a pre-GA image is selected by digest or a
-custom tag. The Go equivalent is `WithOmniStartArgs`, with an empty list for
-legacy startup or explicit arguments for a custom command configuration.
-Digest references are not classified from an accompanying tag. These settings
-apply only to newly started containers and never change the selected image.
+startup arguments, for example when a pre-GA image is selected by digest only
+or an unrecognized custom tag. The Go equivalent is `WithOmniStartArgs`, with
+an empty list for legacy startup or explicit arguments for a custom command
+configuration.
+These settings apply only to newly started containers and never change the
+selected image.
 
 Startup retains the image's native entrypoint. There are no help probes,
 helper containers, injected shell scripts, or Toybox-specific requirements.

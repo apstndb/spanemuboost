@@ -77,8 +77,8 @@ database accumulation matters.
 ### Spanner Omni (experimental)
 
 Omni defaults to `2026.r4-lts`. Use `WithContainerImage(...)` to select another
-image. Startup automatically selects flagless arguments for pre-GA beta tags
-(2026.r1 through r3) and GA arguments for other references. See [package documentation](https://pkg.go.dev/github.com/apstndb/spanemuboost#hdr-Omni_image_selection)
+image. Startup automatically selects flagless arguments for tags containing
+2026.r1 through r3 and GA arguments for other references. See [package documentation](https://pkg.go.dev/github.com/apstndb/spanemuboost#hdr-Omni_image_selection)
 for image selection and custom startup arguments.
 
 `Setup`, `Run`, `RunWithClients`, and `SetupWithClients` with `BackendOmni` start a Spanner Omni single-server container and use the public Spanner gRPC API on port `15000` for database creation, DDL application, DML setup, and managed client creation. This path is intended for integration tests that want a real Omni runtime without depending on the emulator.
@@ -169,9 +169,11 @@ spanemuboost stop --endpoint-file /tmp/omni-endpoint.json
 ```
 
 Use `--image IMAGE` to select another image, including r2.1/r3.
-Startup mode defaults to `auto`: pre-GA beta tags (2026.r1 through r3) use the
-flagless command, and other references use GA arguments. Use
-`--omni-start-mode ga|legacy` to override this for a digest or custom tag.
+Startup mode defaults to `auto`: tags containing `2026.r1` through `2026.r3`
+(or `2026-r1` through `2026-r3`) use the flagless command; other references use
+`--listen-addresses=0.0.0.0`. The suffix need not be `beta`, and a tag is used
+even when followed by a digest. Use `--omni-start-mode ga|legacy` to override
+this for a digest-only reference or an unrecognized custom tag.
 Both flags accept `--flag value` and `--flag=value`. Manual mode changes
 startup arguments without changing the selected image.
 

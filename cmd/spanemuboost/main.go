@@ -66,8 +66,9 @@ Examples:
   spanemuboost stop --endpoint-file /tmp/omni-endpoint.json
   SPANEMUBOOST_ENDPOINT_FILE=/tmp/omni-endpoint.json go test ./...
 
-Omni defaults to 2026.r4-lts with --omni-start-mode auto. Pre-GA beta tags
-(2026.r1 through r3) use legacy args; other tags and digests use GA args.
+Omni defaults to 2026.r4-lts with --omni-start-mode auto. Tags containing
+2026.r1 through r3 (or 2026-r1 through r3) use legacy args, including tagged
+digests. Other references use --listen-addresses=0.0.0.0.
 Use --omni-start-mode ga or legacy to override startup args without changing
 --image. --image and --omni-start-mode accept --flag value and --flag=value.
 

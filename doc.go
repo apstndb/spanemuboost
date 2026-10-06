@@ -16,8 +16,9 @@
 // # Omni image selection
 //
 // [BackendOmni] defaults to the Developer image 2026.r4-lts. Automatic image
-// selection is the default: pre-GA beta tags (2026.r1 through r3, including
-// dotted patch versions) use the flagless start-single-server command. All
+// selection is the default: tags containing 2026.r1 through r3 (also spelled
+// 2026-r1 through r3) use the flagless start-single-server command. The suffix
+// need not be beta, and a tag is used even when followed by a digest. All
 // other references use --listen-addresses=0.0.0.0 for container port forwarding.
 // Later beta releases use these GA defaults too. Omni support remains
 // experimental regardless of the image's LTS designation.
@@ -30,10 +31,11 @@
 //
 // The CLI equivalent is serve omni --image IMAGE. Startup uses the image's
 // native entrypoint without running help probes or injecting a shell wrapper.
-// Digest references and unrecognized tags use GA defaults; their engine version
-// is not inferred. Use [WithOmniStartArgs] to supply exact startup arguments,
-// including an empty list for a pre-GA digest or custom alias. The CLI supports
-// --omni-start-mode auto|ga|legacy, with auto as the default. Manual settings
+// Digest-only references and unrecognized tags use GA defaults. Selection uses
+// the tag's name without inspecting the resolved image. Use [WithOmniStartArgs]
+// to supply exact startup arguments, including an empty list for a pre-GA
+// digest-only reference or custom alias. The CLI supports --omni-start-mode
+// auto|ga|legacy, with auto as the default. Manual settings
 // override image selection but do not select a different image. Custom r4 args
 // must retain the listen address. These options affect new containers only;
 // attached endpoints and reopened clients are unchanged.

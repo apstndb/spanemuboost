@@ -29,17 +29,17 @@ const (
 	omniStartupTimeout    = 5 * time.Minute
 )
 
-// Only pre-GA beta releases use the flagless startup command. A later beta
-// release (for example 2027.r1-beta) must keep the GA defaults. Digest references
-// and unrecognized tags also use GA defaults; callers can override exact argv.
-var preGAOmniImageTag = regexp.MustCompile(`^2026\.r[1-3](?:\.[0-9]+)?-beta(?:\.[0-9]+)?$`)
+// Recognize the pre-GA version in the tag without requiring a beta suffix.
+// Token boundaries prevent r30 and later years from selecting legacy startup.
+// A tag accompanying a digest is still a name hint; this does not inspect the
+// resolved image. Callers can override the selected startup arguments.
+var preGAOmniImageTag = regexp.MustCompile(`(?:^|[._-])2026[.-]r[1-3](?:$|[._-])`)
 
 func defaultOmniStartArgs(image string) []string {
-	if !strings.Contains(image, "@") {
-		tagIndex := strings.LastIndex(image, ":")
-		if tagIndex > strings.LastIndex(image, "/") && preGAOmniImageTag.MatchString(image[tagIndex+1:]) {
-			return nil
-		}
+	image, _, _ = strings.Cut(image, "@")
+	tagIndex := strings.LastIndex(image, ":")
+	if tagIndex > strings.LastIndex(image, "/") && preGAOmniImageTag.MatchString(image[tagIndex+1:]) {
+		return nil
 	}
 	return []string{"--listen-addresses=0.0.0.0"}
 }

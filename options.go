@@ -295,8 +295,9 @@ func WithDatabaseDialect(dialect databasepb.DatabaseDialect) Option {
 }
 
 // WithContainerImage configures the container image used for the selected backend.
-// Empty string will be ignored. Omni startup recognizes pre-GA beta tags
-// (2026.r1 through r3); other tags and digest references use GA startup defaults.
+// Empty string will be ignored. Omni startup recognizes tags containing
+// 2026.r1 through r3 (also spelled 2026-r1 through r3), including tags followed
+// by a digest. Other tags and digest-only references use GA startup defaults.
 // Use [WithOmniStartArgs] to override startup arguments for a particular image.
 func WithContainerImage(image string) Option {
 	return func(opts *emulatorOptions) error {
@@ -312,11 +313,12 @@ func WithContainerImage(image string) Option {
 // applies only when starting an Omni container; it does not reconfigure
 // attached runtimes or [OpenClients].
 //
-// Without this option, pre-GA beta image tags (2026.r1 through r3) use the
-// flagless command. Other tags, including later beta releases, and digest
-// references use --listen-addresses=0.0.0.0. An explicit empty list selects the
-// flagless command, for example for a pre-GA image selected by digest or an
-// unrecognized tag. All modes use the image's native entrypoint.
+// Without this option, image tags containing 2026.r1 through r3 (also spelled
+// 2026-r1 through r3) use the flagless command, including tags followed by a
+// digest. Other tags and digest-only references use --listen-addresses=0.0.0.0.
+// An explicit empty list selects the flagless command, for example for a
+// pre-GA image selected by digest only or an unrecognized tag. All modes use
+// the image's native entrypoint.
 //
 // Arguments are passed as argv, not shell text. Empty individual arguments
 // are rejected. The last call wins, including an empty last call. Custom

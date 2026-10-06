@@ -42,6 +42,7 @@ func TestOmniStartupConfiguration(t *testing.T) {
 	}{
 		{"LTS default", nil, ltsImage, gaCmd, nil},
 		{"pre-GA beta selected automatically", []Option{WithContainerImage(oldImage)}, oldImage, legacyCmd, nil},
+		{"pre-GA tagged digest selected automatically", []Option{WithContainerImage(oldImage + "@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef")}, oldImage + "@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef", legacyCmd, nil},
 		{"digest defaults to GA", []Option{WithContainerImage(customImage)}, customImage, gaCmd, nil},
 		{"explicit empty overrides digest default", []Option{WithContainerImage(customImage), WithOmniStartArgs()}, customImage, legacyCmd, nil},
 		{"explicit GA overrides beta selection", []Option{WithContainerImage(oldImage), WithOmniStartArgs("--listen-addresses=0.0.0.0")}, oldImage, gaCmd, nil},
