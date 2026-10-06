@@ -3,7 +3,52 @@
 This note records runtime settings that are useful for running or rechecking
 `spanemuboost` Spanner Omni tests on local runtimes and GitHub Actions.
 
-Last checked: 2026-05-19.
+Historical environment checks below: 2026-05-19.
+
+## Current startup configuration
+
+The Omni default is the Developer image `2026.r4-lts`, with automatic startup
+selection from the image tag. Tags containing `2026.r1` through `2026.r3`
+(or `2026-r1` through `2026-r3`) use the flagless `start-single-server`
+command, regardless of the suffix. Version tokens are delimited so `r30` does
+not match `r3`. Other tags and digest-only references use
+`--listen-addresses=0.0.0.0` so port 15000 is reachable through forwarding.
+A tag accompanying a digest is classified by its name too; this is a naming
+policy without inspecting the resolved image.
+The verified runtime images are r2.1, r3 and r4; tag classification alone is
+not runtime readiness evidence for every older or future image.
+
+To select r2.1 or r3, use `WithContainerImage` without a startup override:
+
+```sh
+spanemuboost serve omni \
+  --image us-docker.pkg.dev/spanner-omni/images/spanner-omni:2026.r3-beta \
+  --endpoint-file /tmp/omni-endpoint.json
+```
+
+Startup selection is automatic; there is no startup mode flag. To pin an
+older image by digest while retaining its version hint, keep a named tag
+before `@sha256:...`. Go callers can use the existing
+`WithContainerCustomizers` for custom container commands. Image selection
+applies only to newly started containers.
+
+Startup retains the image's native entrypoint. There are no help probes,
+helper containers, injected shell scripts, or Toybox-specific requirements.
+Omni library support remains experimental. The dated environment observations
+below describe their original images and environments.
+
+Before removing the startup mode options, revision
+`557f316b0306d3dc0544d803909275964e3e4826` passed full race tests, lint, and
+hosted amd64 Docker and Podman Omni smoke on 2026-10-06. Earlier native
+linux/arm64 Colima/Docker verification (about 8 GiB) at `6be70eb` used Go
+1.25.0 and the existing Spanner Go SDK v1.82.0; the three-image smoke run took
+254 seconds. These are historical receipts; validation of the mode-free
+revision is recorded separately.
+
+The smoke target covers default r4 startup, managed clients, reopened clients,
+lazy startup and bootstrap rollback, plus r2.1/r3 images selected with no
+startup argument override. The existing GitHub Actions Docker and Podman
+smoke jobs exercise the same target on amd64.
 
 ## Status
 

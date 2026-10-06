@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"strings"
 	"time"
 )
 
@@ -71,13 +72,32 @@ func ServeFromConfig(ctx context.Context, cfg ServeConfig) error {
 	return Serve(ctx, cfg.Backend, cfg.EndpointFile, cfg.Options...)
 }
 
-// ParseServeArgs parses `spanemuboost serve <emulator|omni> --endpoint-file path [--pid-file path] [--with-default-database]`.
+// ParseServeArgs parses the arguments to spanemuboost serve.
+// --image selects a container image and accepts --image value or --image=value.
+// Omni startup arguments are selected automatically from the image tag.
 func ParseServeArgs(args []string) (ServeConfig, error) {
 	cfg := ServeConfig{}
 	var backend string
 	withDefaultDatabase := false
+	var image string
 	for i := 0; i < len(args); i++ {
-		switch args[i] {
+		arg, value, hasValue := strings.Cut(args[i], "=")
+		if arg != "--image" {
+			arg = args[i]
+		}
+		switch arg {
+		case "--image":
+			if !hasValue {
+				if i+1 >= len(args) || strings.HasPrefix(args[i+1], "--") {
+					return ServeConfig{}, fmt.Errorf("%s requires a value", arg)
+				}
+				i++
+				value = args[i]
+			}
+			if value == "" {
+				return ServeConfig{}, fmt.Errorf("%s requires a non-empty value", arg)
+			}
+			image = value
 		case "--endpoint-file", "-o":
 			if i+1 >= len(args) {
 				return ServeConfig{}, fmt.Errorf("--endpoint-file requires a value")
@@ -102,7 +122,7 @@ func ParseServeArgs(args []string) (ServeConfig, error) {
 		}
 	}
 	if backend == "" {
-		return ServeConfig{}, fmt.Errorf("usage: spanemuboost serve <emulator|omni> --endpoint-file path [--pid-file path] [--with-default-database]")
+		return ServeConfig{}, fmt.Errorf("usage: spanemuboost serve <emulator|omni> --endpoint-file path [--pid-file path] [--with-default-database] [--image image]")
 	}
 	switch Backend(backend) {
 	case BackendEmulator:
@@ -114,6 +134,9 @@ func ParseServeArgs(args []string) (ServeConfig, error) {
 		}
 	default:
 		return ServeConfig{}, fmt.Errorf("unsupported serve backend %q; supported values are emulator and omni", backend)
+	}
+	if image != "" {
+		cfg.Options = append(cfg.Options, WithContainerImage(image))
 	}
 	return cfg, nil
 }

@@ -57,7 +57,7 @@ func usage() {
 	fmt.Fprintf(os.Stderr, `spanemuboost manages long-lived Spanner test backends.
 
 Usage:
-  spanemuboost serve <emulator|omni> --endpoint-file path [--pid-file path] [--with-default-database]
+  spanemuboost serve <emulator|omni> --endpoint-file path [--pid-file path] [--with-default-database] [--image image]
   spanemuboost stop --endpoint-file path [--pid-file path]
 
 Examples:
@@ -65,6 +65,11 @@ Examples:
   spanemuboost serve omni --endpoint-file /tmp/omni-endpoint.json --with-default-database
   spanemuboost stop --endpoint-file /tmp/omni-endpoint.json
   SPANEMUBOOST_ENDPOINT_FILE=/tmp/omni-endpoint.json go test ./...
+
+Omni defaults to 2026.r4-lts. Startup arguments are selected automatically:
+tags containing 2026.r1 through r3 (or 2026-r1 through r3) omit the listen
+flag, including tagged digests. Other references use --listen-addresses=0.0.0.0.
+--image accepts --image value and --image=value.
 
 The endpoint file is owned by serve: it is written on startup and removed on
 exit. Unset SPANEMUBOOST_ENDPOINT_FILE after stopping the lifecycle manager.

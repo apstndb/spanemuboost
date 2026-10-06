@@ -423,3 +423,18 @@ func ExampleRuntimeImageProvenance() {
 	// gcr.io/cloud-spanner-emulator/emulator:1.5.58
 	// sha256:example
 }
+
+// Older verified Omni images use the same automatic startup path as the default.
+func ExampleWithContainerImage_omni() {
+	lazy := spanemuboost.NewLazyRuntime(spanemuboost.BackendOmni,
+		spanemuboost.WithContainerImage("us-docker.pkg.dev/spanner-omni/images/spanner-omni:2026.r3-beta"),
+	)
+	defer func() {
+		if err := lazy.Close(); err != nil {
+			log.Printf("close runtime: %v", err)
+		}
+	}()
+	// Pass lazy to OpenClients or SetupClients to start the selected image.
+	fmt.Println("r3 Omni runtime configured")
+	// Output: r3 Omni runtime configured
+}

@@ -5,6 +5,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"regexp"
+	"slices"
+	"strings"
 	"time"
 
 	"cloud.google.com/go/spanner"
@@ -20,11 +23,26 @@ import (
 )
 
 const (
-	defaultOmniImage      = "us-docker.pkg.dev/spanner-omni/images/spanner-omni:2026.r2.1-beta"
+	defaultOmniImage      = "us-docker.pkg.dev/spanner-omni/images/spanner-omni:2026.r4-lts"
 	defaultOmniProjectID  = "default"
 	defaultOmniInstanceID = "default"
 	omniStartupTimeout    = 5 * time.Minute
 )
+
+// Recognize the pre-GA version in the tag without requiring a beta suffix.
+// Token boundaries prevent r30 and later years from selecting legacy startup.
+// A tag accompanying a digest is still a name hint; this does not inspect the
+// resolved image. Existing container customizers can override the command.
+var preGAOmniImageTag = regexp.MustCompile(`(?:^|[._-])2026[.-]r[1-3](?:$|[._-])`)
+
+func defaultOmniStartArgs(image string) []string {
+	image, _, _ = strings.Cut(image, "@")
+	tagIndex := strings.LastIndex(image, ":")
+	if tagIndex > strings.LastIndex(image, "/") && preGAOmniImageTag.MatchString(image[tagIndex+1:]) {
+		return nil
+	}
+	return []string{"--listen-addresses=0.0.0.0"}
+}
 
 var omniGRPCPort = nat.Port("15000/tcp")
 
@@ -294,7 +312,7 @@ func newOmni(ctx context.Context, opts *emulatorOptions) (testcontainers.Contain
 		ContainerRequest: testcontainers.ContainerRequest{
 			Image:        opts.emulatorImage,
 			ExposedPorts: []string{string(omniGRPCPort)},
-			Cmd:          []string{"start-single-server"},
+			Cmd:          append([]string{"start-single-server"}, defaultOmniStartArgs(opts.emulatorImage)...),
 			WaitingFor: wait.ForAll(
 				wait.ForLog("Spanner is ready").WithStartupTimeout(omniStartupTimeout),
 				wait.ForExposedPort().SkipInternalCheck().WithStartupTimeout(omniStartupTimeout),
@@ -304,9 +322,19 @@ func newOmni(ctx context.Context, opts *emulatorOptions) (testcontainers.Contain
 		},
 		Started: true,
 	}
+	automaticCmd := true
 	for _, customizer := range opts.containerCustomizers {
+		previousImage, previousCmd := req.Image, slices.Clone(req.Cmd)
 		if err := customizer.Customize(&req); err != nil {
 			return nil, err
+		}
+		// Once a customizer changes Cmd, it owns the command even if a later
+		// customizer changes only Image. Clone above to observe in-place edits.
+		if !slices.Equal(req.Cmd, previousCmd) {
+			automaticCmd = false
+		}
+		if automaticCmd && req.Image != previousImage {
+			req.Cmd = append([]string{"start-single-server"}, defaultOmniStartArgs(req.Image)...)
 		}
 	}
 	return testcontainers.GenericContainer(ctx, req)

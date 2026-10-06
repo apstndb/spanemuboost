@@ -291,7 +291,10 @@ func WithDatabaseDialect(dialect databasepb.DatabaseDialect) Option {
 }
 
 // WithContainerImage configures the container image used for the selected backend.
-// Empty string will be ignored.
+// Empty string will be ignored. Omni startup recognizes tags containing
+// 2026.r1 through r3 (also spelled 2026-r1 through r3), including tags followed
+// by a digest. Other tags and digest-only references use GA startup defaults.
+// Use [WithContainerCustomizers] for custom container commands.
 func WithContainerImage(image string) Option {
 	return func(opts *emulatorOptions) error {
 		if image != "" {
