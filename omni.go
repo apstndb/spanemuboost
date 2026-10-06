@@ -5,6 +5,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"regexp"
+	"slices"
+	"strings"
 	"time"
 
 	"cloud.google.com/go/spanner"
@@ -26,38 +29,20 @@ const (
 	omniStartupTimeout    = 5 * time.Minute
 )
 
-// Detect capabilities in the owned container rather than inferring a version
-// from a mutable tag or digest. Retain tini and exec for signal handling.
-// Omni's Toybox sh lacks reliable command-substitution exit status and `set --`
-// support. Redirect help to a temporary file and capture statuses immediately.
-const omniAutomaticStartScript = `spanner=/google/spanner/bin/spanner
-if [ "$0" = -- ]; then shift; fi
-if [ "${1:-}" = start-single-server ]; then
-    explicit_listen=false
-    for arg do
-        case "$arg" in
-            --listen-addresses|--listen-addresses=*) explicit_listen=true ;;
-        esac
-    done
-    if [ "$explicit_listen" = false ]; then
-        help_file=/tmp/spanemuboost-omni-help-$$
-        "$spanner" start-single-server --help > "$help_file"
-        result=$?
-        if [ "$result" -ne 0 ]; then
-            rm -f "$help_file"
-            exit "$result"
-        fi
-        grep -Eq '^[[:space:]]+(-[^[:space:]]+,[[:space:]]+)?--listen-addresses([[:space:]]|=)' "$help_file"
-        result=$?
-        rm -f "$help_file"
-        if [ "$result" -eq 0 ]; then
-            exec "$spanner" "$@" --listen-addresses=0.0.0.0
-        fi
-        if [ "$result" -ne 1 ]; then exit "$result"; fi
-    fi
-fi
-exec "$spanner" "$@"
-`
+// Only pre-GA beta releases use the flagless startup command. A later beta
+// release (for example 2027.r1-beta) must keep the GA defaults. Digest references
+// and unrecognized tags also use GA defaults; callers can override exact argv.
+var preGAOmniImageTag = regexp.MustCompile(`^2026\.r[1-3](?:\.[0-9]+)?-beta(?:\.[0-9]+)?$`)
+
+func defaultOmniStartArgs(image string) []string {
+	if !strings.Contains(image, "@") {
+		tagIndex := strings.LastIndex(image, ":")
+		if tagIndex > strings.LastIndex(image, "/") && preGAOmniImageTag.MatchString(image[tagIndex+1:]) {
+			return nil
+		}
+	}
+	return []string{"--listen-addresses=0.0.0.0"}
+}
 
 var omniGRPCPort = nat.Port("15000/tcp")
 
@@ -323,11 +308,15 @@ func wrapOmniBootstrapError(err error) error {
 }
 
 func newOmni(ctx context.Context, opts *emulatorOptions) (testcontainers.Container, error) {
+	startArgs := opts.omniStartArgs
+	if !opts.omniStartArgsSet {
+		startArgs = defaultOmniStartArgs(opts.emulatorImage)
+	}
 	req := testcontainers.GenericContainerRequest{
 		ContainerRequest: testcontainers.ContainerRequest{
 			Image:        opts.emulatorImage,
 			ExposedPorts: []string{string(omniGRPCPort)},
-			Cmd:          append([]string{"start-single-server"}, opts.omniStartArgs...),
+			Cmd:          append([]string{"start-single-server"}, startArgs...),
 			WaitingFor: wait.ForAll(
 				wait.ForLog("Spanner is ready").WithStartupTimeout(omniStartupTimeout),
 				wait.ForExposedPort().SkipInternalCheck().WithStartupTimeout(omniStartupTimeout),
@@ -337,17 +326,19 @@ func newOmni(ctx context.Context, opts *emulatorOptions) (testcontainers.Contain
 		},
 		Started: true,
 	}
-	if !opts.omniStartArgsSet {
-		// The image layout is shared by the verified r2.1, r3, and r4 images.
-		// Explicit startup args keep the image's native entrypoint as an escape
-		// hatch for custom layouts or help behavior. Customizers still run last.
-		// The separator stops r2.1's shell from parsing Cmd flags as its own.
-		// POSIX shells keep it as $0; the script normalizes the marker argument.
-		req.Entrypoint = []string{"/bin/tini", "--", "/bin/sh", "-c", omniAutomaticStartScript, "--", "spanemuboost-omni"}
-	}
+	automaticCmd := !opts.omniStartArgsSet
 	for _, customizer := range opts.containerCustomizers {
+		previousImage, previousCmd := req.Image, slices.Clone(req.Cmd)
 		if err := customizer.Customize(&req); err != nil {
 			return nil, err
+		}
+		// Once a customizer changes Cmd, it owns the command even if a later
+		// customizer changes only Image. Clone above to observe in-place edits.
+		if !slices.Equal(req.Cmd, previousCmd) {
+			automaticCmd = false
+		}
+		if automaticCmd && req.Image != previousImage {
+			req.Cmd = append([]string{"start-single-server"}, defaultOmniStartArgs(req.Image)...)
 		}
 	}
 	return testcontainers.GenericContainer(ctx, req)

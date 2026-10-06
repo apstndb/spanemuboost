@@ -100,9 +100,6 @@ func failedStartupOptions(label string, waitTimeout time.Duration) []Option {
 		WithContainerCustomizers(
 			testcontainers.WithLabels(map[string]string{"spanemuboost.review": label}),
 			testcontainers.CustomizeRequestOption(func(req *testcontainers.GenericContainerRequest) error {
-				// This lifecycle fixture uses the emulator's native entrypoint on
-				// both backend paths; it contains no Omni binaries or supervisor.
-				req.Entrypoint = nil
 				req.Cmd = []string{"./gateway_main", "--hostname", "0.0.0.0"}
 				return nil
 			}),

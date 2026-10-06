@@ -29,8 +29,10 @@ func captureOmniRequest(t *testing.T, options ...Option) testcontainers.GenericC
 
 func TestOmniStartupConfiguration(t *testing.T) {
 	const ltsImage = "us-docker.pkg.dev/spanner-omni/images/spanner-omni:2026.r4-lts"
+	const oldImage = "us-docker.pkg.dev/spanner-omni/images/spanner-omni:2026.r3-beta"
 	const customImage = "example.invalid/omni@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
-	automaticEntrypoint := []string{"/bin/tini", "--", "/bin/sh", "-c", omniAutomaticStartScript, "--", "spanemuboost-omni"}
+	gaCmd := []string{"start-single-server", "--listen-addresses=0.0.0.0"}
+	legacyCmd := []string{"start-single-server"}
 	for _, tt := range []struct {
 		name       string
 		options    []Option
@@ -38,24 +40,49 @@ func TestOmniStartupConfiguration(t *testing.T) {
 		cmd        []string
 		entrypoint []string
 	}{
-		{"LTS default", nil, ltsImage, []string{"start-single-server"}, automaticEntrypoint},
-		{"image alone detects capabilities", []Option{WithContainerImage(customImage)}, customImage, []string{"start-single-server"}, automaticEntrypoint},
-		{"explicit empty bypasses detection", []Option{WithContainerImage(customImage), WithOmniStartArgs()}, customImage, []string{"start-single-server"}, nil},
-		{"custom argv", []Option{WithOmniStartArgs("--listen-addresses=0.0.0.0", "--log-errors-inline")}, ltsImage, []string{"start-single-server", "--listen-addresses=0.0.0.0", "--log-errors-inline"}, nil},
-		{"empty last wins", []Option{WithOmniStartArgs("--log-errors-inline"), WithOmniStartArgs()}, ltsImage, []string{"start-single-server"}, nil},
-		{"nonempty last wins", []Option{WithOmniStartArgs(), WithOmniStartArgs("--listen-addresses=0.0.0.0")}, ltsImage, []string{"start-single-server", "--listen-addresses=0.0.0.0"}, nil},
-		{"image customizer keeps detection", []Option{WithContainerCustomizers(testcontainers.CustomizeRequestOption(func(r *testcontainers.GenericContainerRequest) error {
-			r.Image = customImage
+		{"LTS default", nil, ltsImage, gaCmd, nil},
+		{"pre-GA beta selected automatically", []Option{WithContainerImage(oldImage)}, oldImage, legacyCmd, nil},
+		{"digest defaults to GA", []Option{WithContainerImage(customImage)}, customImage, gaCmd, nil},
+		{"explicit empty overrides digest default", []Option{WithContainerImage(customImage), WithOmniStartArgs()}, customImage, legacyCmd, nil},
+		{"explicit GA overrides beta selection", []Option{WithContainerImage(oldImage), WithOmniStartArgs("--listen-addresses=0.0.0.0")}, oldImage, gaCmd, nil},
+		{"custom argv stays literal", []Option{WithOmniStartArgs("--listen-addresses=0.0.0.0", "a b;$(false)'quoted'")}, ltsImage, []string{"start-single-server", "--listen-addresses=0.0.0.0", "a b;$(false)'quoted'"}, nil},
+		{"empty last wins", []Option{WithOmniStartArgs("--log-errors-inline"), WithOmniStartArgs()}, ltsImage, legacyCmd, nil},
+		{"nonempty last wins", []Option{WithOmniStartArgs(), WithOmniStartArgs("--listen-addresses=0.0.0.0")}, ltsImage, gaCmd, nil},
+		{"image-only customizer selects beta", []Option{WithContainerCustomizers(testcontainers.CustomizeRequestOption(func(r *testcontainers.GenericContainerRequest) error {
+			r.Image = oldImage
 			return nil
-		}))}, customImage, []string{"start-single-server"}, automaticEntrypoint},
+		}))}, oldImage, legacyCmd, nil},
+		{"image-only customizer selects GA", []Option{WithContainerImage(oldImage), WithContainerCustomizers(testcontainers.CustomizeRequestOption(func(r *testcontainers.GenericContainerRequest) error {
+			r.Image = ltsImage
+			return nil
+		}))}, ltsImage, gaCmd, nil},
+		{"manual args survive image-only customizer", []Option{WithOmniStartArgs("--listen-addresses=0.0.0.0"), WithContainerCustomizers(testcontainers.CustomizeRequestOption(func(r *testcontainers.GenericContainerRequest) error {
+			r.Image = oldImage
+			return nil
+		}))}, oldImage, gaCmd, nil},
+		{"in-place command customizer wins", []Option{WithContainerCustomizers(testcontainers.CustomizeRequestOption(func(r *testcontainers.GenericContainerRequest) error {
+			r.Image = oldImage
+			r.Cmd[1] = "--log-errors-inline"
+			return nil
+		}))}, oldImage, []string{"start-single-server", "--log-errors-inline"}, nil},
+		{"manual command survives later image-only customizer", []Option{WithContainerCustomizers(
+			testcontainers.CustomizeRequestOption(func(r *testcontainers.GenericContainerRequest) error {
+				r.Cmd = []string{"custom-subcommand", "custom-arg"}
+				return nil
+			}),
+			testcontainers.CustomizeRequestOption(func(r *testcontainers.GenericContainerRequest) error {
+				r.Image = oldImage
+				return nil
+			}),
+		)}, oldImage, []string{"custom-subcommand", "custom-arg"}, nil},
 		{"command customizer wins", []Option{WithContainerCustomizers(testcontainers.CustomizeRequestOption(func(r *testcontainers.GenericContainerRequest) error {
 			r.Cmd = []string{"custom-subcommand", "custom-arg"}
 			return nil
-		}))}, ltsImage, []string{"custom-subcommand", "custom-arg"}, automaticEntrypoint},
+		}))}, ltsImage, []string{"custom-subcommand", "custom-arg"}, nil},
 		{"entrypoint customizer wins", []Option{WithContainerCustomizers(testcontainers.CustomizeRequestOption(func(r *testcontainers.GenericContainerRequest) error {
 			r.Entrypoint = []string{"custom-entrypoint"}
 			return nil
-		}))}, ltsImage, []string{"start-single-server"}, []string{"custom-entrypoint"}},
+		}))}, ltsImage, gaCmd, []string{"custom-entrypoint"}},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			req := captureOmniRequest(t, tt.options...)

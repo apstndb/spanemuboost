@@ -15,12 +15,12 @@
 //
 // # Omni image selection
 //
-// [BackendOmni] defaults to the Developer image 2026.r4-lts. Startup checks
-// start-single-server --help inside the owned container and adds
-// --listen-addresses=0.0.0.0 when supported, so r4 is reachable through the
-// published port while older images keep their flagless command. The verified
-// 2026.r2.1-beta, 2026.r3-beta, and 2026.r4-lts images share this startup path.
-// Omni support remains experimental regardless of the image's LTS designation.
+// [BackendOmni] defaults to the Developer image 2026.r4-lts. Automatic image
+// selection is the default: pre-GA beta tags (2026.r1 through r3, including
+// dotted patch versions) use the flagless start-single-server command. All
+// other references use --listen-addresses=0.0.0.0 for container port forwarding.
+// Later beta releases use these GA defaults too. Omni support remains
+// experimental regardless of the image's LTS designation.
 //
 // Select another image with [WithContainerImage]:
 //
@@ -28,10 +28,13 @@
 //		WithContainerImage("us-docker.pkg.dev/spanner-omni/images/spanner-omni:2026.r3-beta"),
 //	)
 //
-// The CLI equivalent is serve omni --image IMAGE. No version inference is made
-// from tags or digests, and detection does not start a second container.
-// [WithOmniStartArgs] bypasses detection and uses the image's native entrypoint
-// with explicit arguments, for custom layouts or help behavior. Custom r4
-// arguments must retain the listen address. These options apply to new
-// containers only; attached endpoints and reopened clients are unchanged.
+// The CLI equivalent is serve omni --image IMAGE. Startup uses the image's
+// native entrypoint without running help probes or injecting a shell wrapper.
+// Digest references and unrecognized tags use GA defaults; their engine version
+// is not inferred. Use [WithOmniStartArgs] to supply exact startup arguments,
+// including an empty list for a pre-GA digest or custom alias. The CLI supports
+// --omni-start-mode auto|ga|legacy, with auto as the default. Manual settings
+// override image selection but do not select a different image. Custom r4 args
+// must retain the listen address. These options affect new containers only;
+// attached endpoints and reopened clients are unchanged.
 package spanemuboost

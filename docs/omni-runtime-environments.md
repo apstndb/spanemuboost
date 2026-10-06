@@ -7,12 +7,15 @@ Historical environment checks below: 2026-05-19.
 
 ## Current startup configuration
 
-The Omni default is the Developer image `2026.r4-lts`. Startup checks
-`start-single-server --help` inside the owned container and adds
-`--listen-addresses=0.0.0.0` when supported, so port 15000 is reachable through
-container forwarding. Older verified images keep their flagless command.
-To use `2026.r2.1-beta` or `2026.r3-beta`, select the image with
-`WithContainerImage`. The CLI equivalent is:
+The Omni default is the Developer image `2026.r4-lts`, with automatic startup
+selection from the image tag. Pre-GA beta tags `2026.r1` through `2026.r3`
+(including dotted patch versions) use the flagless `start-single-server`
+command. Other tags, including later beta releases, and digest references use
+`--listen-addresses=0.0.0.0` so port 15000 is reachable through forwarding.
+The verified runtime images are r2.1, r3 and r4; tag classification alone is
+not runtime readiness evidence for every older or future image.
+
+To select r2.1 or r3, use `WithContainerImage` without a startup override:
 
 ```sh
 spanemuboost serve omni \
@@ -20,22 +23,23 @@ spanemuboost serve omni \
   --endpoint-file /tmp/omni-endpoint.json
 ```
 
-Detection runs in the primary container without version inference from tags
-or digests. It preserves the image's `tini` supervisor and executes Spanner
-while preserving caller-supplied arguments. `WithOmniStartArgs` bypasses detection and uses the
-native image entrypoint for custom layouts or help behavior. These settings
-apply only to newly started containers. Omni library support remains
-experimental. The dated observations below describe their original images
-and environments; they do not establish compatibility for every newer image.
+`--omni-start-mode` defaults to `auto`. Select `ga` or `legacy` to override
+startup arguments, for example when a pre-GA image is selected by digest or a
+custom tag. The Go equivalent is `WithOmniStartArgs`, with an empty list for
+legacy startup or explicit arguments for a custom command configuration.
+Digest references are not classified from an accompanying tag. These settings
+apply only to newly started containers and never change the selected image.
 
-Checked on 2026-10-05 with native linux/arm64 Colima/Docker (about 8 GiB),
-Go 1.25.0, and the existing Spanner Go SDK v1.82.0: `go test -race ./...`,
-`golangci-lint run`, and `make omni-smoke` passed. The smoke run took 270
-seconds. An r3 CLI probe using only `--image` passed serve, attached-client
-DDL/DML/SELECT, stop, and endpoint/PID file cleanup. Twelve in-image control
-flow probes also passed across r2.1/r3/r4, including explicit listen arguments
-and help failure. The wrapper accommodates the bundled Toybox shells by
-redirecting help to an ephemeral file and capturing exit status immediately.
+Startup retains the image's native entrypoint. There are no help probes,
+helper containers, injected shell scripts, or Toybox-specific requirements.
+Omni library support remains experimental. The dated environment observations
+below describe their original images and environments.
+
+Checked on 2026-10-06 with native linux/arm64 Colima/Docker (about 8 GiB),
+Go 1.25.0 and the existing Spanner Go SDK v1.82.0: full race tests, lint, and
+`make omni-smoke` passed. The smoke run took 254 seconds. CLI probes passed
+DDL/DML/SELECT, serve/stop and endpoint/PID cleanup for both tagged r3 with
+automatic selection and an r3 arm64 manifest digest with manual legacy mode.
 
 The smoke target covers default r4 startup, managed clients, reopened clients,
 lazy startup and bootstrap rollback, plus r2.1/r3 images selected with no
