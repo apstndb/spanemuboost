@@ -66,7 +66,7 @@ Examples:
   spanemuboost stop --endpoint-file /tmp/omni-endpoint.json
   SPANEMUBOOST_ENDPOINT_FILE=/tmp/omni-endpoint.json go test ./...
 
-Omni defaults to 2026.r4-lts. Startup arguments are selected automatically:
+Omni defaults to 2026.r5. Startup arguments are selected automatically:
 tags containing 2026.r1 through r3 (or 2026-r1 through r3) omit the listen
 flag, including tagged digests. Other references use --listen-addresses=0.0.0.0.
 --image accepts --image value and --image=value.

@@ -7,7 +7,7 @@ Historical environment checks below: 2026-05-19.
 
 ## Current startup configuration
 
-The Omni default is the Developer image `2026.r4-lts`, with automatic startup
+The Omni default is the Developer image `2026.r5`, with automatic startup
 selection from the image tag. Tags containing `2026.r1` through `2026.r3`
 (or `2026-r1` through `2026-r3`) use the flagless `start-single-server`
 command, regardless of the suffix. Version tokens are delimited so `r30` does

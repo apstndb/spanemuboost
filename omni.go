@@ -23,7 +23,7 @@ import (
 )
 
 const (
-	defaultOmniImage      = "us-docker.pkg.dev/spanner-omni/images/spanner-omni:2026.r4-lts"
+	defaultOmniImage      = "us-docker.pkg.dev/spanner-omni/images/spanner-omni:2026.r5"
 	defaultOmniProjectID  = "default"
 	defaultOmniInstanceID = "default"
 	omniStartupTimeout    = 5 * time.Minute
