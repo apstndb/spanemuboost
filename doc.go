@@ -15,13 +15,13 @@
 //
 // # Omni image selection
 //
-// [BackendOmni] defaults to the Developer image 2026.r4-lts. Automatic image
+// [BackendOmni] defaults to the Developer image 2026.r5. Automatic image
 // selection is the default: tags containing 2026.r1 through r3 (also spelled
 // 2026-r1 through r3) use the flagless start-single-server command. The suffix
 // need not be beta, and a tag is used even when followed by a digest. All
 // other references use --listen-addresses=0.0.0.0 for container port forwarding.
 // Later beta releases use these GA defaults too. Omni support remains
-// experimental regardless of the image's LTS designation.
+// experimental regardless of the upstream image's release designation.
 //
 // Select another image with [WithContainerImage]:
 //
