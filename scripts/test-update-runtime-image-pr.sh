@@ -106,9 +106,21 @@ jq '.images.DefaultEmulatorImage.image="e:4"' "$tmp/report.json" > "$tmp/new.jso
 run_update
 grep -q 'pr create' "$tmp/calls"
 git merge-base --is-ancestor "$head2" origin/automation/runtime-images
-# Non-bot work on the branch is never overwritten.
+# Even an unchanged candidate marker cannot authorize manual branch changes.
 git checkout -q automation/runtime-images
 printf 'manual work\n' > human.txt;git add human.txt;git commit -qm human;git push -q origin HEAD
-jq '.images.DefaultEmulatorImage.image="e:5"' "$tmp/report.json" > "$tmp/new.json"; mv "$tmp/new.json" "$tmp/report.json"
-if run_update; then echo 'Accepted unrelated branch changes' >&2; exit 1; fi
-printf '8 offline PR lifecycle scenarios passed\n'
+if run_update; then echo 'Accepted manual changes on matching fast path' >&2; exit 1; fi
+assert_no_call 'workflow run|pr create|pr edit'
+# Historical closed PRs do not authorize a replacement branch, even if only
+# generated/data files differ. Deliberate fixture reset affects only local remote.
+git checkout -q main
+git push -q origin --delete automation/runtime-images
+git checkout -q -b replacement main
+jq '.DefaultEmulatorImage="e:9"' runtime-images.json > data.json;mv data.json runtime-images.json
+go generate .;git add runtime-images.json images_generated.go;git commit -qm 'human replacement'
+git push -q origin HEAD:automation/runtime-images
+jq '.[0].state="closed"' "$tmp/prs.json" > "$tmp/new.json";mv "$tmp/new.json" "$tmp/prs.json"
+jq '.images.DefaultEmulatorImage.image="e:5"' "$tmp/report.json" > "$tmp/new.json";mv "$tmp/new.json" "$tmp/report.json"
+if run_update; then echo 'Accepted replacement branch from historical PR ownership' >&2; exit 1; fi
+assert_no_call 'workflow run|pr create|pr edit'
+printf '9 offline PR lifecycle scenarios passed\n'

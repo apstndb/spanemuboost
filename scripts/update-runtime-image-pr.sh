@@ -35,7 +35,6 @@ ensure_ci() {
  done
 }
 matching=$(jq -r --arg v "$versions" '[.[]|select(.state=="open" and ((.body//"")|contains($v)))][0].head.sha//empty' "$scratch/prs.json")
-if [[ -n "$matching" ]]; then ensure_ci "$matching"; echo 'Existing PR covers these candidates'; exit 0; fi
 [[ -z $(git status --porcelain) ]] || { echo 'Checkout must be clean' >&2; exit 2; }
 git fetch origin "$base"
 [[ $(git rev-parse HEAD) == "${GITHUB_SHA:?}" && $(git rev-parse "origin/$base") == "$GITHUB_SHA" ]] || { echo 'Default branch moved; retry discovery' >&2; exit 2; }
@@ -47,15 +46,17 @@ if [[ "$ref_rc" == 0 ]]; then
  ancestor=$(git merge-base "origin/$base" "origin/$branch")
  git diff --name-only "$ancestor" "origin/$branch" > "$scratch/paths"
  if grep -Ev '^(runtime-images.json|images_generated.go)$' "$scratch/paths"; then echo 'Unexpected branch changes' >&2; exit 2; fi
- if ! jq -e 'length>0' "$scratch/prs.json" >/dev/null; then
-  # Recover a push that succeeded before PR creation failed, but not an unowned branch.
-  git log -1 --format=%B "origin/$branch" | grep -F '[spanemuboost-runtime-images:v1]' >/dev/null
- fi
- git checkout -b "$branch" "origin/$branch"
+ # Historical PRs do not prove ownership of a deleted/recreated branch.
+ # A manual tip stops automation, including the unchanged-candidate fast path.
+ git log -1 --format=%B "origin/$branch" | grep -F '[spanemuboost-runtime-images:v1]' >/dev/null
 else
  [[ "$ref_rc" == 2 ]] || exit 2
- git checkout -b "$branch" "origin/$base"
 fi
+if [[ -n "$matching" ]]; then
+ [[ "$ref_rc" == 0 && $(git rev-parse "origin/$branch") == "$matching" ]] || { echo 'PR branch moved; retry discovery' >&2; exit 2; }
+ ensure_ci "$matching"; echo 'Existing PR covers these candidates'; exit 0
+fi
+if [[ "$ref_rc" == 0 ]]; then git checkout -b "$branch" "origin/$branch"; else git checkout -b "$branch" "origin/$base"; fi
 git config user.name 'github-actions[bot]'
 git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
 # Conflicts are limited to the validated bot-owned files and regenerated below.

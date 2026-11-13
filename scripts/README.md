@@ -78,8 +78,9 @@ Identical candidate sets create no additional commit or PR. Closing an unmerged
 managed PR dismisses that exact candidate set. Different candidates update an
 open PR or create a new one after closure. Branch history is additive: current
 main is merged before regeneration, never force-pushed. Only runtime-images.json
-and images_generated.go may differ on the managed branch; unexpected manual
-changes cause a failure instead of being overwritten. A pushed orphan branch
+and images_generated.go may differ on the managed branch. Every existing
+branch must also have a managed tip commit marker. Manual tips or unrelated
+changes stop automation, including unchanged-candidate CI reconciliation. A pushed orphan branch
 can be recovered only when its commit carries the managed marker.
 
 The updater never approves, merges or releases a PR. It requires contents,
