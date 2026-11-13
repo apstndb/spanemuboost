@@ -57,6 +57,13 @@ cat > "$scratch/bin/curl" <<'STUB'
 set -eu
 if [ "${IMAGE_TEST_CASE:-ok}" = http_failure ]; then exit 22; fi
 for url do :; done
+if [ "${IMAGE_TEST_AUTH:-0}" = 1 ]; then
+  case "$url:$*" in
+    */release-notes:*Authorization*) exit 11 ;;
+    */releases/latest:*"Authorization: Bearer fixture-token"*) ;;
+    */releases/latest:*) exit 12 ;;
+  esac
+fi
 case "$url" in
   */release-notes)
     if [ "${IMAGE_TEST_CASE:-ok}" = announced ]; then printf '2026.r5.1 2026.r4-lts.2\n'
@@ -100,6 +107,8 @@ assert_json '.images | length == 3'
 assert_json '.images.DefaultOmniImage | .tag == "2026.r5.1" and .update_available == false and .release_notes.tag_mentioned == false and .platforms == ["linux/amd64","linux/arm64/v8"] and .manifest_digest == null and .index_digest != null and .runtime_validation == "not_run"'
 assert_json '.images.DefaultEmulatorImage.github_release.matches_registry_latest == true'
 run_case ok 0 --check
+GH_TOKEN=fixture-token IMAGE_TEST_AUTH=1 run_case ok 0 --check
+GH_TOKEN='' GITHUB_TOKEN=fixture-token IMAGE_TEST_AUTH=1 run_case ok 0 --check
 constants 2026.r5
 run_case ok 0
 assert_json '.images.DefaultOmniImage.update_available == true'

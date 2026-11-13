@@ -1,0 +1,51 @@
+name: Runtime image updates
+
+on:
+  schedule:
+    # 09:17 JST; avoid the busy start of the UTC hour.
+    - cron: '17 0 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  issues: write
+
+concurrency:
+  group: runtime-image-updates
+  cancel-in-progress: false
+
+jobs:
+  check:
+    if: github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+      - uses: jdx/mise-action@v5
+        with:
+          version: 2026.11.7
+      - name: Check image versions
+        id: images
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set +e
+          mise run images:check > "$RUNNER_TEMP/runtime-images.json"
+          check_rc=$?
+          set -e
+          case "$check_rc" in
+            0) echo "updates=false" >> "$GITHUB_OUTPUT" ;;
+            1) echo "updates=true" >> "$GITHUB_OUTPUT" ;;
+            *) echo "Image discovery failed (exit $check_rc)" >&2; exit "$check_rc" ;;
+          esac
+      - name: Save detection evidence
+        uses: actions/upload-artifact@v7
+        with:
+          name: runtime-image-report
+          path: ${{ runner.temp }}/runtime-images.json
+          retention-days: 14
+      - name: Notify through a tracking issue
+        if: steps.images.outputs.updates == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: mise exec --no-deps -- bash scripts/notify-runtime-images.sh "$RUNNER_TEMP/runtime-images.json"

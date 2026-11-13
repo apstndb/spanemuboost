@@ -37,9 +37,14 @@ jq -n -L "$root/scripts" --slurpfile omni "$scratch/omni.json" \
   'include "runtime-images"; select_tags($omni[0]; $emulator[0])' > "$scratch/tags.json"
 curl --fail --silent --show-error --location --connect-timeout 10 --max-time 30 \
   -H 'User-Agent: spanemuboost-image-discovery' "$notes" > "$scratch/notes.html"
+# Use the Actions token when provided to avoid the anonymous GitHub API limit.
+# It is sent only to the fixed GitHub API URL, never to OCI registries or docs.
+release_headers=(-H 'User-Agent: spanemuboost-image-discovery' -H 'Accept: application/json')
+if [[ -n "${GH_TOKEN:-${GITHUB_TOKEN:-}}" ]]; then
+  release_headers+=(-H "Authorization: Bearer ${GH_TOKEN:-${GITHUB_TOKEN:-}}")
+fi
 curl --fail --silent --show-error --location --connect-timeout 10 --max-time 30 \
-  -H 'User-Agent: spanemuboost-image-discovery' -H 'Accept: application/json' \
-  "$release" > "$scratch/release.json"
+  "${release_headers[@]}" "$release" > "$scratch/release.json"
 
 for name in DefaultOmniImage LatestLTSOmniImage DefaultEmulatorImage; do
   repo=$omni
