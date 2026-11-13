@@ -438,3 +438,16 @@ func ExampleWithContainerImage_omni() {
 	fmt.Println("r3 Omni runtime configured")
 	// Output: r3 Omni runtime configured
 }
+
+// Selecting LTS does not start a container until the lazy runtime is used.
+func ExampleLatestLTSOmniImage() {
+	runtime := spanemuboost.NewLazyRuntime(spanemuboost.BackendOmni,
+		spanemuboost.WithContainerImage(spanemuboost.LatestLTSOmniImage))
+	defer func() {
+		if err := runtime.Close(); err != nil {
+			log.Println(err)
+		}
+	}()
+	fmt.Println("LTS image selected")
+	// Output: LTS image selected
+}

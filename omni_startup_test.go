@@ -27,7 +27,7 @@ func captureOmniRequest(t *testing.T, options ...Option) testcontainers.GenericC
 }
 
 func TestOmniStartupConfiguration(t *testing.T) {
-	const latestImage = "us-docker.pkg.dev/spanner-omni/images/spanner-omni:2026.r5"
+	const latestImage = "us-docker.pkg.dev/spanner-omni/images/spanner-omni:2026.r5.1"
 	const oldImage = "us-docker.pkg.dev/spanner-omni/images/spanner-omni:2026.r3-beta"
 	const customImage = "example.invalid/omni@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
 	gaCmd := []string{"start-single-server", "--listen-addresses=0.0.0.0"}
