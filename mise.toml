@@ -1,6 +1,7 @@
 [tools]
 "aqua:google/go-containerregistry" = "0.22.1"
 "aqua:jqlang/jq" = "1.8.2"
+"aqua:cli/cli" = "2.104.0"
 
 [tasks."images:detect"]
 description = "Detect latest runtime images and emit JSON evidence"
@@ -14,5 +15,5 @@ quiet = true
 
 [tasks."images:test"]
 description = "Test image discovery offline with fixture OCI/HTTP clients"
-run = "bash scripts/test-detect-runtime-images.sh"
+run = ["bash scripts/test-detect-runtime-images.sh", "bash scripts/test-notify-runtime-images.sh"]
 quiet = true
