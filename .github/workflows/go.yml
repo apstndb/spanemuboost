@@ -1,6 +1,7 @@
 name: Go
 
 on:
+  workflow_dispatch:
   push:
     branches: [ "main" ]
   pull_request:
@@ -27,6 +28,11 @@ jobs:
 
       - name: Test image discovery (offline)
         run: mise run images:test
+
+      - name: Check generated image constants
+        run: |
+          go generate .
+          git diff --exit-code -- images_generated.go
 
       - name: Build
         run: go build -v ./...

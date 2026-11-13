@@ -1,0 +1,5 @@
+{
+  "DefaultEmulatorImage": "gcr.io/cloud-spanner-emulator/emulator:1.5.59",
+  "DefaultOmniImage": "us-docker.pkg.dev/spanner-omni/images/spanner-omni:2026.r5.1",
+  "LatestLTSOmniImage": "us-docker.pkg.dev/spanner-omni/images/spanner-omni:2026.r4-lts.2"
+}

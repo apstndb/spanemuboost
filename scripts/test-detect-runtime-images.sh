@@ -79,8 +79,7 @@ esac
 STUB
 chmod +x "$scratch/bin/crane" "$scratch/bin/curl"
 constants() {
-  printf 'DefaultOmniImage = "us-docker.pkg.dev/spanner-omni/images/spanner-omni:%s"\nLatestLTSOmniImage = "us-docker.pkg.dev/spanner-omni/images/spanner-omni:2026.r4-lts.2"\n' "$1" > "$scratch/repo/omni.go"
-  printf 'DefaultEmulatorImage = "gcr.io/cloud-spanner-emulator/emulator:1.5.59"\n' > "$scratch/repo/spanemuboost.go"
+  jq -n --arg tag "$1" '{DefaultOmniImage:("us-docker.pkg.dev/spanner-omni/images/spanner-omni:"+$tag),LatestLTSOmniImage:"us-docker.pkg.dev/spanner-omni/images/spanner-omni:2026.r4-lts.2",DefaultEmulatorImage:"gcr.io/cloud-spanner-emulator/emulator:1.5.59"}' > "$scratch/repo/runtime-images.json"
 }
 passed=0
 run_case() {
@@ -127,7 +126,7 @@ assert_json '.images.DefaultOmniImage | .index_digest == null and .manifest_dige
 for scenario in no_candidates no_lts no_emulator registry_failure http_failure digest_failure invalid_digest invalid_json malformed_descriptors null_descriptors unknown_media invalid_release malformed_release; do
   run_case "$scenario" 2
 done
-printf 'not a literal constant\n' > "$scratch/repo/omni.go"
+printf 'not a literal constant\n' > "$scratch/repo/runtime-images.json"
 run_case ok 2
 constants 2026.r5.1
 run_case ok 2 --unknown

@@ -60,14 +60,14 @@ for name in DefaultOmniImage LatestLTSOmniImage DefaultEmulatorImage; do
 done
 
 jq -n -L "$root/scripts" \
-  --rawfile sourceOmni "$root/omni.go" --rawfile sourceEmulator "$root/spanemuboost.go" \
+  --slurpfile current "$root/runtime-images.json" \
   --rawfile notes "$scratch/notes.html" --arg notesUrl "$notes" \
   --slurpfile release "$scratch/release.json" \
   --slurpfile omni "$scratch/DefaultOmniImage.json" \
   --slurpfile lts "$scratch/LatestLTSOmniImage.json" \
   --slurpfile emulator "$scratch/DefaultEmulatorImage.json" \
   'include "runtime-images";
-   report($sourceOmni + $sourceEmulator; $notes; $notesUrl; $release[0];
+   report($current[0]; $notes; $notesUrl; $release[0];
           $omni[0]; $lts[0]; $emulator[0])' > "$scratch/result.json"
 # Print only a complete report. Network/parsing failures never emit partial JSON.
 cat "$scratch/result.json"

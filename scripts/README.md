@@ -59,34 +59,43 @@ runs it with Docker and rootless Podman. Live detection is an explicit network
 operation, separate from the offline tests in the build-and-test job.
 
 
-## Scheduled update notifications
+## Pinned data and generation
 
-The `Runtime image updates` GitHub Actions workflow runs `mise run images:check`
-daily at 00:17 UTC (09:17 JST), and supports manual `workflow_dispatch` runs.
-GitHub schedules can be delayed. Only the default branch runs the notification
-job; manual runs on feature branches are skipped. The workflow has repository
-read and issue write permissions and serializes schedule/manual runs to avoid
-concurrent duplicate creation.
+`runtime-images.json` is the single source for the three public image constants.
+Run `go generate .` after editing it. Generation uses only the local data and
+standard Go library, writes `images_generated.go`, and never queries a registry.
+CI checks that the generated file matches the data. Discovery reads the data
+file directly; the generated Go API names and values remain unchanged.
 
-Matching constants (exit 0) produce no issue. Version drift (exit 1) creates or
-updates one tracking issue containing a table of current and available images,
-a workflow-run link and a reminder to validate runtime compatibility. Detection
-failures (exit 2 or another unexpected nonzero status) fail the workflow, rather
-than creating a misleading update issue. Complete discovery JSON is retained
-in the `runtime-image-report` artifact for 14 days on successful detection.
+## Scheduled update pull requests
 
-The issue publisher (`scripts/notify-runtime-images.sh`) recognizes its own
-hidden marker, excludes pull requests and reads all issue pages. It deduplicates
-on the changed constant names and current/available references, ignoring times,
-run URLs and announcement metadata. Identical candidates cause no issue write;
-new candidates update an open tracking issue. A manually closed issue suppresses
-that exact candidate set, while a different set can create a new issue. Existing
-unmarked issues are untouched. Issues are not automatically closed when constants
-catch up, and this workflow never changes code, starts runtimes or releases a
-version.
+The workflow runs daily at 00:17 UTC (09:17 JST) and supports manual dispatch on
+the default branch. It creates no Issues. Drift creates or updates one managed
+PR on `automation/runtime-images`; matching constants do nothing, and errors
+fail the workflow. Full detection JSON is retained for 14 days.
 
-The Actions token is also supplied only to the fixed GitHub release-metadata
-request when available (`GH_TOKEN`, then `GITHUB_TOKEN`), reducing anonymous API
-rate-limit failures. It is not sent to the public OCI registries or Omni docs.
-Offline tests cover notification creation, update, deduplication, dismissal,
-pagination, API errors and malformed reports without writing actual issues.
+Identical candidate sets create no additional commit or PR. Closing an unmerged
+managed PR dismisses that exact candidate set. Different candidates update an
+open PR or create a new one after closure. Branch history is additive: current
+main is merged before regeneration, never force-pushed. Only runtime-images.json
+and images_generated.go may differ on the managed branch; unexpected manual
+changes cause a failure instead of being overwritten. A pushed orphan branch
+can be recovered only when its commit carries the managed marker.
+
+The updater never approves, merges or releases a PR. It requires contents,
+pull-request and Actions write permissions and the repository setting allowing
+GitHub Actions to create pull requests. Standard GitHub settings couple this
+with permission to approve PRs; this workflow does not use approval capability.
+The repository default token policy can stay read-only for other workflows.
+
+Events made by GITHUB_TOKEN do not reliably start ordinary CI automatically.
+The updater explicitly dispatches the Go and lint workflows at the bot branch.
+It checks existing dispatches by head SHA to avoid repeating CI on unchanged
+heads and to recover a partially failed dispatch. Depending on GitHub policy,
+PR-event runs may separately await approval; explicit dispatch is independent.
+Offline tests use isolated git remotes and fake GitHub clients, never real PRs.
+
+Optional GH_TOKEN (then GITHUB_TOKEN) is used only for GitHub release metadata,
+not OCI registries or Omni docs. Bash/curl/Go/git are provided by the runner;
+crane, jq and gh remain pinned through mise. Before merging an update, inspect
+all runtime CI and review the chosen versions. Omni remains experimental.
