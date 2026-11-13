@@ -15,8 +15,12 @@
 //
 // # Omni image selection
 //
-// [BackendOmni] defaults to the Developer image 2026.r5. Automatic image
-// selection is the default: tags containing 2026.r1 through r3 (also spelled
+// [BackendOmni] defaults to [DefaultOmniImage]. Use
+// WithContainerImage(LatestLTSOmniImage) to select the latest known LTS image.
+// Both constants pin versions known to this spanemuboost release; they do not
+// query the registry at runtime. Omni support remains experimental.
+//
+// Automatic image selection is the default: tags containing 2026.r1 through r3 (also spelled
 // 2026-r1 through r3) use the flagless start-single-server command. The suffix
 // need not be beta, and a tag is used even when followed by a digest. All
 // other references use --listen-addresses=0.0.0.0 for container port forwarding.

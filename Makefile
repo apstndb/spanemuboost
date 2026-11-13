@@ -1,10 +1,10 @@
-.PHONY: test lint emulator-smoke omni-smoke
+.PHONY: test lint emulator-smoke omni-smoke image-discovery-test
 
 # Keep this as an explicit test-name list rather than a compact grouped regex so
 # CI selection stays easy to audit when smoke coverage changes. Match either the
 # top-level test name or one of its subtests.
 EMULATOR_SMOKE_TEST_PATTERN = ^(TestRunEmulatorWithClients|TestSetupEmulatorAndSetupClients|TestRuntimePlatformWithStartedRuntime|TestLazyRuntimeEmulatorWithSetupClients)($$|/)
-OMNI_SMOKE_TEST_PATTERN = ^(TestRunOmniLegacyImages|TestRunOmni|TestRunOmniWithClients|TestOpenOmniClients|TestOpenOmniClientsReuseDefaultDatabase|TestOpenOmniClientsAllowDatabaseOverride|TestSetupClientsWithOmni|TestLazyRuntimeWithOmni|TestOpenOmniClientsRollsBackCreatedDatabaseOnFailure)($$|/)
+OMNI_SMOKE_TEST_PATTERN = ^(TestRunOmniLatestLTS|TestRunOmniLegacyImages|TestRunOmni|TestRunOmniWithClients|TestOpenOmniClients|TestOpenOmniClientsReuseDefaultDatabase|TestOpenOmniClientsAllowDatabaseOverride|TestSetupClientsWithOmni|TestLazyRuntimeWithOmni|TestOpenOmniClientsRollsBackCreatedDatabaseOnFailure)($$|/)
 
 test:
 	go test -v ./...
@@ -14,3 +14,6 @@ emulator-smoke:
 	go test -v -race -count=1 -shuffle=on -p=1 -parallel=1 -run '$(EMULATOR_SMOKE_TEST_PATTERN)' ./...
 omni-smoke:
 	SPANEMUBOOST_ENABLE_OMNI_TESTS=1 go test -v -race -count=1 -shuffle=on -p=1 -parallel=1 -run '$(OMNI_SMOKE_TEST_PATTERN)' ./...
+
+image-discovery-test:
+	mise run images:test

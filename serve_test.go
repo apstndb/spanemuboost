@@ -19,7 +19,7 @@ func TestParseServeArgsImage(t *testing.T) {
 	}{
 		{"old image separated", []string{"omni", "--image", oldImage}, BackendOmni, oldImage, legacyCmd},
 		{"old image equals before backend", []string{"--image=" + oldImage, "omni"}, BackendOmni, oldImage, legacyCmd},
-		{"default", []string{"omni"}, BackendOmni, defaultOmniImage, gaCmd},
+		{"default", []string{"omni"}, BackendOmni, DefaultOmniImage, gaCmd},
 		{"last image wins", []string{"omni", "--image=" + oldImage, "--image", "r4-image"}, BackendOmni, "r4-image", gaCmd},
 		{"emulator image", []string{"emulator", "--image=custom-emulator"}, BackendEmulator, "custom-emulator", nil},
 	} {

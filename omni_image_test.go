@@ -21,7 +21,7 @@ func TestDefaultOmniStartArgsForImage(t *testing.T) {
 		{"omni:2026-r3", true},
 		{"mirror.invalid:5000/omni:custom-2026-r2.1-build", true},
 		{"omni:custom_2026.r1_release", true},
-		{defaultOmniImage, false},
+		{DefaultOmniImage, false},
 		{"omni:2026.r4-beta", false},
 		{"omni:2026.r5-beta", false},
 		{"omni:2027.r1-beta", false},
