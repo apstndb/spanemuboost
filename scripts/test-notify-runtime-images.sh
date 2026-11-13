@@ -81,6 +81,10 @@ jq '[{number:1,state:"open",pull_request:{},body:.body}]' "$scratch/payload.json
 jq '[{number:8,state:"open",body:.body}]' "$scratch/payload.json" >> "$scratch/issues.json"
 run_case 0
 [[ ! -e "$scratch/method" ]]
+# A manually reopened older tracker must not cause writes when a newer one matches.
+jq -n --slurpfile old "$scratch/original.json" --slurpfile current "$scratch/payload.json" '[{number:7,state:"open",body:$old[0].body},{number:8,state:"open",body:$current[0].body}]' > "$scratch/issues.json"
+run_case 0
+if [[ -e "$scratch/method" ]]; then printf 'Duplicate write despite another matching open tracker\n' >&2; exit 1; fi
 # Invalid input, API failure and wrong repo fail without a write.
 printf '[]\n' > "$scratch/issues.json"
 NOTIFY_API_FAIL=1 run_case 2

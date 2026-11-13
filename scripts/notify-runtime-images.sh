@@ -30,11 +30,11 @@ jq -s --arg marker "$marker" 'add | map(select(.pull_request == null and ((.body
 if jq -e --arg versions "$version_marker" 'any(.[]; .state == "closed" and ((.body // "") | contains($versions)))' "$scratch/issues.json" >/dev/null; then
   printf 'These candidates were already dismissed in a closed issue\n'; exit 0
 fi
+if jq -e --arg versions "$version_marker" 'any(.[]; .state == "open" and ((.body // "") | contains($versions)))' "$scratch/issues.json" >/dev/null; then
+  printf 'An open tracking issue already covers these candidates\n'; exit 0
+fi
 open_number=$(jq -r '[.[] | select(.state == "open")][0].number // empty' "$scratch/issues.json")
 if [[ -n "$open_number" ]]; then
-  if jq -e --argjson number "$open_number" --arg versions "$version_marker" 'any(.[]; .number == $number and ((.body // "") | contains($versions)))' "$scratch/issues.json" >/dev/null; then
-    printf 'Issue #%s already covers these candidates\n' "$open_number"; exit 0
-  fi
   method=PATCH
   endpoint="repos/$repo/issues/$open_number"
 else
