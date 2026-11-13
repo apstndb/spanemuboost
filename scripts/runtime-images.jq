@@ -38,15 +38,12 @@ def image_evidence($repo; $tag; $digest; $manifest):
     end
   end;
 
-def constant($source; $name):
-  # Exactly the same literal-constant lookup as the original detector.
-  [$source | scan("\\b" + $name + "\\s*=\\s*\"([^\"]+)\"") | .[0]]
-  | if length == 0 then error("cannot find literal constant " + $name) else .[0] end;
 def mentioned($notes; $tag):
   ($tag | gsub("[.]"; "\\.")) as $escaped
   | $notes | test("(?<![\\w.-])" + $escaped + "(?![\\w.-])");
-def report($source; $notes; $notesUrl; $release; $omni; $lts; $emulator):
-  if ($release|type) != "object" or $release.draft or $release.prerelease or
+def report($current; $notes; $notesUrl; $release; $omni; $lts; $emulator):
+  if ($current|keys) != ["DefaultEmulatorImage","DefaultOmniImage","LatestLTSOmniImage"] or any($current[]; type != "string" or length == 0) then error("invalid pinned image data")
+  elif ($release|type) != "object" or $release.draft or $release.prerelease or
      (($release.tag_name // "" | ltrimstr("v") | test(emulator_pattern)) | not) or
      ($release.html_url|type) != "string"
   then error("unexpected GitHub latest emulator release")
@@ -56,6 +53,6 @@ def report($source; $notes; $notesUrl; $release; $omni; $lts; $emulator):
       LatestLTSOmniImage: ($lts + {release_notes: {url: $notesUrl, tag_mentioned: mentioned($notes; $lts.tag)}}),
       DefaultEmulatorImage: ($emulator + {github_release: {url: $release.html_url, tag: $release.tag_name,
         matches_registry_latest: ($release.tag_name|ltrimstr("v")) == $emulator.tag}})
-    }} | .images |= with_entries(.key as $name | .value += {current_image: constant($source; $name)}
+    }} | .images |= with_entries(.key as $name | .value += {current_image: $current[$name]}
        | .value.update_available = (.value.current_image != .value.image))
   end;

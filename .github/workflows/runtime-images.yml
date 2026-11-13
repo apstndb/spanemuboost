@@ -7,8 +7,9 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
-  issues: write
+  contents: write
+  pull-requests: write
+  actions: write
 
 concurrency:
   group: runtime-image-updates
@@ -21,6 +22,11 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-go@v6
+        with:
+          go-version-file: go.mod
       - uses: jdx/mise-action@v5
         with:
           version: 2026.11.7
@@ -44,8 +50,9 @@ jobs:
           name: runtime-image-report
           path: ${{ runner.temp }}/runtime-images.json
           retention-days: 14
-      - name: Notify through a tracking issue
+      - name: Create or update the image PR
         if: steps.images.outputs.updates == 'true'
         env:
           GH_TOKEN: ${{ github.token }}
-        run: mise exec --no-deps -- bash scripts/notify-runtime-images.sh "$RUNNER_TEMP/runtime-images.json"
+          GITHUB_BASE_BRANCH: ${{ github.event.repository.default_branch }}
+        run: mise exec --no-deps -- bash scripts/update-runtime-image-pr.sh "$RUNNER_TEMP/runtime-images.json"

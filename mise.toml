@@ -15,5 +15,5 @@ quiet = true
 
 [tasks."images:test"]
 description = "Test image discovery offline with fixture OCI/HTTP clients"
-run = ["bash scripts/test-detect-runtime-images.sh", "bash scripts/test-notify-runtime-images.sh"]
+run = ["bash scripts/test-detect-runtime-images.sh", "bash scripts/test-update-runtime-image-pr.sh"]
 quiet = true

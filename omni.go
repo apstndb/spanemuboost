@@ -23,16 +23,6 @@ import (
 )
 
 const (
-	// DefaultOmniImage is the latest known non-prerelease Omni Developer image
-	// selected by this spanemuboost version. It is a pinned tag, not a runtime
-	// lookup. Omni integration remains experimental.
-	DefaultOmniImage = "us-docker.pkg.dev/spanner-omni/images/spanner-omni:2026.r5.1"
-
-	// LatestLTSOmniImage is the latest known Omni Developer LTS image selected
-	// by this spanemuboost version. Use WithContainerImage(LatestLTSOmniImage)
-	// to select it instead of DefaultOmniImage. It is not resolved at runtime.
-	LatestLTSOmniImage = "us-docker.pkg.dev/spanner-omni/images/spanner-omni:2026.r4-lts.2"
-
 	defaultOmniProjectID  = "default"
 	defaultOmniInstanceID = "default"
 	omniStartupTimeout    = 5 * time.Minute
