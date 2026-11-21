@@ -14,4 +14,4 @@ const DefaultOmniImage = "us-docker.pkg.dev/spanner-omni/images/spanner-omni:202
 // LatestLTSOmniImage is the latest known Omni Developer LTS image selected
 // by this spanemuboost version. Use WithContainerImage(LatestLTSOmniImage)
 // to select it instead of DefaultOmniImage. It is not resolved at runtime.
-const LatestLTSOmniImage = "us-docker.pkg.dev/spanner-omni/images/spanner-omni:2026.r4-lts.2"
+const LatestLTSOmniImage = "us-docker.pkg.dev/spanner-omni/images/spanner-omni:2026.r4-lts.3"
