@@ -9,7 +9,7 @@ const DefaultEmulatorImage = "gcr.io/cloud-spanner-emulator/emulator:1.5.59"
 // DefaultOmniImage is the latest known non-prerelease Omni Developer image
 // selected by this spanemuboost version. It is not resolved at runtime.
 // Omni integration remains experimental.
-const DefaultOmniImage = "us-docker.pkg.dev/spanner-omni/images/spanner-omni:2026.r5.1"
+const DefaultOmniImage = "us-docker.pkg.dev/spanner-omni/images/spanner-omni:2026.r5.2"
 
 // LatestLTSOmniImage is the latest known Omni Developer LTS image selected
 // by this spanemuboost version. Use WithContainerImage(LatestLTSOmniImage)
