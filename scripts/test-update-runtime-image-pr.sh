@@ -8,6 +8,7 @@ mkdir -p "$tmp/bin" "$tmp/repo/scripts"
 cp "$root/scripts/update-runtime-image-pr.sh" "$root/scripts/runtime-image-update.jq" "$tmp/repo/scripts/"
 export IMAGE_PR_TEST=$tmp GITHUB_REPOSITORY=apstndb/spanemuboost GITHUB_BASE_BRANCH=main
 branch=automation/runtime-images-octo-sts
+export IMAGE_PR_BRANCH=$branch
 export PATH="$tmp/bin:$PATH"
 cat > "$tmp/bin/go" <<'STUB'
 #!/bin/sh
@@ -26,7 +27,10 @@ case "$1 $2" in
  'api users/apstndb-octo-sts%5Bbot%5D') printf '362053602\n' ;;
  'api --paginate')
    case "$3" in
-     */pulls\?*) cat "$IMAGE_PR_TEST/prs.json" ;;
+     */pulls\?*)
+       sha=$(git ls-remote origin "refs/heads/$IMAGE_PR_BRANCH" | cut -f1)
+       jq --arg sha "$sha" 'map(if .state=="open" then .head.sha=$sha else . end)' "$IMAGE_PR_TEST/prs.json"
+       ;;
      *) exit 7 ;;
    esac ;;
  'api repos/apstndb/spanemuboost/pulls'|'api repos/apstndb/spanemuboost/pulls/7')
@@ -106,6 +110,16 @@ grep -q -- '--method PATCH' "$tmp/calls"
 assert_no_call 'workflow run|--method POST'
 head2=$(git rev-parse "origin/$branch")
 git merge-base --is-ancestor "$head1" "$head2"
+# If discovery returns to the old candidate after a failed edit, the live
+# branch contents must be repaired even though the PR marker already matches.
+jq '.images.DefaultEmulatorImage.image="e:3.1"' "$tmp/report.json" > "$tmp/new.json"; mv "$tmp/new.json" "$tmp/report.json"
+if PR_FAIL=1 run_update; then echo 'Expected PR edit failure' >&2; exit 1; fi
+pushed=$(git rev-parse "origin/$branch")
+git show "origin/$branch:runtime-images.json" | jq -e '.DefaultEmulatorImage=="e:3.1"' >/dev/null
+jq '.images.DefaultEmulatorImage.image="e:3"' "$tmp/report.json" > "$tmp/new.json"; mv "$tmp/new.json" "$tmp/report.json"
+run_update
+git merge-base --is-ancestor "$pushed" "origin/$branch"
+git show "origin/$branch:runtime-images.json" | jq -e '.DefaultEmulatorImage=="e:3"' >/dev/null
 # Closing a rejected candidate suppresses exactly that set.
 jq '.[0].state="closed"' "$tmp/prs.json" > "$tmp/new.json"; mv "$tmp/new.json" "$tmp/prs.json"
 run_update

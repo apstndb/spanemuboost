@@ -52,7 +52,11 @@ else
 fi
 if [[ -n "$matching" ]]; then
  [[ "$ref_rc" == 0 && $(git rev-parse "origin/$branch") == "$matching" ]] || { echo 'PR branch moved; retry discovery' >&2; exit 2; }
- echo 'Existing PR covers these candidates'; exit 0
+ # A successful push and failed PR edit can leave the candidate marker stale.
+ if git show "origin/$branch:runtime-images.json" |
+    jq -e --slurpfile report "$scratch/report.json" '. == ($report[0].images|map_values(.image))' >/dev/null; then
+  echo 'Existing PR covers these candidates'; exit 0
+ fi
 fi
 if [[ "$ref_rc" == 0 ]]; then git checkout -b "$branch" "origin/$branch"; else git checkout -b "$branch" "origin/$base"; fi
 git config user.name "$bot"
