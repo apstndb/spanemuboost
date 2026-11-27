@@ -1,0 +1,98 @@
+name: Octo STS read-only pilot
+
+on:
+  workflow_dispatch:
+  workflow_call:
+    inputs:
+      wrong-workflow:
+        type: boolean
+        required: true
+
+permissions: {}
+
+jobs:
+  verify:
+    if: github.repository == 'apstndb/spanemuboost'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      id-token: write
+    env:
+      STS_HOST: ${{ vars.OCTO_STS_HOST }}
+      WRONG_WORKFLOW: ${{ inputs.wrong-workflow }}
+    steps:
+      - name: Check the configured broker hostname
+        run: |
+          if [[ ! "$STS_HOST" =~ ^octo-sts-[0-9]+\.asia-northeast1\.run\.app$ ]]; then
+            echo 'Expected the Octo STS Cloud Run hostname'
+            exit 1
+          fi
+
+      - name: Exchange the GitHub Actions identity
+        if: github.ref == 'refs/heads/main' && !inputs.wrong-workflow
+        id: exchange
+        uses: octo-sts/action@f603d3be9d8dd9871a265776e625a27b00effe05 # v1.1.1
+        with:
+          domain: ${{ env.STS_HOST }}
+          scope: ${{ github.repository }}
+          identity: octo-sts-pilot
+
+      - name: Verify the installation token can access exactly spanemuboost
+        if: steps.exchange.outcome == 'success'
+        env:
+          GH_TOKEN: ${{ steps.exchange.outputs.token }}
+          EXPECTED_REPO_ID: ${{ github.repository_id }}
+        run: |
+          set -o pipefail
+          gh api "repos/$GITHUB_REPOSITORY/contents/.github/chainguard/octo-sts-pilot.sts.yaml" \
+            --silent
+          gh api --paginate --slurp /installation/repositories |
+            jq -e --argjson id "$EXPECTED_REPO_ID" \
+              '[.[].repositories[].id] == [$id]' > /dev/null
+          echo 'The installation token can read the policy and is scoped to exactly spanemuboost.'
+
+      - name: Check that Octo STS denies the mismatched identity
+        shell: bash
+        run: |
+          if [[ "$WRONG_WORKFLOW" == true ]]; then
+            scenario=wrong-workflow
+            audience="$STS_HOST"
+          elif [[ "$GITHUB_REF" != refs/heads/main ]]; then
+            scenario=wrong-ref
+            audience="$STS_HOST"
+          else
+            scenario=wrong-audience
+            audience=octo-sts-pilot.invalid
+          fi
+
+          umask 077
+          response=$(mktemp)
+          trap 'rm -f -- "$response"' EXIT
+          oidc_token=$(
+            printf 'header = "Authorization: Bearer %s"\n' "$ACTIONS_ID_TOKEN_REQUEST_TOKEN" |
+              curl --config - --silent --show-error --fail --max-time 15 \
+                "${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=$audience" |
+              jq -er '.value | select(type == "string" and length > 0)'
+          )
+          exchange_url="https://$STS_HOST/sts/exchange?scope=$GITHUB_REPOSITORY&identity=octo-sts-pilot"
+          status=$(
+            printf 'header = "Authorization: Bearer %s"\n' "$oidc_token" |
+              curl --config - --silent --show-error --max-time 25 \
+                --output "$response" --write-out '%{http_code}' "$exchange_url"
+          )
+          unset oidc_token
+          if unexpected_token=$(jq -er '.token | select(type == "string" and length > 0)' \
+            "$response" 2>/dev/null); then
+            printf 'header = "Authorization: Bearer %s"\n' "$unexpected_token" |
+              curl --config - --silent --show-error --fail --max-time 15 --output /dev/null \
+                -X DELETE https://api.github.com/installation/token
+            echo "::error::$scenario incorrectly returned a token. The token was revoked."
+            exit 1
+          fi
+          if [[ "$status" != 403 ]] || ! jq -e \
+            '.code == 7 and .message == "token does not match trust policy" and (has("token") | not)' \
+            "$response" > /dev/null; then
+            echo "::error::$scenario expected a trust-policy denial, got HTTP $status."
+            exit 1
+          fi
+          printf '%s denied by Octo STS policy (HTTP %s)\n' "$scenario" "$status"
