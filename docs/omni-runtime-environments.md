@@ -7,11 +7,11 @@ Historical environment checks below: 2026-05-19.
 
 ## Current startup configuration
 
-The Omni default is the Developer image `2026.r5.1`, with automatic startup
-selection from the image tag. Tags containing `2026.r1` through `2026.r3`
-(or `2026-r1` through `2026-r3`) use the flagless `start-single-server`
-command, regardless of the suffix. Version tokens are delimited so `r30` does
-not match `r3`. Other tags and digest-only references use
+The Omni default is the Developer image selected by `DefaultOmniImage`, with
+automatic startup selection from the image tag. Tags containing `2026.r1`
+through `2026.r3` (or `2026-r1` through `2026-r3`) use the flagless
+`start-single-server` command, regardless of the suffix. Version tokens are
+delimited so `r30` does not match `r3`. Other tags and digest-only references use
 `--listen-addresses=0.0.0.0` so port 15000 is reachable through forwarding.
 A tag accompanying a digest is classified by its name too; this is a naming
 policy without inspecting the resolved image.
@@ -45,10 +45,10 @@ linux/arm64 Colima/Docker verification (about 8 GiB) at `6be70eb` used Go
 254 seconds. These are historical receipts; validation of the mode-free
 revision is recorded separately.
 
-The smoke target covers default r4 startup, managed clients, reopened clients,
-lazy startup and bootstrap rollback, plus r2.1/r3 images selected with no
-startup argument override. The existing GitHub Actions Docker and Podman
-smoke jobs exercise the same target on amd64.
+The smoke target covers startup with `DefaultOmniImage` and `LatestLTSOmniImage`,
+managed clients, reopened clients, lazy startup and bootstrap rollback, plus
+r2.1/r3 images selected with no startup argument override. The GitHub Actions
+Docker and Podman smoke jobs exercise the same target on amd64.
 
 ## Status
 
