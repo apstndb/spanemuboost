@@ -70,33 +70,29 @@ file directly; the generated Go API names and values remain unchanged.
 ## Scheduled update pull requests
 
 The workflow runs daily at 00:17 UTC (09:17 JST) and supports manual dispatch on
-the default branch. It creates no Issues. Drift creates or updates one managed
-PR on `automation/runtime-images`; matching constants do nothing, and errors
-fail the workflow. Full detection JSON is retained for 14 days.
+main. Drift creates or updates one App-managed PR on
+`automation/runtime-images-octo-sts`. Matching constants leave the repository
+unchanged. Full detection JSON is retained for 14 days.
 
 Identical candidate sets create no additional commit or PR. Closing an unmerged
 managed PR dismisses that exact candidate set. Different candidates update an
-open PR or create a new one after closure. Branch history is additive: current
-main is merged before regeneration, never force-pushed. Only runtime-images.json
-and images_generated.go may differ on the managed branch. Every existing
-branch must also have a managed tip commit marker. Manual tips or unrelated
-changes stop automation, including unchanged-candidate CI reconciliation. A pushed orphan branch
-can be recovered only when its commit carries the managed marker.
+open PR or create a new one after closure. Branch history is additive. The
+updater merges main before regenerating the constants from the report.
+Only runtime-images.json and images_generated.go may differ on the managed
+branch. A PR must have the configured App author and management marker.
+An existing branch must have a managed tip commit marker, including when no PR
+exists after an interrupted update. Manual tips or unrelated changes stop
+automation.
 
-The updater never approves, merges or releases a PR. It requires contents,
-pull-request and Actions write permissions and the repository setting allowing
-GitHub Actions to create pull requests. Standard GitHub settings couple this
-with permission to approve PRs; this workflow does not use approval capability.
-The repository default token policy can stay read-only for other workflows.
+Only the publish job can request an OIDC identity. The broker uses the policy
+in .github/chainguard/runtime-images.sts.yaml to issue a token scoped to this
+repository with Contents and Pull requests write permissions. Git pushes and
+PR API requests both use the installation token. The resulting pull_request
+events start the regular Go and lint workflows. The updater leaves review,
+merge, and release decisions to maintainers. Offline tests use isolated git
+remotes and fake GitHub clients.
 
-Events made by GITHUB_TOKEN do not reliably start ordinary CI automatically.
-The updater explicitly dispatches the Go and lint workflows at the bot branch.
-It checks existing dispatches by head SHA to avoid repeating CI on unchanged
-heads and to recover a partially failed dispatch. Depending on GitHub policy,
-PR-event runs may separately await approval; explicit dispatch is independent.
-Offline tests use isolated git remotes and fake GitHub clients, never real PRs.
-
-Optional GH_TOKEN (then GITHUB_TOKEN) is used only for GitHub release metadata,
+During detection, optional GH_TOKEN (then GITHUB_TOKEN) authenticates release metadata requests,
 not OCI registries or Omni docs. Bash/curl/Go/git are provided by the runner;
 crane, jq and gh remain pinned through mise. Before merging an update, inspect
 all runtime CI and review the chosen versions. Omni remains experimental.

@@ -7,10 +7,16 @@ trap 'rm -rf -- "$tmp"' EXIT
 mkdir -p "$tmp/bin" "$tmp/repo/scripts"
 cp "$root/scripts/update-runtime-image-pr.sh" "$root/scripts/runtime-image-update.jq" "$tmp/repo/scripts/"
 export IMAGE_PR_TEST=$tmp GITHUB_REPOSITORY=apstndb/spanemuboost GITHUB_BASE_BRANCH=main
+branch=automation/runtime-images-octo-sts
+export IMAGE_PR_BRANCH=$branch
 export PATH="$tmp/bin:$PATH"
 cat > "$tmp/bin/go" <<'STUB'
 #!/bin/sh
 set -eu
+if [ -f images_generated.go ] && grep -q "^//go:generate " images_generated.go; then
+  echo "Untrusted generated Go file reached the generator" >&2
+  exit 9
+fi
 jq -c . runtime-images.json > images_generated.go
 STUB
 cat > "$tmp/bin/gh" <<'STUB'
@@ -18,26 +24,33 @@ cat > "$tmp/bin/gh" <<'STUB'
 set -eu
 printf '%s\n' "$*" >> "$IMAGE_PR_TEST/calls"
 case "$1 $2" in
+ 'api users/apstndb-octo-sts%5Bbot%5D') printf '362053602\n' ;;
  'api --paginate')
    case "$3" in
-     */pulls\?*) cat "$IMAGE_PR_TEST/prs.json" ;;
-     */runs\?*)
-       workflow=${3#*/workflows/}; workflow=${workflow%%/runs*}
-       if [ -f "$IMAGE_PR_TEST/runs-$workflow.json" ]; then cat "$IMAGE_PR_TEST/runs-$workflow.json"; else printf '{"workflow_runs":[]}\n'; fi ;;
+     */pulls\?*)
+       sha=$(git ls-remote origin "refs/heads/$IMAGE_PR_BRANCH" | cut -f1)
+       jq --arg sha "$sha" 'map(if .state=="open" then .head.sha=$sha else . end)' "$IMAGE_PR_TEST/prs.json"
+       ;;
      *) exit 7 ;;
    esac ;;
- 'workflow run')
-   if [ "${CI_FAIL_LINT:-0}" = 1 ] && [ "$3" = golangci-lint.yml ]; then exit 7; fi
-   sha=$(git rev-parse origin/automation/runtime-images)
-   workflow=$3
-   jq -n --arg sha "$sha" '{workflow_runs:[{head_sha:$sha}]}' > "$IMAGE_PR_TEST/runs-$workflow.json" ;;
- 'pr create'|'pr edit')
-   if [ "${PR_FAIL:-0}" = 1 ]; then exit 7; fi
-   while [ "$#" -gt 0 ]; do
-    if [ "$1" = --body-file ]; then body=$2; break; fi
-    shift
+ 'api repos/apstndb/spanemuboost/pulls'|'api repos/apstndb/spanemuboost/pulls/7')
+   [ "${PR_FAIL:-0}" = 0 ] || exit 7
+   [ "$3" = --method ]
+   case "$2 $4" in
+     */pulls\ POST|*/pulls/7\ PATCH) ;;
+     *) exit 8 ;;
+   esac
+   body=
+   for arg do
+     case "$arg" in
+       body=@*) body=${arg#body=@} ;;
+     esac
    done
-   jq -n --rawfile body "$body" --arg sha "$(git rev-parse HEAD)" '[{number:7,state:"open",merged_at:null,body:$body,head:{sha:$sha,repo:{full_name:"apstndb/spanemuboost"}}}]' > "$IMAGE_PR_TEST/prs.json"
+   test -n "$body"
+   jq -n --rawfile body "$body" --arg sha "$(git rev-parse HEAD)" '[
+     {number:7,state:"open",merged_at:null,body:$body,user:{id:362053602},
+      base:{ref:"main"},head:{sha:$sha,repo:{full_name:"apstndb/spanemuboost"}}}
+   ]' > "$IMAGE_PR_TEST/prs.json"
    printf 'https://github.com/apstndb/spanemuboost/pull/7\n' ;;
  *) exit 8 ;;
 esac
@@ -66,61 +79,84 @@ assert_no_call() {
 }
 run_update() {
  git checkout -q main
- if git show-ref --verify --quiet refs/heads/automation/runtime-images; then git branch -D automation/runtime-images >/dev/null; fi
+ if git show-ref --verify --quiet "refs/heads/$branch"; then git branch -D "$branch" >/dev/null; fi
  : > "$tmp/calls"
  bash scripts/update-runtime-image-pr.sh "$tmp/report.json" > "$tmp/out" 2> "$tmp/err" || { cat "$tmp/err" >&2; return 1; }
 }
 # An orphan push after PR creation failure is recovered without a new commit.
 if PR_FAIL=1 run_update; then echo 'Expected PR API failure' >&2; exit 1; fi
-orphan=$(git rev-parse origin/automation/runtime-images)
+orphan=$(git rev-parse "origin/$branch")
 run_update
-[[ $(git rev-parse origin/automation/runtime-images) == "$orphan" ]]
-head1=$(git rev-parse origin/automation/runtime-images)
-grep -q 'pr create' "$tmp/calls"
-# New PR dispatches both CI workflows; each endpoint is independently checked.
-[[ $(grep -c 'workflow run' "$tmp/calls") == 2 ]]
-# Existing CI may be on an earlier API page; no duplicate dispatch is allowed.
-for workflow in go.yml golangci-lint.yml; do printf '{"workflow_runs":[]}\n' >> "$tmp/runs-$workflow.json"; done
+[[ $(git rev-parse "origin/$branch") == "$orphan" ]]
+head1=$(git rev-parse "origin/$branch")
+grep -q -- '--method POST' "$tmp/calls"
+assert_no_call 'workflow run'
 run_update
-[[ $(git rev-parse origin/automation/runtime-images) == "$head1" ]]
-assert_no_call 'pr create|pr edit|workflow run'
-# Different candidates append a commit and edit the existing PR, never force push.
+[[ $(git rev-parse "origin/$branch") == "$head1" ]]
+assert_no_call 'workflow run|--method POST|--method PATCH'
+# Even a matching marker cannot authorize adoption of a different PR author.
+cp "$tmp/prs.json" "$tmp/owned-pr.json"
+jq '.[0].user.id=123' "$tmp/owned-pr.json" > "$tmp/prs.json"
+if run_update; then echo 'Adopted a PR created by another author' >&2; exit 1; fi
+assert_no_call 'workflow run|--method POST|--method PATCH'
+cp "$tmp/owned-pr.json" "$tmp/prs.json"
+# A push followed by a failed edit is recovered without adding another commit.
 jq '.images.DefaultEmulatorImage.image="e:3"' "$tmp/report.json" > "$tmp/new.json"; mv "$tmp/new.json" "$tmp/report.json"
-rm -f "$tmp"/runs-*.json
-# PR update succeeds but a partial CI dispatch fails; retry dispatches only missing CI.
-if CI_FAIL_LINT=1 run_update; then echo 'Expected dispatch failure' >&2; exit 1; fi
-before_retry=$(git rev-parse origin/automation/runtime-images)
+if PR_FAIL=1 run_update; then echo 'Expected PR edit failure' >&2; exit 1; fi
+before_retry=$(git rev-parse "origin/$branch")
 run_update
-[[ $(git rev-parse origin/automation/runtime-images) == "$before_retry" ]]
-[[ $(grep -c 'workflow run' "$tmp/calls") == 1 ]]
-head2=$(git rev-parse origin/automation/runtime-images)
+[[ $(git rev-parse "origin/$branch") == "$before_retry" ]]
+grep -q -- '--method PATCH' "$tmp/calls"
+assert_no_call 'workflow run|--method POST'
+head2=$(git rev-parse "origin/$branch")
 git merge-base --is-ancestor "$head1" "$head2"
-assert_no_call 'pr edit'
-assert_no_call 'pr create'
+# If discovery returns to the old candidate after a failed edit, the live
+# branch contents must be repaired even though the PR marker already matches.
+jq '.images.DefaultEmulatorImage.image="e:3.1"' "$tmp/report.json" > "$tmp/new.json"; mv "$tmp/new.json" "$tmp/report.json"
+if PR_FAIL=1 run_update; then echo 'Expected PR edit failure' >&2; exit 1; fi
+pushed=$(git rev-parse "origin/$branch")
+git show "origin/$branch:runtime-images.json" | jq -e '.DefaultEmulatorImage=="e:3.1"' >/dev/null
+jq '.images.DefaultEmulatorImage.image="e:3"' "$tmp/report.json" > "$tmp/new.json"; mv "$tmp/new.json" "$tmp/report.json"
+run_update
+git merge-base --is-ancestor "$pushed" "origin/$branch"
+git show "origin/$branch:runtime-images.json" | jq -e '.DefaultEmulatorImage=="e:3"' >/dev/null
 # Closing a rejected candidate suppresses exactly that set.
 jq '.[0].state="closed"' "$tmp/prs.json" > "$tmp/new.json"; mv "$tmp/new.json" "$tmp/prs.json"
 run_update
-assert_no_call 'pr create|pr edit|workflow run'
+assert_no_call 'workflow run|--method POST|--method PATCH'
 # New candidate gets a new PR on the same additive branch history.
 jq '.images.DefaultEmulatorImage.image="e:4"' "$tmp/report.json" > "$tmp/new.json"; mv "$tmp/new.json" "$tmp/report.json"
 run_update
-grep -q 'pr create' "$tmp/calls"
-git merge-base --is-ancestor "$head2" origin/automation/runtime-images
+grep -q -- '--method POST' "$tmp/calls"
+git merge-base --is-ancestor "$head2" "origin/$branch"
+# Only trusted Go files may reach go generate, even with an allowed branch path.
+git checkout -q "$branch"
+printf '//go:generate unsafe-fixture\n' >> images_generated.go
+git add images_generated.go
+git commit -qm '[spanemuboost-runtime-images:v1] Untrusted generated input fixture'
+git push -q origin HEAD
+jq '.images.DefaultEmulatorImage.image="e:4.1"' "$tmp/report.json" > "$tmp/new.json"; mv "$tmp/new.json" "$tmp/report.json"
+run_update
+grep -q -- '--method PATCH' "$tmp/calls"
+if git show "origin/$branch:images_generated.go" | grep -q 'unsafe-fixture'; then
+  echo 'Untrusted directive survived regeneration' >&2
+  exit 1
+fi
 # Even an unchanged candidate marker cannot authorize manual branch changes.
-git checkout -q automation/runtime-images
+git checkout -q "$branch"
 printf 'manual work\n' > human.txt;git add human.txt;git commit -qm human;git push -q origin HEAD
 if run_update; then echo 'Accepted manual changes on matching fast path' >&2; exit 1; fi
-assert_no_call 'workflow run|pr create|pr edit'
+assert_no_call 'workflow run|--method POST|--method PATCH'
 # Historical closed PRs do not authorize a replacement branch, even if only
 # generated/data files differ. Deliberate fixture reset affects only local remote.
 git checkout -q main
-git push -q origin --delete automation/runtime-images
+git push -q origin --delete "$branch"
 git checkout -q -b replacement main
 jq '.DefaultEmulatorImage="e:9"' runtime-images.json > data.json;mv data.json runtime-images.json
 go generate .;git add runtime-images.json images_generated.go;git commit -qm 'human replacement'
-git push -q origin HEAD:automation/runtime-images
+git push -q origin "HEAD:$branch"
 jq '.[0].state="closed"' "$tmp/prs.json" > "$tmp/new.json";mv "$tmp/new.json" "$tmp/prs.json"
 jq '.images.DefaultEmulatorImage.image="e:5"' "$tmp/report.json" > "$tmp/new.json";mv "$tmp/new.json" "$tmp/report.json"
 if run_update; then echo 'Accepted replacement branch from historical PR ownership' >&2; exit 1; fi
-assert_no_call 'workflow run|pr create|pr edit'
-printf '9 offline PR lifecycle scenarios passed\n'
+assert_no_call 'workflow run|--method POST|--method PATCH'
+printf 'Offline App PR lifecycle scenarios passed\n'
