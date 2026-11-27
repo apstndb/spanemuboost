@@ -76,11 +76,11 @@ database accumulation matters.
 
 ### Spanner Omni (experimental)
 
-Omni defaults to `2026.r5.1`. Use `WithContainerImage(...)` to select another
-image, or select the latest known LTS with
-`WithContainerImage(LatestLTSOmniImage)`. Startup automatically selects flagless
-arguments for tags containing
-2026.r1 through r3 and GA arguments for other references. See [package documentation](https://pkg.go.dev/github.com/apstndb/spanemuboost#hdr-Omni_image_selection)
+Omni defaults to [`DefaultOmniImage`](https://pkg.go.dev/github.com/apstndb/spanemuboost#DefaultOmniImage).
+Use `WithContainerImage(...)` to select another image, or select the latest
+known LTS with `WithContainerImage(LatestLTSOmniImage)`. Startup automatically
+selects flagless arguments for tags containing 2026.r1 through r3 and GA
+arguments for other references. See [package documentation](https://pkg.go.dev/github.com/apstndb/spanemuboost#hdr-Omni_image_selection)
 for image selection and custom startup arguments.
 
 `Setup`, `Run`, `RunWithClients`, and `SetupWithClients` with `BackendOmni` start a Spanner Omni single-server container and use the public Spanner gRPC API on port `15000` for database creation, DDL application, DML setup, and managed client creation. This path is intended for integration tests that want a real Omni runtime without depending on the emulator.
