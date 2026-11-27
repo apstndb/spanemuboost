@@ -27,7 +27,6 @@ func captureOmniRequest(t *testing.T, options ...Option) testcontainers.GenericC
 }
 
 func TestOmniStartupConfiguration(t *testing.T) {
-	const latestImage = "us-docker.pkg.dev/spanner-omni/images/spanner-omni:2026.r5.1"
 	const oldImage = "us-docker.pkg.dev/spanner-omni/images/spanner-omni:2026.r3-beta"
 	const customImage = "example.invalid/omni@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
 	gaCmd := []string{"start-single-server", "--listen-addresses=0.0.0.0"}
@@ -39,7 +38,7 @@ func TestOmniStartupConfiguration(t *testing.T) {
 		cmd        []string
 		entrypoint []string
 	}{
-		{"latest default", nil, latestImage, gaCmd, nil},
+		{"latest default", nil, DefaultOmniImage, gaCmd, nil},
 		{"pre-GA beta selected automatically", []Option{WithContainerImage(oldImage)}, oldImage, legacyCmd, nil},
 		{"pre-GA tagged digest selected automatically", []Option{WithContainerImage(oldImage + "@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef")}, oldImage + "@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef", legacyCmd, nil},
 		{"digest defaults to GA", []Option{WithContainerImage(customImage)}, customImage, gaCmd, nil},
@@ -48,9 +47,9 @@ func TestOmniStartupConfiguration(t *testing.T) {
 			return nil
 		}))}, oldImage, legacyCmd, nil},
 		{"image-only customizer selects GA", []Option{WithContainerImage(oldImage), WithContainerCustomizers(testcontainers.CustomizeRequestOption(func(r *testcontainers.GenericContainerRequest) error {
-			r.Image = latestImage
+			r.Image = DefaultOmniImage
 			return nil
-		}))}, latestImage, gaCmd, nil},
+		}))}, DefaultOmniImage, gaCmd, nil},
 		{"in-place command customizer wins", []Option{WithContainerCustomizers(testcontainers.CustomizeRequestOption(func(r *testcontainers.GenericContainerRequest) error {
 			r.Image = oldImage
 			r.Cmd[1] = "--log-errors-inline"
@@ -69,11 +68,11 @@ func TestOmniStartupConfiguration(t *testing.T) {
 		{"command customizer wins", []Option{WithContainerCustomizers(testcontainers.CustomizeRequestOption(func(r *testcontainers.GenericContainerRequest) error {
 			r.Cmd = []string{"custom-subcommand", "custom-arg"}
 			return nil
-		}))}, latestImage, []string{"custom-subcommand", "custom-arg"}, nil},
+		}))}, DefaultOmniImage, []string{"custom-subcommand", "custom-arg"}, nil},
 		{"entrypoint customizer wins", []Option{WithContainerCustomizers(testcontainers.CustomizeRequestOption(func(r *testcontainers.GenericContainerRequest) error {
 			r.Entrypoint = []string{"custom-entrypoint"}
 			return nil
-		}))}, latestImage, gaCmd, []string{"custom-entrypoint"}},
+		}))}, DefaultOmniImage, gaCmd, []string{"custom-entrypoint"}},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			req := captureOmniRequest(t, tt.options...)
