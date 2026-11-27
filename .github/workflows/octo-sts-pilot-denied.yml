@@ -1,0 +1,15 @@
+name: Octo STS wrong-workflow test
+
+on:
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  verify:
+    if: github.repository == 'apstndb/spanemuboost' && github.ref == 'refs/heads/main'
+    permissions:
+      id-token: write
+    uses: ./.github/workflows/octo-sts-pilot.yml
+    with:
+      wrong-workflow: true
