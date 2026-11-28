@@ -9,11 +9,15 @@ on:
     branches: [automation/runtime-images-octo-sts]
     types: [completed]
   workflow_dispatch:
+    inputs:
+      pull_request:
+        description: 'PR number to recheck, or leave blank for the managed PR'
+        type: string
 
 permissions: {}
 
 concurrency:
-  group: runtime-image-automerge-${{ github.event.pull_request.number || 'managed' }}
+  group: runtime-image-automerge-${{ github.event.pull_request.number || inputs.pull_request || 'managed' }}
   cancel-in-progress: false
 
 jobs:
@@ -43,7 +47,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           EVENT_HEAD: ${{ github.event.pull_request.head.sha || github.event.workflow_run.head_sha }}
-          EVENT_PR: ${{ github.event.pull_request.number }}
+          EVENT_PR: ${{ github.event.pull_request.number || inputs.pull_request }}
         shell: bash
         run: |
           plan=$(bash scripts/merge-runtime-image-pr.sh)
@@ -70,7 +74,7 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           RESERVATION_TOKEN: ${{ steps.octo-sts.outputs.token }}
           EVENT_HEAD: ${{ github.event.pull_request.head.sha || github.event.workflow_run.head_sha }}
-          EVENT_PR: ${{ github.event.pull_request.number }}
+          EVENT_PR: ${{ github.event.pull_request.number || inputs.pull_request }}
           PLAN: ${{ steps.check.outputs.plan }}
         shell: bash
         run: bash scripts/merge-runtime-image-pr.sh "$PLAN"

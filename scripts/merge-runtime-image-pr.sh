@@ -43,11 +43,11 @@ if [[ -n "${EVENT_HEAD:-}" && "$EVENT_HEAD" != "$head" ]]; then
   skip 'event is for a different head'
 fi
 
-if ! jq -e --argjson bot_id "$bot_id" --argjson repo_id "$repo_id" --arg branch "$branch" '
-  .user.id==$bot_id or (.head.repo.id==$repo_id and .head.ref==$branch)
+if ! jq -e --argjson repo_id "$repo_id" --arg branch "$branch" '
+  .head.repo.id==$repo_id and .head.ref==$branch
 ' <<<"$pr" >/dev/null; then
   # Ordinary PRs still satisfy the four independently required CI checks.
-  [[ $# == 0 && "$GITHUB_EVENT_NAME" == pull_request_target ]] || skip 'ordinary PR'
+  [[ $# == 0 && "$GITHUB_EVENT_NAME" != workflow_run ]] || skip 'ordinary PR'
   # Commit statuses are shared by SHA. Never grant an ordinary-PR pass to
   # the same commit as an App candidate opened under another branch name.
   commit=$(gh api "repos/$repo/git/commits/$head")
@@ -99,11 +99,14 @@ check_workflow() {
   local workflow=$1 expected_jobs=$2 runs run id attempt jobs
   runs=$(gh api "repos/$repo/actions/workflows/$workflow/runs" --method GET --paginate --slurp \
     -f event=pull_request -f head_sha="$head" -f branch="$branch" -f per_page=100) || return 2
-  # Check the newest relevant run even if it is pending or failed.
+  # Check the newest relevant run even if it is pending or failed. Both
+  # workflows target main for PRs. The API can omit PR associations, but
+  # an explicit association must identify this PR.
   run=$(jq -ce --arg head "$head" --arg branch "$branch" --argjson repo_id "$repo_id" \
     --argjson bot_id "$bot_id" --argjson pr "$number" '
     [.[].workflow_runs[] | select(.event=="pull_request" and .head_sha==$head and .head_branch==$branch
-      and .head_repository.id==$repo_id and any(.pull_requests[]; .number==$pr and .base.ref=="main"))]
+      and .head_repository.id==$repo_id and
+        ((.pull_requests | length)==0 or any(.pull_requests[]; .number==$pr and .base.ref=="main")))]
     | max_by(.id) | select(.actor.id==$bot_id and .status=="completed" and .conclusion=="success")
   ' <<<"$runs") || return 1
   id=$(jq -er '.id | select(type=="number")' <<<"$run") || return 2

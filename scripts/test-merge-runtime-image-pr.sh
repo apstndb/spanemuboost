@@ -30,12 +30,13 @@ case "$2" in
       | if $scenario=="fork" then .head.repo.id=1
         elif ($scenario=="ordinary" or $scenario=="copied-tip")
           then .head.ref="topic" | .user={id:123,type:"User"}
+        elif $scenario=="ordinary-app" then .head.ref="other-app-task"
         elif $scenario=="armed" then .auto_merge={merge_method:"squash"}
         else . end
     ' ;;
   repos/apstndb/spanemuboost/git/commits/*)
     jq -n --arg head "$HEAD_SHA" --arg scenario "$SCENARIO" '
-      {sha:$head,message:(if $scenario=="ordinary" or $scenario=="unmarked" then "Topic"
+      {sha:$head,message:(if $scenario=="ordinary" or $scenario=="ordinary-app" or $scenario=="unmarked" then "Topic"
        else "[spanemuboost-runtime-images:v1] Fixture" end)}
     ' ;;
   repos/apstndb/spanemuboost/branches/main)
@@ -63,6 +64,8 @@ case "$2" in
       | if $scenario=="stale-ci" then .head_sha="old"
         elif $scenario=="manual-ci" then .event="workflow_dispatch"
         elif $scenario=="human-ci" then .actor.id=42
+        elif $scenario=="ci-without-pr-list" then .pull_requests=[]
+        elif $scenario=="ci-other-pr" then .pull_requests[0].number=124
         elif $scenario=="newer-pending" then [.,(.|.id=3|.status="in_progress"|.conclusion=null)]
         else [.] end
       | if type=="object" then [.] else . end
@@ -114,7 +117,7 @@ case "$2" in
   repos/apstndb/spanemuboost/statuses/*)
     [[ "$GH_TOKEN" == fixture-status && "$2" == "repos/apstndb/spanemuboost/statuses/$HEAD_SHA" ]]
     [[ "$*" == *context=runtime-image-merge-policy* && "$*" == *state=success* ]]
-    if [[ "$SCENARIO" != ordinary && "$SCENARIO" != armed ]]; then
+    if [[ "$SCENARIO" != ordinary && "$SCENARIO" != ordinary-app && "$SCENARIO" != armed ]]; then
       [[ $(cat "$MERGE_FIXTURE/writes") == reserve ]]
     fi
     printf 'status\n' >>"$MERGE_FIXTURE/writes" ;;
@@ -128,7 +131,7 @@ jq -e --arg head "$HEAD_SHA" --arg base "$BASE_SHA" \
   '. == {number:123,node:"fixture-node",head:$head,base:$base}' <<<"$plan" >/dev/null
 test ! -e "$fixture/writes"
 for scenario in no-pr draft other-bot fork unmarked rename extra-path stale-base stale-ci manual-ci \
-  human-ci newer-pending failed-job missing-job wrong-attempt wrong-job-head later-job-failed; do
+  human-ci ci-other-pr newer-pending failed-job missing-job wrong-attempt wrong-job-head later-job-failed; do
   result=$(SCENARIO=$scenario bash "$root/scripts/merge-runtime-image-pr.sh" "$plan")
   [[ -z "$result" && ! -e "$fixture/writes" ]]
 done
@@ -149,6 +152,7 @@ fi
 [[ $(cat "$fixture/writes") == reserve ]]
 rm -- "$fixture/writes"
 [[ "$(SCENARIO=partial-rerun bash "$root/scripts/merge-runtime-image-pr.sh")" == "$plan" ]]
+[[ "$(SCENARIO=ci-without-pr-list bash "$root/scripts/merge-runtime-image-pr.sh")" == "$plan" ]]
 SCENARIO=pass bash "$root/scripts/merge-runtime-image-pr.sh" "$plan"
 [[ $(cat "$fixture/writes") == $'reserve\nstatus' ]]
 rm -- "$fixture/writes"
@@ -158,7 +162,13 @@ rm -- "$fixture/writes"
 GITHUB_EVENT_NAME=pull_request_target EVENT_PR=123 SCENARIO=copied-tip \
   bash "$root/scripts/merge-runtime-image-pr.sh"
 test ! -e "$fixture/writes"
-GITHUB_EVENT_NAME=pull_request_target EVENT_PR=123 SCENARIO=ordinary \
+for scenario in ordinary ordinary-app; do
+  GITHUB_EVENT_NAME=pull_request_target EVENT_PR=123 SCENARIO=$scenario \
+    bash "$root/scripts/merge-runtime-image-pr.sh"
+  [[ $(cat "$fixture/writes") == status ]]
+  rm -- "$fixture/writes"
+done
+GITHUB_EVENT_NAME=workflow_dispatch EVENT_PR=123 SCENARIO=ordinary \
   bash "$root/scripts/merge-runtime-image-pr.sh"
 [[ $(cat "$fixture/writes") == status ]]
 printf 'Offline native auto-merge gate scenarios passed\n'

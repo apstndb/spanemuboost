@@ -95,11 +95,14 @@ and images_generated.go. The workflow verifies four successful CI jobs at
 that head using the latest result of each job in the regular pull_request
 runs. It reserves native GitHub squash auto-merge at that exact SHA via
 Octo STS and publishes the required image policy status for the same SHA.
-GitHub enforces the status plus Go build-and-test, lint, Omni smoke, and
-Podman smoke. Ordinary PRs receive the status from the trusted base workflow
+GitHub requires the branch to be current with main and enforces the status
+plus Go build-and-test, lint, Omni smoke, and Podman smoke. All five checks
+must come from GitHub Actions. Only the updater App can create or update the
+managed branch. Ordinary PRs receive the status from the trusted base workflow
 and can use manual GitHub auto-merge. Managed commits always require all of
-the image-specific checks. Make an update PR a draft to hold it, or manually
-dispatch the workflow to re-evaluate its current head. Offline tests exercise
+the image-specific checks. To hold an update PR, make it a draft. Dispatch the
+workflow on main to re-evaluate the current update after marking it ready, or
+supply a PR number to refresh the status for a particular ordinary PR. Offline tests exercise
 discovery, publication, approval of ordinary PRs, and native reservations.
 
 During detection, optional GH_TOKEN (then GITHUB_TOKEN) authenticates release metadata requests,
