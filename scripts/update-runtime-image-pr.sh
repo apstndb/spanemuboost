@@ -50,11 +50,12 @@ if [[ "$ref_rc" == 0 ]]; then
 else
  [[ "$ref_rc" == 2 ]] || exit 2
 fi
+jq -S '.images|map_values(.image)' "$scratch/report.json" > "$scratch/images.json"
 if [[ -n "$matching" ]]; then
  [[ "$ref_rc" == 0 && $(git rev-parse "origin/$branch") == "$matching" ]] || { echo 'PR branch moved; retry discovery' >&2; exit 2; }
  # A successful push and failed PR edit can leave the candidate marker stale.
- if git show "origin/$branch:runtime-images.json" |
-    jq -e --slurpfile report "$scratch/report.json" '. == ($report[0].images|map_values(.image))' >/dev/null; then
+ if git merge-base --is-ancestor "origin/$base" "origin/$branch" &&
+    git show "origin/$branch:runtime-images.json" | cmp -s - "$scratch/images.json"; then
   echo 'Existing PR covers these candidates'; exit 0
  fi
 fi
@@ -66,7 +67,7 @@ git -c commit.gpgsign=false merge --no-edit -m '[spanemuboost-runtime-images:v1]
 # The generator scans Go files for directives. Restore both inputs from the
 # trusted base before processing the report, including their file types.
 git restore --source "origin/$base" -- runtime-images.json images_generated.go
-jq '.images|map_values(.image)' "$scratch/report.json" > runtime-images.json
+cp "$scratch/images.json" runtime-images.json
 go generate .
 git diff --name-only > "$scratch/paths"
 if grep -Ev '^(runtime-images.json|images_generated.go)$' "$scratch/paths"; then exit 2; fi

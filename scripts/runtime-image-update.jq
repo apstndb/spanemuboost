@@ -12,4 +12,4 @@ def pr_body($marker;$versions):
   $marker + "\n" + $versions + "\n\nUpdate pinned runtime image references and regenerate public constants offline.\n\n" +
   "| Runtime | Current | Candidate |\n|---|---|---|\n" +
   ([.images|to_entries[]|select(.value.update_available)|"| " + (.key|lane) + " | `" + .value.current_image + "` | `" + .value.image + "` |"]|join("\n")) +
-  "\n\nRegistry availability is not runtime validation or an official announcement. Review the build, Emulator, Omni Latest and Latest LTS CI before merging. Omni integration remains experimental. This PR is managed automatically; closing it dismisses this candidate set. No automatic merge or release.\n";
+  "\n\nRegistry availability is not runtime validation or an official announcement. Review the build, Emulator, Omni Latest and Latest LTS CI before merging. Omni integration remains experimental. This PR is managed automatically; closing it dismisses this candidate set. This PR can squash merge automatically after the required CI passes for its current head. Mark it as draft to hold the merge.\n";

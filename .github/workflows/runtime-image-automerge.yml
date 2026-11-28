@@ -1,0 +1,80 @@
+name: Runtime image auto-merge
+
+on:
+  pull_request_target:
+    branches: [main]
+    types: [opened, synchronize, reopened, ready_for_review, edited]
+  workflow_run:
+    workflows: [Go, golangci-lint]
+    branches: [automation/runtime-images-octo-sts]
+    types: [completed]
+  workflow_dispatch:
+    inputs:
+      pull_request:
+        description: 'PR number to recheck, or leave blank for the managed PR'
+        type: string
+
+permissions: {}
+
+concurrency:
+  group: runtime-image-automerge-${{ github.event.pull_request.number || inputs.pull_request || 'managed' }}
+  cancel-in-progress: false
+
+jobs:
+  merge:
+    if: >-
+      github.repository == 'apstndb/spanemuboost' && github.ref == 'refs/heads/main' &&
+      (github.event_name != 'workflow_run' ||
+      (github.event.workflow_run.event == 'pull_request' &&
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.head_repository.id == github.event.repository.id))
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read
+      actions: read
+      id-token: write
+      statuses: write
+    steps:
+      # Both privileged events use main's code. Never check out the PR branch.
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - name: Verify the candidate and CI
+        id: check
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT_HEAD: ${{ github.event.pull_request.head.sha || github.event.workflow_run.head_sha }}
+          EVENT_PR: ${{ github.event.pull_request.number || inputs.pull_request }}
+        shell: bash
+        run: |
+          plan=$(bash scripts/merge-runtime-image-pr.sh)
+          if [[ -n "$plan" ]]; then
+            printf 'plan=%s\n' "$plan" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Verify the broker hostname
+        if: steps.check.outputs.plan != ''
+        env:
+          STS_HOST: ${{ vars.OCTO_STS_HOST }}
+        run: |
+          grep -Fxq -- "audience: $STS_HOST" .github/chainguard/runtime-image-automerge.sts.yaml
+      - name: Get the reservation token
+        if: steps.check.outputs.plan != ''
+        id: octo-sts
+        uses: octo-sts/action@f603d3be9d8dd9871a265776e625a27b00effe05 # v1.1.1
+        with:
+          domain: ${{ vars.OCTO_STS_HOST }}
+          scope: ${{ github.repository }}
+          identity: runtime-image-automerge
+      - name: Reserve native squash merge and publish the gate
+        if: steps.check.outputs.plan != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RESERVATION_TOKEN: ${{ steps.octo-sts.outputs.token }}
+          EVENT_HEAD: ${{ github.event.pull_request.head.sha || github.event.workflow_run.head_sha }}
+          EVENT_PR: ${{ github.event.pull_request.number || inputs.pull_request }}
+          PLAN: ${{ steps.check.outputs.plan }}
+        shell: bash
+        run: bash scripts/merge-runtime-image-pr.sh "$PLAN"

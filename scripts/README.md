@@ -64,8 +64,8 @@ operation, separate from the offline tests in the build-and-test job.
 `runtime-images.json` is the single source for the three public image constants.
 Run `go generate .` after editing it. Generation uses only the local data and
 standard Go library, writes `images_generated.go`, and never queries a registry.
-CI checks that the generated file matches the data. Discovery reads the data
-file directly; the generated Go API names and values remain unchanged.
+Keep the JSON keys sorted with `jq -S`, as the updater does. CI checks the
+canonical JSON and verifies that the generated Go file matches it.
 
 ## Scheduled update pull requests
 
@@ -84,15 +84,27 @@ An existing branch must have a managed tip commit marker, including when no PR
 exists after an interrupted update. Manual tips or unrelated changes stop
 automation.
 
-Only the publish job can request an OIDC identity. The broker uses the policy
-in .github/chainguard/runtime-images.sts.yaml to issue a token scoped to this
-repository with Contents and Pull requests write permissions. Git pushes and
-PR API requests both use the installation token. The resulting pull_request
-events start the regular Go and lint workflows. The updater leaves review,
-merge, and release decisions to maintainers. Offline tests use isolated git
-remotes and fake GitHub clients.
+The publish job exchanges its OIDC identity for a repository-scoped Octo STS
+token with Contents and Pull requests write permissions. Git pushes and PR API
+requests both use that token. The resulting pull_request events start Go and
+lint CI.
+
+The auto-merge workflow checks the App author, managed branch and markers.
+The head must include current main and modify exactly runtime-images.json
+and images_generated.go. The workflow verifies four successful CI jobs at
+that head using the latest result of each job in the regular pull_request
+runs. It reserves native GitHub squash auto-merge at that exact SHA via
+Octo STS and publishes the required image policy status for the same SHA.
+GitHub requires the branch to be current with main and enforces the status
+plus Go build-and-test, lint, Omni smoke, and Podman smoke. All five checks
+must come from GitHub Actions. Only the updater App can create or update the
+managed branch. Ordinary PRs receive the status from the trusted base workflow
+and can use manual GitHub auto-merge. Managed commits always require all of
+the image-specific checks. To hold an update PR, make it a draft. Dispatch the
+workflow on main to re-evaluate the current update after marking it ready, or
+supply a PR number to refresh the status for a particular ordinary PR. Offline tests exercise
+discovery, publication, approval of ordinary PRs, and native reservations.
 
 During detection, optional GH_TOKEN (then GITHUB_TOKEN) authenticates release metadata requests,
 not OCI registries or Omni docs. Bash/curl/Go/git are provided by the runner;
-crane, jq and gh remain pinned through mise. Before merging an update, inspect
-all runtime CI and review the chosen versions. Omni remains experimental.
+crane, jq and gh remain pinned through mise. Omni remains experimental.

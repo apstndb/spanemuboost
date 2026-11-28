@@ -1,0 +1,13 @@
+issuer: https://token.actions.githubusercontent.com
+audience: octo-sts-929353669434.asia-northeast1.run.app
+subject_pattern: 'repo:(apstndb/spanemuboost|apstndb@803393/spanemuboost@902526165):ref:refs/heads/main'
+claim_pattern:
+  repository_owner_id: '803393'
+  repository_id: '902526165'
+  ref: refs/heads/main
+  event_name: 'workflow_run|workflow_dispatch'
+  workflow_ref: 'apstndb/spanemuboost/\.github/workflows/runtime-image-automerge\.yml@refs/heads/main'
+app: '5955906'
+permissions:
+  contents: write
+  pull_requests: write
