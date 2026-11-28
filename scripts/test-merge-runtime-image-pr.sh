@@ -44,8 +44,6 @@ case "$2" in
     else
       echo '{"protected":true,"protection":{"required_status_checks":{"contexts":["lint","omni-smoke","runtime-image-merge-policy","podman-smoke","build-and-test"]}}}'
     fi ;;
-  repos/apstndb/spanemuboost)
-    echo '{"allow_auto_merge":true,"allow_squash_merge":true,"allow_merge_commit":false,"allow_rebase_merge":false}' ;;
   repos/apstndb/spanemuboost/compare/*)
     [[ "$2" == "repos/apstndb/spanemuboost/compare/$BASE_SHA...$HEAD_SHA" ]]
     jq -n --arg base "$BASE_SHA" --arg scenario "$SCENARIO" '
@@ -97,6 +95,14 @@ case "$2" in
       echo '[{"repositories":[{"id":902526165}]}]'
     fi ;;
   graphql)
+    if [[ "$*" == *autoMergeAllowed* ]]; then
+      [[ "$GH_TOKEN" == fixture-status && "$*" == *owner=apstndb* && "$*" == *name=spanemuboost* ]]
+      jq -n --arg scenario "$SCENARIO" '
+        {data:{repository:{autoMergeAllowed:($scenario!="native-disabled"),
+          squashMergeAllowed:true,mergeCommitAllowed:false,rebaseMergeAllowed:false}}}
+      '
+      exit 0
+    fi
     [[ "$GH_TOKEN" == fixture-app ]]
     [[ "$*" == *enablePullRequestAutoMerge* && "$*" == *mergeMethod:SQUASH*
        && "$*" == *"head=$HEAD_SHA"* && "$*" == *id=fixture-node* ]]
@@ -129,7 +135,7 @@ done
 stale_plan=$(jq -c '.head="old"' <<<"$plan")
 [[ -z "$(bash "$root/scripts/merge-runtime-image-pr.sh" "$stale_plan")" ]]
 [[ -z "$(EVENT_HEAD=old bash "$root/scripts/merge-runtime-image-pr.sh" "$plan")" ]]
-for scenario in broad-token no-required-gate; do
+for scenario in broad-token no-required-gate native-disabled; do
   if SCENARIO=$scenario bash "$root/scripts/merge-runtime-image-pr.sh" "$plan"; then
     echo "Accepted ineligible scenario $scenario" >&2
     exit 1

@@ -143,8 +143,17 @@ gh api "repos/$repo/branches/main" |
     .protected and ((.protection.required_status_checks.contexts // [])
     | contains(["build-and-test","lint","omni-smoke","podman-smoke",$context]))
   ' >/dev/null
-gh api "repos/$repo" |
-  jq -e '.allow_auto_merge and .allow_squash_merge and (.allow_merge_commit|not) and (.allow_rebase_merge|not)' >/dev/null
+# The REST repository response omits merge settings for read-only callers.
+# shellcheck disable=SC2016
+gh api graphql -f query='
+  query($owner:String!,$name:String!) {
+    repository(owner:$owner,name:$name) {
+      autoMergeAllowed squashMergeAllowed mergeCommitAllowed rebaseMergeAllowed
+    }
+  }
+' -f owner="${repo%%/*}" -f name="${repo#*/}" |
+  jq -e '.data.repository | .autoMergeAllowed and .squashMergeAllowed
+    and .mergeCommitAllowed==false and .rebaseMergeAllowed==false' >/dev/null
 
 # Check the minted token's scope before making the GraphQL reservation.
 GH_TOKEN=${RESERVATION_TOKEN:?} gh api installation/repositories --paginate --slurp |
