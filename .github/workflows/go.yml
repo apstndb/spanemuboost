@@ -29,8 +29,10 @@ jobs:
       - name: Test image discovery (offline)
         run: mise run images:test
 
-      - name: Check generated image constants
+      - name: Check image JSON and generated constants
+        shell: bash
         run: |
+          jq -S . runtime-images.json | diff -u runtime-images.json -
           go generate .
           git diff --exit-code -- images_generated.go
 

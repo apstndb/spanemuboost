@@ -89,11 +89,22 @@ orphan=$(git rev-parse "origin/$branch")
 run_update
 [[ $(git rev-parse "origin/$branch") == "$orphan" ]]
 head1=$(git rev-parse "origin/$branch")
+jq -S . runtime-images.json | cmp - runtime-images.json
 grep -q -- '--method POST' "$tmp/calls"
 assert_no_call 'workflow run'
 run_update
 [[ $(git rev-parse "origin/$branch") == "$head1" ]]
 assert_no_call 'workflow run|--method POST|--method PATCH'
+# A matching PR body does not excuse noncanonical key order on the branch.
+git checkout -q -b "$branch" "origin/$branch"
+jq '{LatestLTSOmniImage,DefaultEmulatorImage,DefaultOmniImage}' runtime-images.json > "$tmp/new.json"
+mv "$tmp/new.json" runtime-images.json
+git add runtime-images.json
+git commit -qm '[spanemuboost-runtime-images:v1] Noncanonical input fixture'
+git push -q origin HEAD
+run_update
+jq -S . runtime-images.json | cmp - runtime-images.json
+head1=$(git rev-parse "origin/$branch")
 # Even a matching marker cannot authorize adoption of a different PR author.
 cp "$tmp/prs.json" "$tmp/owned-pr.json"
 jq '.[0].user.id=123' "$tmp/owned-pr.json" > "$tmp/prs.json"
@@ -110,6 +121,15 @@ grep -q -- '--method PATCH' "$tmp/calls"
 assert_no_call 'workflow run|--method POST'
 head2=$(git rev-parse "origin/$branch")
 git merge-base --is-ancestor "$head1" "$head2"
+# A candidate still needs a new CI head after main advances.
+git checkout -q main
+git commit -qm 'Advance main' --allow-empty
+git push -q origin main
+GITHUB_SHA=$(git rev-parse main)
+run_update
+git merge-base --is-ancestor "$GITHUB_SHA" "origin/$branch"
+grep -q -- '--method PATCH' "$tmp/calls"
+assert_no_call '--method POST|workflow run'
 # If discovery returns to the old candidate after a failed edit, the live
 # branch contents must be repaired even though the PR marker already matches.
 jq '.images.DefaultEmulatorImage.image="e:3.1"' "$tmp/report.json" > "$tmp/new.json"; mv "$tmp/new.json" "$tmp/report.json"

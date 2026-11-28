@@ -14,6 +14,10 @@ run = "bash scripts/detect-runtime-images.sh --check"
 quiet = true
 
 [tasks."images:test"]
-description = "Test image discovery offline with fixture OCI/HTTP clients"
-run = ["bash scripts/test-detect-runtime-images.sh", "bash scripts/test-update-runtime-image-pr.sh"]
+description = "Test image discovery and PR automation offline"
+run = [
+  "bash scripts/test-detect-runtime-images.sh",
+  "bash scripts/test-update-runtime-image-pr.sh",
+  "bash scripts/test-merge-runtime-image-pr.sh",
+]
 quiet = true
